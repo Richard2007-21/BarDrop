@@ -1,0 +1,120 @@
+import XCTest
+import AppKit
+@testable import BarDrop
+
+/// Stapel: öffnen, Dateien auswählen, lösen, entfernen, zusammenfassen.
+final class StackTests: XCTestCase {
+    private var base: URL!
+    private var store: ShelfStore!
+    private var ui: ShelfUIModel!
+    private var actions: ShelfActions!
+
+    override func setUp() {
+        super.setUp()
+        base = FileManager.default.temporaryDirectory.appendingPathComponent("BarDropStack-\(UUID().uuidString)")
+        AppSettings.shared.stackMultiple = true
+        AppSettings.shared.stackThreshold = 2
+        AppSettings.shared.keepAfterAction = false
+        store = ShelfStore(baseDirectory: base)
+        ui = ShelfUIModel()
+        actions = ShelfActions(store: store, ui: ui, settings: AppSettings.shared)
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: base)
+        super.tearDown()
+    }
+
+    /// Legt `count` Textdateien als einen Stapel ab.
+    private func makeStack(_ count: Int) -> ShelfEntry {
+        let folder = base.appendingPathComponent("src-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let urls = (1...count).map { i -> URL in
+            let u = folder.appendingPathComponent("datei\(i).txt")
+            try? Data("\(i)".utf8).write(to: u)
+            return u
+        }
+        let pb = NSPasteboard(name: NSPasteboard.Name("BarDropStack-\(UUID().uuidString)"))
+        defer { pb.releaseGlobally() }
+        pb.clearContents()
+        pb.writeObjects(urls as [NSURL])
+        let done = expectation(description: "Ingest")
+        store.ingest(from: pb) { _ in done.fulfill() }
+        wait(for: [done], timeout: 10)
+        return store.entries[0]
+    }
+
+    func testSelectAllAndRemoveInsideStack() {
+        let stack = makeStack(4)
+        actions.openStack(stack)
+        XCTAssertTrue(actions.isInStack)
+
+        actions.selectAllCurrent()
+        XCTAssertEqual(ui.memberSelection.count, 4)
+        XCTAssertEqual(actions.currentSelectionURLs.count, 4)
+
+        // Zwei abwählen, Rest entfernen
+        let files = actions.stackFiles
+        actions.selectMember(files[0], modifiers: .command)
+        actions.selectMember(files[1], modifiers: .command)
+        XCTAssertEqual(ui.memberSelection.count, 2)
+        actions.removeCurrentSelection()
+
+        XCTAssertEqual(store.entries.count, 1)
+        XCTAssertEqual(store.entries[0].files.count, 2)
+    }
+
+    func testShiftSelectionAndDetach() {
+        let stack = makeStack(5)
+        actions.openStack(stack)
+        let files = actions.stackFiles
+
+        actions.selectMember(files[1], modifiers: [])
+        actions.selectMember(files[3], modifiers: .shift)
+        XCTAssertEqual(ui.memberSelection, Set(files[1...3].map(\.id)))
+
+        actions.detachMembers(actions.selectedMembers)
+        XCTAssertEqual(store.entries.count, 4, "1 Stapel mit 2 Dateien + 3 gelöste Einträge")
+        XCTAssertEqual(store.entries[0].files.count, 2)
+    }
+
+    func testArrowKeysMoveSelectionInStack() {
+        let stack = makeStack(3)
+        actions.openStack(stack)
+        actions.moveCurrentSelection(by: 1, extend: false)
+        XCTAssertEqual(actions.selectedMembers.first?.id, actions.stackFiles[0].id)
+        actions.moveCurrentSelection(by: 1, extend: true)
+        XCTAssertEqual(ui.memberSelection.count, 2)
+    }
+
+    func testClosingStackKeepsShelfAndClearsMemberSelection() {
+        let stack = makeStack(3)
+        actions.openStack(stack)
+        actions.selectAllCurrent()
+        actions.closeStack()
+        XCTAssertFalse(actions.isInStack)
+        XCTAssertTrue(ui.memberSelection.isEmpty)
+        XCTAssertEqual(ui.selection, [stack.id], "Der verlassene Stapel ist danach ausgewählt")
+    }
+
+    func testMergingSelectionBuildsOneStack() {
+        AppSettings.shared.stackThreshold = 10   // einzeln ablegen
+        _ = makeStack(3)
+        XCTAssertEqual(store.entries.count, 3)
+
+        actions.mergeSelection(store.entries)    // „Als Stapel zusammenfassen“
+
+        XCTAssertEqual(store.entries.count, 1)
+        XCTAssertEqual(store.entries[0].files.count, 3)
+        XCTAssertTrue(ui.selection.isEmpty)
+    }
+
+    func testRemovingFilesAfterActionKeepsOthers() {
+        let stack = makeStack(3)
+        let url = stack.files[0].url
+        store.removeFiles(at: [url], deleteOwnedAfter: 0)
+        XCTAssertEqual(store.entries.count, 1)
+        XCTAssertEqual(store.entries[0].files.count, 2)
+        XCTAssertFalse(store.entries[0].files.contains { $0.url == url })
+    }
+}

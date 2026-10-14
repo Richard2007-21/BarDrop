@@ -1,0 +1,76 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.ref) || 'release' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Tests (Import, Speichern, Stapel)
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee test.log || {
+            grep -E "error:|failed" test.log | sort -u | head -40 | while IFS= read -r line; do
+              echo "::error::${line#*/Tests/}"
+            done
+            exit 1
+          }
+          # Zusammenfassung sichtbar machen (bestanden, übersprungen)
+          grep -E "Executed [0-9]+ tests|skipped" test.log | sort -u | tail -8 | while IFS= read -r line; do
+            echo "::notice::${line}"
+          done
+
+      - name: App und DMG bauen
+        run: |
+          chmod +x scripts/build_app.sh
+          set -o pipefail
+          ./scripts/build_app.sh 2>&1 | tee build.log || {
+            # Compilerfehler als Annotationen ausgeben, damit sie in der Übersicht sichtbar sind
+            grep -E "error:" build.log | sort -u | head -40 | while IFS= read -r line; do
+              echo "::error::${line#*/Sources/}"
+            done
+            exit 1
+          }
+
+      - name: DMG als Build-Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: BarDrop-dmg
+          path: build/BarDrop.dmg
+
+      - name: GitHub Release aktualisieren
+        # Pull Requests werden nur gebaut und getestet, nicht veröffentlicht
+        if: ${{ github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[skip release]') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          TAG="v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" build/BarDrop.dmg --clobber
+            gh release edit "$TAG" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$TAG" build/BarDrop.dmg \
+              --title "BarDrop $VERSION" \
+              --notes-file RELEASE_NOTES.md \
+              --target "$GITHUB_SHA" \
+              --latest
+          fi
