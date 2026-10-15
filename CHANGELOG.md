@@ -1,12 +1,15 @@
 # Changelog
 
 ## 1.30.0-beta.7
+* New introduction built like Settings: a 680 × 620 window in the middle of the screen, the five steps in a sidebar that tick themselves off, the same cards, switches and buttons, light and dark like the system
+* Introduction pages: Welcome (how it works, language, screen edge, open at login), Drop and Drag Out (one short exercise each), Shortcut (try the shortcut, the most important keys) and Discover More (action bar, stacks, convert, pin, cleanup with the current setting, Settings)
+* Back and Continue at the bottom; any step can also be opened from the sidebar
+* Versions read “1.30.0 Beta 7” everywhere in the app and in the titles of new GitHub releases
 * All texts checked in English and German; both languages say the same, glossary in docs/GLOSSARY.md
 * About BarDrop: automatic updates are described with the two-day wait; with automatic updates off, an available version no longer claims to install by itself
 * Reset all settings: the dialog mentions that beta versions are kept
 * Items: deletion of stored copies, images, links and text 15 minutes after dragging out or an action is described; ⌘Z brings them back within 15 minutes
 * Title Case for Convert menu items (“Audio Only (M4A)”, “Plain Text (TXT)”, “MP4 (HEVC, Smaller)”) and the “Let’s Go” button
-* Introduction: stacks are formed from items, not only files
 * Info.plist copyright no longer contains German text
 * README: GitHub connections, Xcode 26 to build, update timing, ⌘↑ in the keyboard table; American spelling “gray”
 
