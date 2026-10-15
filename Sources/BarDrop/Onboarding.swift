@@ -150,9 +150,15 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         guard !finished else { return }
         finished = true
         settings.didLaunchBefore = true
-        // Die Beispieldatei hat ihren Zweck erfüllt
-        let leftovers = sampleEntries.intersection(Set(store.entries.map(\.id)))
-        if !leftovers.isEmpty { store.discard(leftovers) }
+        // Die Beispieldatei hat ihren Zweck erfüllt. Nur sie selbst entfernen, nicht was
+        // inzwischen dazugelegt wurde (z. B. eigene Dateien, die mit ihr einen Stapel bilden)
+        let name = model.sampleURL?.lastPathComponent
+        let sampleFiles = store.entries
+            .filter { sampleEntries.contains($0.id) }
+            .flatMap(\.files)
+            .filter { $0.url.lastPathComponent == name }
+            .map(\.url)
+        if !sampleFiles.isEmpty { store.forgetFiles(at: sampleFiles) }
         if let url = model.sampleURL { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
 
         if completed && model.launchAtLogin && SMAppService.mainApp.status != .enabled {

@@ -44,6 +44,17 @@ final class StackTests: XCTestCase {
         return store.entries[0]
     }
 
+    /// Wie das Aufräumen der Einführung: Nur die genannte Datei verlässt den Stapel,
+    /// die übrigen bleiben samt Eintrag erhalten.
+    func testForgettingOneFileKeepsRestOfStack() {
+        let stack = makeStack(3)
+        let first = stack.files[0].url
+        store.forgetFiles(at: [first])
+        XCTAssertEqual(store.entries.count, 1)
+        XCTAssertEqual(store.entries[0].id, stack.id)
+        XCTAssertEqual(store.entries[0].files.map(\.url), Array(stack.files.dropFirst()).map(\.url))
+    }
+
     func testSelectAllAndRemoveInsideStack() {
         let stack = makeStack(4)
         actions.openStack(stack)
