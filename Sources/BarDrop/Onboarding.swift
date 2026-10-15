@@ -239,7 +239,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 
     /// Fenster wie die Einstellungen: hohe, durchsichtige Titelleiste, leicht durchscheinend,
     /// feste Größe, mittig. Bleibt über anderen Fenstern, damit man beim Üben zum Rand ziehen kann.
-    private func makeWindow() -> NSWindow {
+    /// Ohne „private“ für den Test, der das echte Fenster abbildet
+    func makeWindow() -> NSWindow {
         let window = IntroWindow(contentRect: NSRect(origin: .zero, size: Self.size),
                                  styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
                                  backing: .buffered, defer: false)
