@@ -53,7 +53,7 @@ Images from the browser, links and text work just like files. On first launch a 
 >
 > To allow it once: close the message, then go to **System Settings → Privacy & Security → Open Anyway**.
 
-After that, BarDrop keeps itself up to date in the background while you’re not using it. Both this and early beta versions can be set in Settings → About BarDrop.
+After that, BarDrop keeps itself up to date in the background while you’re not using it, two days after each release. Both this and early beta versions can be set in Settings → About BarDrop.
 
 ## Features
 
@@ -107,7 +107,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 
 ## Privacy
 
-BarDrop collects no data and sends nothing about you. The shelf lives only on your Mac in `~/Library/Application Support/BarDrop`. The only internet connection is the update check on GitHub, which you can turn off. Images and links from the web are only downloaded when you drag them into the shelf yourself.
+BarDrop collects no data and sends nothing about you. The shelf lives only on your Mac in `~/Library/Application Support/BarDrop`. BarDrop only connects to GitHub: to check for updates, which you can turn off, and to load “What’s new” when you open Settings → About BarDrop. Images and links from the web are only downloaded when you drag them into the shelf yourself.
 
 ## Build it yourself
 
@@ -118,7 +118,7 @@ cd BarDrop
 swift test                    # automated tests
 ```
 
-Requires macOS 14 and Xcode 15 or later. Every push to `main` builds the app, runs the tests and publishes the DMG as a release of the version in [`VERSION`](Resources/VERSION).
+BarDrop runs on macOS 14 or later; building it requires Xcode 26 or later. Every push to `main` builds the app, runs the tests and publishes the DMG as a release of the version in [`VERSION`](Resources/VERSION).
 
 ### Development
 

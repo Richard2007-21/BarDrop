@@ -1,5 +1,5 @@
 * Items BarDrop can’t read are kept, and their files are no longer cleaned up
-* Large files from Photos and other apps are accepted for as long as data keeps arriving
+* Large files from Photos and other apps are accepted for as long as data keeps arriving, for up to 30 minutes
 * The introduction removes only its sample image at the end, never files you added to it
 * Open at login in the introduction shows the real setting; turning it off and clicking Done turns it off
 * ⌘W closes the introduction, and the sample image is named in the chosen language
@@ -11,7 +11,7 @@
 <!-- de -->
 
 * Einträge, die BarDrop nicht lesen kann, bleiben erhalten, und ihre Dateien werden nicht mehr aufgeräumt
-* Große Dateien aus Fotos und anderen Apps werden angenommen, solange noch Daten ankommen
+* Große Dateien aus Fotos und anderen Apps werden angenommen, solange noch Daten ankommen, höchstens 30 Minuten lang
 * Die Einführung entfernt am Ende nur ihr Beispielbild, nie Dateien, die du dazugelegt hast
 * „Beim Anmelden öffnen“ zeigt in der Einführung den echten Zustand; ausgeschaltet und „Fertig“ schaltet es aus
 * ⌘W schließt die Einführung, und das Beispielbild heißt in der gewählten Sprache

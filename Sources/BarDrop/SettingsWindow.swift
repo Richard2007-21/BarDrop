@@ -241,8 +241,14 @@ struct AboutSettings: View {
     private var updateNote: String {
         switch updater.state {
         case .upToDate: return L("BarDrop is up to date.", "BarDrop ist aktuell.")
-        case .available(let v): return L("Version \(v) is ready. BarDrop installs it by itself once you haven’t used it for a while, or you can update now. Your items stay in the shelf.",
-                                         "Version \(v) ist bereit. BarDrop installiert sie von selbst, sobald du es eine Weile nicht benutzt. Du kannst auch gleich aktualisieren. Die Objekte bleiben in der Ablage.")
+        case .available(let v):
+            // Von selbst nur mit „Automatisch aktualisieren“ und erst zwei Tage nach dem Erscheinen
+            guard settings.autoUpdateCheck else {
+                return L("Version \(v) is ready. Your items stay in the shelf when you update.",
+                         "Version \(v) ist bereit. Beim Aktualisieren bleiben die Objekte in der Ablage.")
+            }
+            return L("Version \(v) is ready. BarDrop installs it by itself two days after its release, once you haven’t used it for a while, or you can update now. Your items stay in the shelf.",
+                     "Version \(v) ist bereit. BarDrop installiert sie von selbst zwei Tage nach dem Erscheinen, sobald du es eine Weile nicht benutzt. Du kannst auch gleich aktualisieren. Die Objekte bleiben in der Ablage.")
         // Feste Meldung statt der gespeicherten: bleibt in der gewählten Sprache
         case .failed: return L("The last attempt didn’t work. Please try again later.",
                                "Der letzte Versuch hat nicht geklappt. Versuch es später noch einmal.")
@@ -280,8 +286,8 @@ struct AboutSettings: View {
                     updateControl.fixedSize()
                 }
                 ToggleRow(L("Update automatically", "Automatisch aktualisieren"),
-                          info: L("New versions are installed in the background after BarDrop hasn’t been used for 15 minutes.",
-                                  "Neue Versionen werden im Hintergrund installiert, wenn BarDrop 15 Minuten nicht benutzt wurde."),
+                          info: L("New versions are installed in the background two days after their release, once BarDrop hasn’t been used for 15 minutes.",
+                                  "Neue Versionen werden zwei Tage nach dem Erscheinen im Hintergrund installiert, sobald BarDrop 15 Minuten nicht benutzt wurde."),
                           isOn: $settings.autoUpdateCheck)
                 ToggleRow(L("Beta versions", "Beta-Versionen"),
                           info: L("Try new features before they come to everyone. Betas may still have bugs.",

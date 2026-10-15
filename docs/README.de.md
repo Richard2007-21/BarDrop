@@ -53,7 +53,7 @@ Bilder aus dem Browser, Links und Text funktionieren genauso wie Dateien. Beim e
 >
 > Einmalig freigeben: Meldung schließen, dann **Systemeinstellungen → Datenschutz & Sicherheit → Trotzdem öffnen**.
 
-Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht benutzt. Das und frühe Beta-Versionen stellst du unter Einstellungen → Über BarDrop ein.
+Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht benutzt, jeweils zwei Tage nach dem Erscheinen einer Version. Das und frühe Beta-Versionen stellst du unter Einstellungen → Über BarDrop ein.
 
 ## Funktionen
 
@@ -68,7 +68,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Verbraucht im Ruhezustand praktisch keine Energie
 
 **Objekte**
-* Dateien, Ordner, Bilder aus dem Web (WebP, AVIF und HEIC werden als PNG oder JPEG gespeichert), Links und Text
+* Dateien, Ordner, Bilder aus dem Web (WebP, AVIF und HEIC lassen sich als PNG oder JPEG speichern), Links und Text
 * Neue Bildschirmfotos landen auf Wunsch automatisch in der Ablage
 * Umwandeln per Rechtsklick: Bilder, PDF-Seiten, Textdokumente, Audio und Video, nur mit dem, was macOS mitbringt
 * Neueste oder älteste zuerst, Stapel, Auswahl wie im Finder
@@ -107,7 +107,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 
 ## Datenschutz
 
-BarDrop sammelt keine Daten und sendet nichts über dich. Die Ablage liegt nur auf deinem Mac unter `~/Library/Application Support/BarDrop`. Die einzige Verbindung ins Internet ist die Suche nach Updates bei GitHub; sie lässt sich abschalten. Bilder und Links aus dem Web werden nur dann geladen, wenn du sie selbst in die Ablage ziehst.
+BarDrop sammelt keine Daten und sendet nichts über dich. Die Ablage liegt nur auf deinem Mac unter `~/Library/Application Support/BarDrop`. BarDrop verbindet sich nur mit GitHub: für die Suche nach Updates, die sich abschalten lässt, und für „Was ist neu“, wenn du Einstellungen → Über BarDrop öffnest. Bilder und Links aus dem Web werden nur dann geladen, wenn du sie selbst in die Ablage ziehst.
 
 ## Selbst bauen
 
@@ -118,7 +118,7 @@ cd BarDrop
 swift test                    # automatische Tests
 ```
 
-Benötigt macOS 14 und Xcode 15 oder neuer. Jeder Push auf `main` baut die App, führt die Tests aus und veröffentlicht die DMG als Release der Version in [`VERSION`](../Resources/VERSION).
+BarDrop läuft ab macOS 14; zum Bauen braucht es Xcode 26 oder neuer. Jeder Push auf `main` baut die App, führt die Tests aus und veröffentlicht die DMG als Release der Version in [`VERSION`](../Resources/VERSION).
 
 ### Entwicklung
 
