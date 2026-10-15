@@ -487,9 +487,26 @@ private struct DesktopBackground: View {
                   kCGImageSourceCreateThumbnailFromImageAlways: true,
                   kCGImageSourceCreateThumbnailWithTransform: true,
                   kCGImageSourceThumbnailMaxPixelSize: 1600
-              ] as CFDictionary) else { return nil }
+              ] as CFDictionary),
+              brightness(of: image) > 0.1 else { return nil }
         return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
     }()
+
+    /// Mittlere Helligkeit 0 … 1. Auf einem fast schwarzen Bild wäre die schwarze Ablage
+    /// nicht zu erkennen; dann lieber der Verlauf.
+    private static func brightness(of image: CGImage) -> CGFloat {
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let drawn = pixel.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: 1, height: 1, bitsPerComponent: 8,
+                                          bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.interpolationQuality = .medium
+            context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return true
+        }
+        guard drawn else { return 1 }
+        return (0.3 * CGFloat(pixel[0]) + 0.59 * CGFloat(pixel[1]) + 0.11 * CGFloat(pixel[2])) / 255
+    }
 
     var body: some View {
         GeometryReader { geo in
