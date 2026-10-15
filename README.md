@@ -100,6 +100,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 | `⌘V` | Paste from clipboard |
 | `⌫` | Remove selection, the next item is selected |
 | `⌘Z`, `⇧⌘Z` | Undo, redo |
+| `⌘↑` | Back from a stack |
 | `⌘,` | Settings |
 | Arrow keys | Move selection, extend with `⇧` |
 | `esc` | Clear selection, leave stack, then close |

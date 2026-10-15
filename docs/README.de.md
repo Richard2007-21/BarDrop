@@ -100,6 +100,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 | `⌘V` | Aus der Zwischenablage einfügen |
 | `⌫` | Auswahl entfernen, danach ist das nächste Objekt ausgewählt |
 | `⌘Z`, `⇧⌘Z` | Widerrufen, wiederholen |
+| `⌘↑` | Zurück aus einem Stapel |
 | `⌘,` | Einstellungen |
 | Pfeiltasten | Auswahl bewegen, mit `⇧` erweitern |
 | `esc` | Auswahl aufheben, Stapel verlassen, dann schließen |
