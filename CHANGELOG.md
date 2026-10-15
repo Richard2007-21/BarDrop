@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.30.0-beta.7
+* All texts checked in English and German; both languages say the same, glossary in docs/GLOSSARY.md
+* About BarDrop: automatic updates are described with the two-day wait; with automatic updates off, an available version no longer claims to install by itself
+* Reset all settings: the dialog mentions that beta versions are kept
+* Items: deletion of stored copies, images, links and text 15 minutes after dragging out or an action is described; ⌘Z brings them back within 15 minutes
+* Title Case for Convert menu items (“Audio Only (M4A)”, “Plain Text (TXT)”, “MP4 (HEVC, Smaller)”) and the “Let’s Go” button
+* Introduction: stacks are formed from items, not only files
+* Info.plist copyright no longer contains German text
+* README: GitHub connections, Xcode 26 to build, update timing, ⌘↑ in the keyboard table; American spelling “gray”
+
 ## 1.30.0-beta.6
 * Items that can’t be read are written back unchanged instead of being dropped on the next save; while there are any, or a backup of an unreadable list exists, no stored files are cleaned up at launch (the log says so)
 * File promises (Photos, Mail, browsers) wait as long as the destination folder changes, at most 30 minutes, instead of a fixed 90 seconds
