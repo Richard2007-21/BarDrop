@@ -231,7 +231,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     // MARK: Fenster
 
     /// Etwas kleiner als die Einstellungen (680 × 700), im selben Aufbau
-    static let size = NSSize(width: 680, height: 560)
+    static let size = NSSize(width: 680, height: 620)
 
     /// Fenster wie die Einstellungen: hohe, durchsichtige Titelleiste, leicht durchscheinend,
     /// feste Größe, mittig. Bleibt über anderen Fenstern, damit man beim Üben zum Rand ziehen kann.
@@ -971,7 +971,7 @@ private struct PracticeStage<Content: View>: View {
             }
         }
         .padding(.horizontal, 16)
-        .frame(height: 196)
+        .frame(height: 150)
     }
 
     /// Bildschirmrand mit Streifen
@@ -987,7 +987,7 @@ private struct PracticeStage<Content: View>: View {
                 .fill(Color.black)
                 .frame(width: 8, height: 64)
         }
-        .frame(width: 10, height: 160)
+        .frame(width: 10, height: 126)
     }
 
     /// Drei Pfeile, die nacheinander aufleuchten
@@ -1016,7 +1016,7 @@ private struct SampleTile: View {
     var body: some View {
         VStack(spacing: 6) {
             preview
-                .frame(width: 84, height: 84)
+                .frame(width: 72, height: 72)
                 .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
             Text(url?.lastPathComponent ?? L("Image", "Bild"))
                 .font(.system(size: 11, weight: .medium))
@@ -1025,7 +1025,7 @@ private struct SampleTile: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 140)
         }
-        .padding(10)
+        .padding(6)
         .opacity(done ? 0.35 : 1)
         .overlay(
             Group {
@@ -1132,7 +1132,7 @@ private struct ReturnDropZone: View {
             if done {
                 ZStack(alignment: .bottomTrailing) {
                     preview
-                        .frame(width: 84, height: 84)
+                        .frame(width: 72, height: 72)
                         .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 30))
@@ -1151,7 +1151,7 @@ private struct ReturnDropZone: View {
                 }
             }
         }
-        .frame(maxWidth: 260, maxHeight: 160)
+        .frame(maxWidth: 260, maxHeight: 122)
         .scaleEffect(targeted ? 1.02 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: targeted)
         .overlay(ReturnDropTarget(enabled: !done, targeted: $targeted, onDrop: onDrop))
