@@ -34,9 +34,12 @@ final class ViewSmokeTests: XCTestCase {
     }
 
     /// Ansicht in einem Fenster auslegen und in ein Bild zeichnen
-    private func render<V: View>(_ view: V, size: CGSize, _ name: String,
+    /// Ist BARDROP_PREVIEW_DIR gesetzt (CI), wird jedes Bild dort als PNG abgelegt,
+    /// damit man die Ansichten ansehen kann, ohne die App zu starten.
+    private func render<V: View>(_ view: V, size: CGSize, _ name: String, appearance: NSAppearance.Name? = nil,
                                  file: StaticString = #filePath, line: UInt = #line) {
         let host = NSHostingView(rootView: view)
+        if let appearance { host.appearance = NSAppearance(named: appearance) }
         host.frame = CGRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
@@ -44,6 +47,12 @@ final class ViewSmokeTests: XCTestCase {
         }
         host.cacheDisplay(in: host.bounds, to: rep)
         XCTAssertGreaterThan(rep.pixelsWide, 0, name, file: file, line: line)
+        if let dir = ProcessInfo.processInfo.environment["BARDROP_PREVIEW_DIR"], !dir.isEmpty,
+           let png = rep.representation(using: .png, properties: [:]) {
+            let safe = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: " ", with: "_")
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(safe).png"))
+        }
     }
 
     func testSettingsPagesRender() {
@@ -71,14 +80,24 @@ final class ViewSmokeTests: XCTestCase {
     }
 
     func testIntroductionPagesRender() {
-        let model = OnboardingModel(settings: AppSettings.shared, sampleURL: nil)
-        model.onFinish = { _ in }
-        for step in OnboardingModel.Step.allCases {
-            model.go(to: step)
-            render(OnboardingView(model: model, openSettings: {}),
-                   size: OnboardingController.size, "Einführung \(step)")
+        _ = NSApplication.shared
+        let settings = AppSettings.shared
+        let sample = OnboardingController.makeSample()
+        defer { if let sample { try? FileManager.default.removeItem(at: sample.deletingLastPathComponent()) } }
+        for (language, appearance) in [(AppLanguage.german, NSAppearance.Name.darkAqua),
+                                       (.english, .darkAqua), (.german, .aqua)] {
+            settings.language = language
+            let model = OnboardingModel(settings: settings, sampleURL: sample)
+            model.onFinish = { _ in }
+            for step in OnboardingModel.Step.allCases {
+                model.go(to: step)
+                render(OnboardingView(model: model, openSettings: {}),
+                       size: OnboardingController.size,
+                       "Einführung \(language.rawValue) \(appearance == .aqua ? "hell" : "dunkel") \(step.rawValue) \(step)",
+                       appearance: appearance)
+            }
+            XCTAssertEqual(model.step, .features)
         }
-        XCTAssertEqual(model.step, .features)
     }
 
     func testOpenShelfRenders() throws {

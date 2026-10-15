@@ -8,7 +8,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # write nur für die Vorschaubilder am Entwurf „ci-previews“ (siehe unten)
+  contents: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -44,6 +45,8 @@ jobs:
           grep "warning:" build.log | sed -E 's#^.*/(Sources|Tests)/#\1/#' | sort | uniq -c | sort -rn | head -10 | while IFS= read -r line; do echo "::notice title=Warnung::${line}"; done || true
 
       - name: Tests
+        env:
+          BARDROP_PREVIEW_DIR: ${{ runner.temp }}/previews
         run: |
           set -o pipefail
           swift test 2>&1 | tee test.log || STATUS=$?
@@ -63,3 +66,21 @@ jobs:
           grep -A30 "WARNING: ThreadSanitizer" tsan.log | grep -E "Sources/BarDrop/|Tests/BarDropTests/" | sed -E 's/.*(Sources|Tests)\//\1\//' | sort | uniq -c | sort -rn | head -10 | while IFS= read -r line; do echo "::warning title=TSan Ort::${line}"; done || true
           grep -E "Executed [0-9]+ tests" tsan.log | tail -1 | while IFS= read -r line; do echo "::notice title=TSan Tests::${line}"; done || true
           exit ${STATUS:-0}
+
+      # Bilder der Ansichten aus den Tests an einen Release-Entwurf hängen, der nur
+      # Mitwirkenden sichtbar ist (Entwürfe erscheinen weder in der App noch öffentlich).
+      # So lassen sich die Ansichten ansehen, ohne die App zu starten.
+      - name: Vorschaubilder
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIR: ${{ runner.temp }}/previews
+        run: |
+          [ -d "$DIR" ] || { echo "Keine Vorschaubilder"; exit 0; }
+          cd "$DIR"
+          zip -q -r previews.zip *.png
+          gh release view ci-previews >/dev/null 2>&1 || \
+            gh release create ci-previews --draft --title "CI Vorschaubilder" \
+              --notes "Automatisch aus ci.yml; kein Release." --target "$GITHUB_SHA"
+          gh release upload ci-previews previews.zip --clobber
+          echo "::notice title=Vorschaubilder::$(ls *.png | wc -l | tr -d ' ') Bilder für ${GITHUB_SHA::7} am Entwurf ci-previews"
