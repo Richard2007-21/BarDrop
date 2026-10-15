@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.30.0-beta.8
+* Introduction redone as a short presentation: one scene per page, a headline, one sentence and a small exercise; Back, page dots and Continue at the bottom; Welcome, Drop, Drag Out, Get Back (⌘Z), Open from Anywhere (shortcut) and And There’s More
+* The scenes show the real shelf in your size, edge and animation style, with real tiles, the action bar and notices like “1 item removed”, the macOS pointer and the desktop picture (only pictures that come with macOS; otherwise a gradient)
+* The demo shelf has its own list and sample files in a temporary folder and can’t trigger anything; the real shelf stays untouched
+* New exercises: drag the image back out of the shelf onto the drop area, remove it and bring it back with ⌘Z, press the shortcut
+* Shelf views have a demo mode without the AppKit areas for clicks, dragging and dropping (used only by the introduction)
+
 ## 1.30.0-beta.7
 * New introduction built like Settings: a 680 × 620 window in the middle of the screen, the five steps in a sidebar that tick themselves off, the same cards, switches and buttons, light and dark like the system
 * Introduction pages: Welcome (how it works, language, screen edge, open at login), Drop and Drag Out (one short exercise each), Shortcut (try the shortcut, the most important keys) and Discover More (action bar, stacks, convert, pin, cleanup with the current setting, Settings)

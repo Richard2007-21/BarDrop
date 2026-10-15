@@ -1,0 +1,648 @@
+import AppKit
+import SwiftUI
+import Carbon
+
+// MARK: Vorführung der echten Ablage für die Einführung
+//
+// Die Szenen der Einführung zeigen die echte Ablage: dieselben Ansichten wie am
+// Bildschirmrand (ShelfRootView), mit echten Kacheln und Vorschaubildern, der
+// Aktionsleiste, den Rückmeldungen („1 Objekt entfernt“) und den Animationen aus den
+// Einstellungen, nur verkleinert. Dazu der echte Mauszeiger und ein gezogenes Bild wie
+// beim Ziehen aus der Ablage.
+//
+// Die Vorführablage hat eine eigene Liste in einem temporären Ordner und eigene
+// Beispieldateien. Sie läuft im Vorführmodus (`shelfDemo`): ohne Klick- und Drop-Flächen,
+// sie kann also nichts auslösen. Die echte Ablage bleibt unberührt.
+
+/// Ablauf einer Szene: setzt nacheinander Zustände der Vorführablage, in einer Schleife.
+/// Mit „Bewegung reduzieren“ (und in Vorschaubildern) steht der aussagekräftigste Moment.
+final class DemoShelf: ObservableObject {
+    enum Scene { case overview, drop, dragOut, undo, shortcut }
+
+    let scene: Scene
+    let settings = AppSettings.shared
+    let ui = ShelfUIModel()
+    let store: ShelfStore
+    let actions: ShelfActions
+
+    /// Zeiger (Spitze) im Koordinatenraum des kleinen Schreibtischs
+    @Published var pointer: CGPoint = .zero
+    /// Ein Objekt wird gerade gezogen: Bild unter dem Zeiger
+    @Published var dragging = false
+    /// Beim Klicken kurz kleiner
+    @Published var pointerDown = false
+    /// Symbol auf dem Schreibtisch ausgewählt bzw. Ordner als Ziel markiert
+    @Published var iconSelected = false
+    @Published var folderTargeted = false
+    /// Gerade gedrückte Tasten
+    @Published var keys: [(symbol: String, name: String)]?
+
+    private let directory: URL?
+    /// Das Bild, um das es geht (wie das Beispielbild der Einführung)
+    let sampleURL: URL?
+    /// Weitere Objekte, damit die Ablage nach Alltag aussieht
+    private let otherURLs: [URL]
+    private var generation = 0
+    private var running = false
+
+    init(scene: Scene) {
+        self.scene = scene
+        let sample = OnboardingController.makeSample()
+        sampleURL = sample
+        directory = sample?.deletingLastPathComponent()
+        if let directory {
+            otherURLs = Self.makeExamples(in: directory)
+        } else {
+            otherURLs = []
+        }
+        let base = (directory ?? FileManager.default.temporaryDirectory.appendingPathComponent("BarDropVorfuehrung-\(UUID().uuidString)"))
+            .appendingPathComponent("Ablage", isDirectory: true)
+        store = ShelfStore(baseDirectory: base)
+        actions = ShelfActions(store: store, ui: ui, settings: settings)
+        for url in [sampleURL].compactMap({ $0 }) + otherURLs {
+            // Ohne die kurze Wartezeit auf das Vorschaubild zeigen
+            Thumbnails.shownOnce.insert(url.path)
+            Thumbnails.load(url, size: CGFloat(settings.tileIconSize)) { _ in }
+        }
+        still()
+    }
+
+    deinit {
+        if let directory { try? FileManager.default.removeItem(at: directory) }
+    }
+
+    // MARK: Geometrie
+
+    var layout: DemoLayout { DemoLayout(settings: settings) }
+
+    private var sampleEntry: ShelfEntry? {
+        store.entries.first { $0.files.contains { $0.url == sampleURL } }
+    }
+
+    /// Mitte des Bildes in der offenen Ablage
+    private var sampleTile: CGPoint {
+        let index = actions.orderedEntries.firstIndex { $0.files.contains { $0.url == sampleURL } } ?? 0
+        return layout.tileCenter(index)
+    }
+
+    // MARK: Zustände
+
+    /// Inhalt der Ablage: die weiteren Objekte, auf Wunsch mit dem Bild als neuestem
+    private func fill(withSample: Bool) {
+        ui.selection = []
+        ui.notice = nil
+        let wanted = (withSample ? [sampleURL].compactMap { $0 } : []) + otherURLs
+        // Liegt schon alles so da (etwa nach ⌘Z), nichts neu aufbauen: das würde flackern
+        guard store.entries.flatMap({ $0.files.map(\.url) }) != wanted else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            store.discard(Set(store.entries.map(\.id)))
+            // Einzeln hinzufügen, sonst würden sie zu einem Stapel; das neueste zuletzt
+            for url in wanted.reversed() { store.add([ShelfFile(url: url, owned: false)]) }
+        }
+    }
+
+    private func set(level: ShelfUIModel.Level, animation: Animation?) {
+        guard ui.level != level else { return }
+        if let animation {
+            withAnimation(animation) { ui.level = level }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { ui.level = level }
+        }
+        ui.isKey = level == .expanded && scene != .drop
+    }
+
+    private func move(to point: CGPoint, duration: Double) {
+        withAnimation(.easeInOut(duration: duration)) { pointer = point }
+    }
+
+    private func click() {
+        withAnimation(.easeOut(duration: 0.08)) { pointerDown = true }
+        after(0.12) { withAnimation(.easeOut(duration: 0.12)) { self.pointerDown = false } }
+    }
+
+    private func show(_ keys: [(symbol: String, name: String)]?) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { self.keys = keys }
+    }
+
+    private var hotKeys: [(symbol: String, name: String)] { ShortcutKeys.keys(settings) }
+
+    /// Standbild: der Moment, der die Szene am besten erklärt
+    private func still() {
+        let l = layout
+        dragging = false
+        iconSelected = false
+        folderTargeted = false
+        keys = nil
+        switch scene {
+        case .overview:
+            fill(withSample: true)
+            set(level: .expanded, animation: nil)
+            pointer = l.away(l.full.width + 70, y: l.size.height * 0.68)
+        case .drop:
+            fill(withSample: false)
+            set(level: .expanded, animation: nil)
+            ui.isDropTargeted = true
+            iconSelected = true
+            dragging = true
+            pointer = l.away(l.full.width * 0.55, y: l.size.height * 0.5)
+        case .dragOut:
+            fill(withSample: true)
+            set(level: .expanded, animation: nil)
+            dragging = true
+            folderTargeted = true
+            pointer = l.folder
+        case .undo:
+            fill(withSample: false)
+            set(level: .expanded, animation: nil)
+            ui.notice = ShelfUIModel.Notice(text: L("1 item removed", "1 Objekt entfernt"), canUndo: true)
+            keys = [("⌘", "command"), ("Z", "")]
+            pointer = l.away(l.full.width + 90, y: l.size.height * 0.72)
+        case .shortcut:
+            fill(withSample: true)
+            set(level: .expanded, animation: nil)
+            keys = hotKeys
+            pointer = l.away(l.full.width + 170, y: l.size.height * 0.7)
+        }
+    }
+
+    // MARK: Ablauf
+
+    func start() {
+        guard !running, scene != .overview, !AnimationStyle.reduceMotion else { return }
+        running = true
+        loop()
+    }
+
+    func stop() {
+        running = false
+        generation += 1
+    }
+
+    /// Führt `f` nach `delay` aus, solange die Szene noch läuft
+    private func after(_ delay: Double, _ f: @escaping () -> Void) {
+        let g = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.running, self.generation == g else { return }
+            f()
+        }
+    }
+
+    private func loop() {
+        guard running else { return }
+        generation += 1
+        let l = layout
+        let style = settings.animationStyle
+        let period: Double
+
+        ui.isDropTargeted = false
+        dragging = false
+        iconSelected = false
+        folderTargeted = false
+        keys = nil
+
+        switch scene {
+        case .overview:
+            return
+
+        case .drop:
+            // Bild vom Schreibtisch an den Rand ziehen: die Ablage öffnet sich, loslassen
+            period = 6.4
+            fill(withSample: false)
+            set(level: .hidden, animation: nil)
+            pointer = l.sample
+            after(0.5) { self.click(); self.iconSelected = true; self.dragging = true }
+            after(0.7) { self.move(to: l.away(14, y: l.size.height * 0.5), duration: 1.1) }
+            after(1.6) { self.set(level: .peek, animation: style.peekIn) }
+            after(2.0) {
+                self.set(level: .expanded, animation: style.open)
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) { self.ui.isDropTargeted = true }
+            }
+            after(2.1) { self.move(to: l.away(l.full.width * 0.55, y: l.size.height * 0.5), duration: 0.5) }
+            after(2.9) {
+                withAnimation(.easeOut(duration: 0.15)) { self.dragging = false }
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) { self.ui.isDropTargeted = false }
+                self.iconSelected = false
+                if let url = self.sampleURL { self.store.add([ShelfFile(url: url, owned: false)]) }
+            }
+            after(4.5) { self.move(to: l.away(l.full.width + 150, y: l.size.height * 0.62), duration: 0.6) }
+            after(4.8) { self.set(level: .hidden, animation: style.close) }
+
+        case .dragOut:
+            // Zeiger an den Rand, Ablage öffnet sich, Bild auf einen Ordner ziehen
+            period = 6.6
+            fill(withSample: true)
+            set(level: .hidden, animation: nil)
+            pointer = l.away(l.full.width + 250, y: l.size.height * 0.64)
+            after(0.4) { self.move(to: l.away(4, y: l.size.height * 0.5), duration: 0.8) }
+            let click = settings.openMode == .click
+            after(1.2) { self.set(level: click ? .hint : .peek, animation: style.peekIn) }
+            if click { after(1.6) { self.click() } }
+            after(click ? 1.75 : 1.6) { self.set(level: .expanded, animation: style.open) }
+            after(2.0) { self.move(to: self.sampleTile, duration: 0.6) }
+            after(2.8) { self.click(); self.dragging = true }
+            after(2.9) { self.move(to: l.folder, duration: 1.2) }
+            after(3.4) { self.set(level: .hidden, animation: style.close) }
+            after(3.9) { withAnimation(.easeOut(duration: 0.12)) { self.folderTargeted = true } }
+            after(4.3) {
+                withAnimation(.easeOut(duration: 0.15)) { self.dragging = false; self.folderTargeted = false }
+            }
+
+        case .undo:
+            // Bild auswählen, ⌫ entfernt es, ⌘Z holt es zurück
+            period = 7.0
+            fill(withSample: true)
+            set(level: .expanded, animation: nil)
+            pointer = l.away(l.full.width + 90, y: l.size.height * 0.72)
+            after(0.5) { self.move(to: self.sampleTile, duration: 0.6) }
+            after(1.2) {
+                self.click()
+                if let entry = self.sampleEntry { self.ui.selection = [entry.id] }
+            }
+            after(1.6) { self.move(to: l.away(l.full.width + 90, y: l.size.height * 0.72), duration: 0.6) }
+            after(2.3) { self.show([("⌫", "delete")]) }
+            after(2.4) { if let entry = self.sampleEntry { self.actions.remove([entry]) } }
+            after(3.0) { self.show(nil) }
+            after(3.9) { self.show([("⌘", "command"), ("Z", "")]) }
+            // Nur wenn wirklich etwas zurückzuholen ist, sonst gäbe es den Warnton
+            after(4.0) { if self.store.undoManager.canUndo { self.actions.undo() } }
+            after(4.6) { self.show(nil) }
+            after(6.4) { self.ui.selection = [] }
+
+        case .shortcut:
+            // Kurzbefehl öffnet die Ablage, noch einmal schließt sie
+            period = 5.6
+            fill(withSample: true)
+            set(level: .hidden, animation: nil)
+            pointer = l.away(l.full.width + 170, y: l.size.height * 0.7)
+            after(0.8) { self.show(self.hotKeys) }
+            after(0.9) { self.set(level: .expanded, animation: style.open) }
+            after(1.6) { self.show(nil) }
+            after(3.4) { self.show(self.hotKeys) }
+            after(3.5) { self.set(level: .hidden, animation: style.close) }
+            after(4.2) { self.show(nil) }
+        }
+        after(period) { self.loop() }
+    }
+
+    // MARK: Beispieldateien
+
+    /// Notizen, ein Dokument und ein Foto, wie sie im Alltag in der Ablage liegen
+    private static func makeExamples(in directory: URL) -> [URL] {
+        var urls: [URL] = []
+
+        let notes = directory.appendingPathComponent(L("Notes.txt", "Notizen.txt"))
+        let text = L("Shopping\n\nCoffee\nMilk\nBread\n\nCall Anna back\nBook the train",
+                     "Einkaufen\n\nKaffee\nMilch\nBrot\n\nAnna zurückrufen\nZug buchen")
+        if (try? text.write(to: notes, atomically: true, encoding: .utf8)) != nil { urls.append(notes) }
+
+        let document = directory.appendingPathComponent(L("Trip.pdf", "Reiseplan.pdf"))
+        var box = CGRect(x: 0, y: 0, width: 420, height: 595)
+        if let pdf = CGContext(document as CFURL, mediaBox: &box, nil) {
+            pdf.beginPDFPage(nil)
+            pdf.setFillColor(NSColor.white.cgColor)
+            pdf.fill(box)
+            pdf.setFillColor(NSColor(red: 0.2, green: 0.47, blue: 1, alpha: 1).cgColor)
+            pdf.fill(CGRect(x: 40, y: 470, width: 340, height: 80))
+            pdf.setFillColor(NSColor(white: 0.78, alpha: 1).cgColor)
+            for i in 0..<11 {
+                let width: CGFloat = i % 4 == 3 ? 190 : 340
+                pdf.fill(CGRect(x: 40, y: 420 - CGFloat(i) * 30, width: width, height: 11))
+            }
+            pdf.endPDFPage()
+            pdf.closePDF()
+            urls.append(document)
+        }
+
+        let photo = directory.appendingPathComponent(L("Beach.jpg", "Strand.jpg"))
+        let size = NSSize(width: 640, height: 480)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSGradient(colors: [NSColor(red: 0.98, green: 0.72, blue: 0.45, alpha: 1),
+                                NSColor(red: 0.42, green: 0.62, blue: 0.95, alpha: 1)])?
+                .draw(in: rect, angle: 90)
+            NSColor(red: 1, green: 0.9, blue: 0.6, alpha: 1).setFill()
+            NSBezierPath(ovalIn: NSRect(x: 380, y: 210, width: 120, height: 120)).fill()
+            NSColor(red: 0.12, green: 0.42, blue: 0.68, alpha: 1).setFill()
+            NSBezierPath(rect: NSRect(x: 0, y: 110, width: 640, height: 130)).fill()
+            NSColor(red: 0.95, green: 0.85, blue: 0.66, alpha: 1).setFill()
+            NSBezierPath(rect: NSRect(x: 0, y: 0, width: 640, height: 120)).fill()
+            return true
+        }
+        if let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+           let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85]),
+           (try? jpeg.write(to: photo)) != nil {
+            urls.append(photo)
+        }
+        return urls
+    }
+}
+
+/// Maße des kleinen Schreibtischs. Er ist so groß gerechnet, dass die Ablage in ihrer
+/// eingestellten Größe hineinpasst, und wird dann verkleinert gezeigt.
+struct DemoLayout {
+    /// Größe auf der Seite der Einführung
+    static let shown = CGSize(width: 560, height: 264)
+
+    let edge: ScreenEdge
+    let full: ShelfMetrics
+    let iconSize: CGFloat
+    /// Größe in Punkten der echten Ablage
+    let size: CGSize
+    let scale: CGFloat
+
+    init(settings: AppSettings) {
+        edge = settings.edge
+        full = ShelfMetrics.for(.expanded, settings: settings)
+        iconSize = CGFloat(settings.tileIconSize)
+        let height = full.height + 2 * full.fillet + 44
+        scale = Self.shown.height / height
+        size = CGSize(width: Self.shown.width / scale, height: height)
+    }
+
+    /// Punkt mit Abstand `d` vom Rand der Ablage
+    func away(_ d: CGFloat, y: CGFloat) -> CGPoint {
+        CGPoint(x: edge == .right ? size.width - d : d, y: y)
+    }
+
+    /// Bild auf dem Schreibtisch und Ordner als Ziel
+    var sample: CGPoint { away(full.width + 300, y: size.height * 0.42) }
+    var folder: CGPoint { away(full.width + 330, y: size.height * 0.5) }
+
+    /// Rahmen der offenen Ablage (mit den Übergängen oben und unten)
+    var shelfFrame: CGRect {
+        let h = full.height + 2 * full.fillet
+        let x = edge == .right ? size.width - full.width : 0
+        return CGRect(x: x, y: (size.height - h) / 2, width: full.width, height: h)
+    }
+
+    /// Mitte des Symbols der Kachel an Stelle `index`, nachgerechnet wie das Raster der
+    /// Ablage (ShelfContent: Kopf, Abstände, anpassbare Spalten)
+    func tileCenter(_ index: Int) -> CGPoint {
+        let available = full.width - 24
+        let minimum = iconSize + 22, maximum = iconSize + 40, spacing: CGFloat = 8
+        let columns = max(1, Int((available + spacing) / (minimum + spacing)))
+        let column = min(maximum, (available - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+        let used = column * CGFloat(columns) + spacing * CGFloat(columns - 1)
+        let start = 12 + (available - used) / 2
+        let row = CGFloat(index / columns), col = CGFloat(index % columns)
+        let top: CGFloat = full.fillet + 12 + 30 + 4 + 6
+        let rowHeight = iconSize + 12 + 4 + 30 + 12
+        let frame = shelfFrame
+        return CGPoint(x: frame.minX + start + col * (column + spacing) + column / 2,
+                       y: frame.minY + top + row * (rowHeight + 6) + 6 + (iconSize + 12) / 2)
+    }
+}
+
+/// Tasten des Kurzbefehls in der Reihenfolge wie bei Apple: ⌃ ⌥ ⇧ ⌘
+enum ShortcutKeys {
+    static func keys(_ settings: AppSettings) -> [(symbol: String, name: String)] {
+        let m = settings.hotKeyModifiers
+        var keys: [(symbol: String, name: String)] = []
+        if m & controlKey != 0 { keys.append((symbol: "⌃", name: "control")) }
+        if m & optionKey != 0 { keys.append((symbol: "⌥", name: "option")) }
+        if m & shiftKey != 0 { keys.append((symbol: "⇧", name: "shift")) }
+        if m & cmdKey != 0 { keys.append((symbol: "⌘", name: "command")) }
+        keys.append((symbol: settings.hotKeyLabel, name: ""))
+        return keys
+    }
+}
+
+/// Die Bühne: ein Stück Schreibtisch am gewählten Rand mit der echten Ablage darauf
+struct ShelfStage: View {
+    @StateObject private var demo: DemoShelf
+    @ObservedObject private var settings = AppSettings.shared
+
+    init(scene: DemoShelf.Scene) {
+        _demo = StateObject(wrappedValue: DemoShelf(scene: scene))
+    }
+
+    var body: some View {
+        let l = demo.layout
+        ZStack(alignment: .topLeading) {
+            DesktopBackground(edge: l.edge)
+                .frame(width: l.size.width, height: l.size.height)
+
+            if demo.scene == .drop, let url = demo.sampleURL {
+                DesktopIcon(url: url, selected: demo.iconSelected)
+                    .position(x: l.sample.x, y: l.sample.y + 14)
+            }
+            if demo.scene == .dragOut {
+                DesktopFolder(targeted: demo.folderTargeted)
+                    .position(x: l.folder.x, y: l.folder.y + 14)
+            }
+
+            ShelfRootView(ui: demo.ui, store: demo.store, settings: settings, actions: demo.actions)
+                .frame(width: l.full.width + ShelfMetrics.panelMargin, height: l.size.height)
+                .position(x: l.edge == .right ? l.size.width - (l.full.width + ShelfMetrics.panelMargin) / 2
+                                              : (l.full.width + ShelfMetrics.panelMargin) / 2,
+                          y: l.size.height / 2)
+
+            if let keys = demo.keys {
+                KeyHUD(keys: keys)
+                    .position(x: l.away(l.full.width + 0.5 * (l.size.width - l.full.width), y: 0).x,
+                              y: l.size.height * 0.5)
+                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+            }
+
+            if demo.dragging, let url = demo.sampleURL {
+                DragImage(url: url)
+                    .position(x: demo.pointer.x, y: demo.pointer.y + 10)
+                    .transition(.opacity)
+            }
+
+            DemoPointer(down: demo.pointerDown)
+                .position(demo.pointer)
+        }
+        .frame(width: l.size.width, height: l.size.height, alignment: .topLeading)
+        .environment(\.shelfDemo, true)
+        .allowsHitTesting(false)
+        .scaleEffect(l.scale, anchor: .topLeading)
+        .frame(width: DemoLayout.shown.width, height: DemoLayout.shown.height, alignment: .topLeading)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(SettingsTheme.cardBorder, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+        .onAppear { demo.start() }
+        .onDisappear { demo.stop() }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Schreibtischhintergrund: das Bild des Schreibtischs, wenn es von macOS stammt, sonst
+/// ein ruhiger Verlauf. Bilder aus eigenen Ordnern werden nicht gelesen, damit macOS nicht
+/// nach dem Zugriff auf „Bilder“ oder „Schreibtisch“ fragt.
+private struct DesktopBackground: View {
+    let edge: ScreenEdge
+
+    private static let wallpaper: NSImage? = {
+        guard let screen = NSScreen.main,
+              let url = NSWorkspace.shared.desktopImageURL(for: screen),
+              url.path.hasPrefix("/System/") || url.path.hasPrefix("/Library/"),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 1600
+              ] as CFDictionary),
+              brightness(of: image) > 0.1 else { return nil }
+        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+    }()
+
+    /// Mittlere Helligkeit 0 … 1. Auf einem fast schwarzen Bild wäre die schwarze Ablage
+    /// nicht zu erkennen; dann lieber der Verlauf.
+    private static func brightness(of image: CGImage) -> CGFloat {
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let drawn = pixel.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: 1, height: 1, bitsPerComponent: 8,
+                                          bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.interpolationQuality = .medium
+            context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return true
+        }
+        guard drawn else { return 1 }
+        return (0.3 * CGFloat(pixel[0]) + 0.59 * CGFloat(pixel[1]) + 0.11 * CGFloat(pixel[2])) / 255
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            if let image = Self.wallpaper {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: geo.size.width, height: geo.size.height,
+                           alignment: edge == .right ? .trailing : .leading)
+                    .clipped()
+            } else {
+                LinearGradient(colors: [Color(red: 0.16, green: 0.3, blue: 0.62),
+                                        Color(red: 0.42, green: 0.36, blue: 0.72),
+                                        Color(red: 0.86, green: 0.55, blue: 0.6)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+        }
+    }
+}
+
+/// Datei auf dem Schreibtisch wie im Finder
+private struct DesktopIcon: View {
+    let url: URL
+    let selected: Bool
+
+    var body: some View {
+        DesktopItem(image: NSImage(contentsOf: url) ?? Thumbnails.icon(url),
+                    name: url.lastPathComponent, highlighted: selected, selectedName: selected)
+    }
+}
+
+/// Ordner auf dem Schreibtisch als Ziel
+private struct DesktopFolder: View {
+    let targeted: Bool
+
+    var body: some View {
+        DesktopItem(image: NSWorkspace.shared.icon(for: .folder),
+                    name: L("Projects", "Projekte"), highlighted: targeted, selectedName: false)
+    }
+}
+
+private struct DesktopItem: View {
+    let image: NSImage
+    let name: String
+    let highlighted: Bool
+    let selectedName: Bool
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 64, height: 64)
+                .padding(4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.black.opacity(highlighted ? 0.28 : 0))
+                )
+            Text(name)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(selectedName ? Color(nsColor: .selectedContentBackgroundColor) : .clear)
+                )
+                .shadow(color: .black.opacity(selectedName ? 0 : 0.7), radius: 1.5, y: 1)
+                .frame(width: 104)
+        }
+    }
+}
+
+/// Gezogenes Bild wie beim Ziehen aus der Ablage (DragSource): Vorschau und Name auf der
+/// Markierungsfarbe, leicht durchscheinend wie bei macOS
+private struct DragImage: View {
+    let url: URL
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Image(nsImage: NSImage(contentsOf: url) ?? Thumbnails.icon(url))
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 64, height: 64)
+            Text(url.lastPathComponent)
+                .font(.system(size: 12))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color(nsColor: .selectedContentBackgroundColor))
+                )
+                .fixedSize()
+        }
+        .opacity(0.8)
+    }
+}
+
+/// Der Mauszeiger von macOS; `position` ist die Spitze
+private struct DemoPointer: View {
+    let down: Bool
+
+    var body: some View {
+        let cursor = NSCursor.arrow
+        let size = cursor.image.size
+        Image(nsImage: cursor.image)
+            .scaleEffect(down ? 0.9 : 1, anchor: UnitPoint(x: cursor.hotSpot.x / max(size.width, 1),
+                                                          y: cursor.hotSpot.y / max(size.height, 1)))
+            .frame(width: size.width, height: size.height)
+            // Spitze auf den Punkt legen
+            .offset(x: size.width / 2 - cursor.hotSpot.x, y: size.height / 2 - cursor.hotSpot.y)
+    }
+}
+
+/// Gerade gedrückte Tasten, groß über dem Schreibtisch
+private struct KeyHUD: View {
+    let keys: [(symbol: String, name: String)]
+
+    var body: some View {
+        KeyCaps(keys: keys, size: 64, pressed: false)
+            .padding(18)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color.black.opacity(0.55))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+            )
+            .environment(\.colorScheme, .dark)
+    }
+}

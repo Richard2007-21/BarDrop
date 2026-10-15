@@ -6,13 +6,13 @@ import Carbon
 
 // MARK: Ablauf
 
-/// Einführung beim ersten Start, gebaut wie die Einstellungen: links die Schritte, die sich
-/// beim Schaffen abhaken, rechts dieselben Karten, Schalter und Knöpfe. Drei kurze Schritte
-/// zum Mitmachen (ablegen, herausziehen, Kurzbefehl) erkennen von selbst, wann sie
-/// geschafft sind. Zum Schluss zeigt sie in Karten, was BarDrop sonst kann.
+/// Einführung beim ersten Start, aufgebaut wie eine Produktvorstellung: je Schritt eine
+/// große, bewegte Szene auf einem kleinen Bildschirm, eine Überschrift, ein Satz. Vier
+/// kurze Übungen (ablegen, herausziehen, zurückholen, Kurzbefehl) erkennen von selbst,
+/// wann sie geschafft sind. Farben, Schalter und Knöpfe wie in den Einstellungen.
 final class OnboardingModel: ObservableObject {
     enum Step: Int, CaseIterable, Identifiable {
-        case welcome, drop, retrieve, shortcut, features
+        case welcome, drop, retrieve, undo, shortcut, features
         var id: Int { rawValue }
     }
 
@@ -28,6 +28,8 @@ final class OnboardingModel: ObservableObject {
     let settings: AppSettings
     /// Beispieldatei; wird umbenannt, wenn auf der ersten Seite die Sprache wechselt
     @Published var sampleURL: URL?
+    /// Liegt die Beispieldatei gerade in der Ablage? (für die Anleitung beim Zurückholen)
+    @Published var sampleInShelf = false
     var onFinish: (_ completed: Bool) -> Void = { _ in }
     /// Ziehen der Beispieldatei hat begonnen: Die Ablage muss davon erfahren, denn
     /// Ziehen aus dem eigenen Fenster melden die Ereignisse des Systems nicht.
@@ -53,7 +55,7 @@ final class OnboardingModel: ObservableObject {
     }
 
     /// Schritte zum Mitmachen
-    static let practice: [Step] = [.drop, .retrieve, .shortcut]
+    static let practice: [Step] = [.drop, .retrieve, .undo, .shortcut]
 
     /// Der aktuelle Schritt ist geschafft
     var stepDone: Bool { completed.contains(step) }
@@ -101,6 +103,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     private var baseline: Set<UUID> = []
     /// Einträge mit der Beispieldatei: werden am Ende wieder entfernt
     private var sampleEntries: Set<UUID> = []
+    /// Schritt „Zurückholen“: Die Beispieldatei war seit Beginn des Schritts einmal weg
+    private var sampleWasGone = false
     private var finished = false
 
     /// Wird nach dem Schließen aufgerufen, damit der Besitzer loslassen kann.
@@ -155,6 +159,9 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         case .drop:
             baseline = Set(store.entries.map(\.id))
             renameSampleForLanguage()
+        case .undo:
+            // Nach dem Herausziehen ist das Bild meist schon weg; dann genügt ⌘Z
+            sampleWasGone = !containsSample(store.entries)
         default:
             break
         }
@@ -165,10 +172,29 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         for entry in entries where entry.files.contains(where: { $0.url.lastPathComponent == name }) {
             if !baseline.contains(entry.id) { sampleEntries.insert(entry.id) }
         }
-        guard model.step == .drop else { return }
-        if entries.contains(where: { !baseline.contains($0.id) }) {
-            model.complete(.drop)
+        let present = containsSample(entries)
+        if model.sampleInShelf != present { model.sampleInShelf = present }
+        switch model.step {
+        case .drop:
+            if entries.contains(where: { !baseline.contains($0.id) }) {
+                model.complete(.drop)
+            }
+        case .undo:
+            // Erst weg (entfernt oder herausgezogen), dann wieder da: zurückgeholt
+            if !present {
+                sampleWasGone = true
+            } else if sampleWasGone {
+                model.complete(.undo)
+            }
+        default:
+            break
         }
+    }
+
+    /// Liegt die Beispieldatei in einem der Einträge?
+    private func containsSample(_ entries: [ShelfEntry]) -> Bool {
+        guard let name = model.sampleURL?.lastPathComponent else { return false }
+        return entries.contains { $0.files.contains { $0.url.lastPathComponent == name } }
     }
 
     /// Die Sprache kann auf der ersten Seite gewechselt worden sein: Die Beispieldatei
@@ -310,48 +336,10 @@ extension OnboardingModel.Step {
         case .welcome: return L("Welcome", "Willkommen")
         case .drop: return L("Drop", "Ablegen")
         case .retrieve: return L("Drag Out", "Herausziehen")
+        case .undo: return L("Get Back", "Zurückholen")
         case .shortcut: return L("Shortcut", "Kurzbefehl")
         case .features: return L("Discover More", "Mehr entdecken")
         }
-    }
-
-    /// Symbol und Farbe wie die Bereiche der Einstellungen
-    var symbol: String {
-        switch self {
-        case .welcome: return "hand.wave.fill"
-        case .drop: return "tray.and.arrow.down.fill"
-        case .retrieve: return "hand.draw.fill"
-        case .shortcut: return "command"
-        case .features: return "square.grid.2x2.fill"
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .welcome: return Color(red: 0.2, green: 0.47, blue: 1)
-        case .drop: return Color(red: 1, green: 0.58, blue: 0.1)
-        case .retrieve: return Color(red: 0.18, green: 0.68, blue: 0.75)
-        case .shortcut: return Color(red: 0.55, green: 0.35, blue: 0.95)
-        case .features: return Color(red: 0.2, green: 0.78, blue: 0.4)
-        }
-    }
-}
-
-/// Farbiges Quadrat mit Symbol, wie `PaneIcon` in den Einstellungen
-private struct IntroIcon: View {
-    let symbol: String
-    let tint: Color
-    var size: CGFloat = 22
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
-            .fill(LinearGradient(colors: [tint.opacity(0.85), tint], startPoint: .top, endPoint: .bottom))
-            .overlay(
-                Image(systemName: symbol)
-                    .font(.system(size: size * 0.5, weight: .semibold))
-                    .foregroundStyle(.white)
-            )
-            .frame(width: size, height: size)
     }
 }
 
@@ -362,96 +350,21 @@ struct OnboardingView: View {
     var openSettings: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-                .frame(width: 220)
-                .frame(maxHeight: .infinity)
-                .background(SettingsTheme.sidebar.opacity(SettingsTheme.backdropOpacity))
-            Rectangle()
-                .fill(SettingsTheme.divider)
-                .frame(width: 1)
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(SettingsTheme.content.opacity(SettingsTheme.backdropOpacity))
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SettingsBackdrop().ignoresSafeArea())
-        .ignoresSafeArea()
-    }
-
-    // MARK: Seitenleiste
-
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Image(nsImage: NSApp.applicationIconImage ?? NSImage())
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 34, height: 34)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("BarDrop")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text(L("Introduction", "Einführung"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.leading, 9)
-            .padding(.bottom, 18)
-
-            ForEach(OnboardingModel.Step.allCases) { step in
-                IntroSidebarRow(step: step, selected: model.step == step,
-                                done: model.completed.contains(step)) {
-                    model.go(to: step)
-                }
-            }
-            Spacer(minLength: 12)
-            Text(L("You can find this introduction again in Settings → About BarDrop.",
-                   "Diese Einführung findest du jederzeit unter Einstellungen → Über BarDrop."))
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 9)
-                .padding(.bottom, 18)
-        }
-        .padding(.horizontal, 13)
-        .padding(.top, 56)
-    }
-
-    // MARK: Inhalt
-
-    private var detail: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                IntroIcon(symbol: model.step.symbol, tint: model.step.tint, size: 24)
-                Text(model.step.title)
-                    .font(.system(size: 17, weight: .semibold))
-                Spacer(minLength: 8)
-                Text(L("\(model.step.rawValue + 1) of \(OnboardingModel.Step.allCases.count)",
-                       "\(model.step.rawValue + 1) von \(OnboardingModel.Step.allCases.count)"))
-                    .font(.system(size: 12))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel(L("Step \(model.step.rawValue + 1) of \(OnboardingModel.Step.allCases.count)",
-                                          "Schritt \(model.step.rawValue + 1) von \(OnboardingModel.Step.allCases.count)"))
-            }
-            .padding(.leading, 18)
-            .padding(.trailing, 20)
-            .frame(height: 52)
-            .padding(.top, 4)
-
+        VStack(spacing: 0) {
             page
                 .id(model.step)
                 .transition(.opacity)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.top, 34)          // unter der Titelleiste
 
-            Rectangle()
-                .fill(SettingsTheme.divider)
-                .frame(height: 1)
             footer
-                .padding(.horizontal, 20)
-                .frame(height: 56)
+                .padding(.horizontal, 22)
+                .frame(height: 64)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(SettingsTheme.content.opacity(SettingsTheme.backdropOpacity))
+        .background(SettingsBackdrop().ignoresSafeArea())
+        .ignoresSafeArea()
     }
 
     @ViewBuilder
@@ -460,149 +373,148 @@ struct OnboardingView: View {
         case .welcome: WelcomePage(model: model, settings: settings)
         case .drop: DropPage(model: model, settings: settings)
         case .retrieve: RetrievePage(model: model, settings: settings)
+        case .undo: UndoPage(model: model, settings: settings)
         case .shortcut: ShortcutPage(model: model, settings: settings)
         case .features: FeaturesPage(settings: settings)
         }
     }
 
-    // MARK: Knöpfe unten
+    // MARK: Unten: Zurück, Fortschritt, Weiter
 
     private var footer: some View {
-        HStack(spacing: 8) {
-            switch model.step {
-            case .welcome:
-                Button(L("Skip Introduction", "Einführung überspringen")) { model.onFinish(false) }
-                    .buttonStyle(KlackButtonStyle())
-                    .keyboardShortcut(.cancelAction)
-                Spacer()
-                Button(L("Let’s Go", "Los geht’s")) { model.advance() }
-                    .buttonStyle(KlackButtonStyle(prominent: true))
-                    .keyboardShortcut(.defaultAction)
-            case .features:
-                Button(L("Back", "Zurück")) { model.back() }
-                    .buttonStyle(KlackButtonStyle())
-                Spacer()
-                Button(L("Open Settings", "Einstellungen öffnen")) {
-                    openSettings()
-                    model.advance()
-                }
-                .buttonStyle(KlackButtonStyle())
-                Button(L("Done", "Fertig")) { model.advance() }
-                    .buttonStyle(KlackButtonStyle(prominent: true))
-                    .keyboardShortcut(.defaultAction)
-            default:
-                Button(L("Back", "Zurück")) { model.back() }
-                    .buttonStyle(KlackButtonStyle())
-                Spacer()
-                if model.stepDone {
-                    Button(L("Continue", "Weiter")) { model.advance() }
-                        .buttonStyle(KlackButtonStyle(prominent: true))
-                        .keyboardShortcut(.defaultAction)
-                } else {
-                    Button(L("Skip", "Überspringen")) { model.advance() }
+        ZStack {
+            StepDots(current: model.step, completed: model.completed) { model.go(to: $0) }
+            HStack(spacing: 8) {
+                switch model.step {
+                case .welcome:
+                    Button(L("Skip", "Überspringen")) { model.onFinish(false) }
                         .buttonStyle(KlackButtonStyle())
                         .keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button(L("Let’s Go", "Los geht’s")) { model.advance() }
+                        .buttonStyle(KlackButtonStyle(prominent: true))
+                        .keyboardShortcut(.defaultAction)
+                case .features:
+                    Button(L("Back", "Zurück")) { model.back() }
+                        .buttonStyle(KlackButtonStyle())
+                    Spacer()
+                    Button(L("Done", "Fertig")) { model.advance() }
+                        .buttonStyle(KlackButtonStyle(prominent: true))
+                        .keyboardShortcut(.defaultAction)
+                default:
+                    Button(L("Back", "Zurück")) { model.back() }
+                        .buttonStyle(KlackButtonStyle())
+                    Spacer()
+                    if model.stepDone {
+                        Button(L("Continue", "Weiter")) { model.advance() }
+                            .buttonStyle(KlackButtonStyle(prominent: true))
+                            .keyboardShortcut(.defaultAction)
+                    } else {
+                        Button(L("Skip", "Überspringen")) { model.advance() }
+                            .buttonStyle(KlackButtonStyle())
+                            .keyboardShortcut(.cancelAction)
+                    }
                 }
             }
         }
     }
 }
 
-/// Eintrag der Seitenleiste: wie in den Einstellungen, rechts ein Haken für geschaffte Schritte.
-private struct IntroSidebarRow: View {
-    let step: OnboardingModel.Step
-    let selected: Bool
-    let done: Bool
-    let action: () -> Void
-    @State private var hovering = false
+/// Fortschritt als Punkte; geschaffte Übungen grün, ein Klick springt zum Schritt.
+private struct StepDots: View {
+    let current: OnboardingModel.Step
+    let completed: Set<OnboardingModel.Step>
+    let go: (OnboardingModel.Step) -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 9) {
-                IntroIcon(symbol: step.symbol, tint: step.tint)
-                Text(step.title)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 0)
-                if done {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.white, .green)
-                        .transition(.scale.combined(with: .opacity))
+        HStack(spacing: 6) {
+            ForEach(OnboardingModel.Step.allCases) { step in
+                Button { go(step) } label: {
+                    Capsule()
+                        .fill(color(step))
+                        .frame(width: step == current ? 18 : 7, height: 7)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help(step.title)
             }
-            .padding(.horizontal, 9)
-            .frame(height: 42)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(selected ? SettingsTheme.selectedRow : Color.primary.opacity(hovering ? 0.04 : 0))
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: current)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("Step \(current.rawValue + 1) of \(OnboardingModel.Step.allCases.count)",
+                              "Schritt \(current.rawValue + 1) von \(OnboardingModel.Step.allCases.count)"))
+    }
+
+    private func color(_ step: OnboardingModel.Step) -> Color {
+        if step == current { return Color.primary.opacity(0.85) }
+        if completed.contains(step) { return Color.green.opacity(0.85) }
+        return Color.primary.opacity(0.2)
     }
 }
 
-// MARK: Bausteine der Seiten
+// MARK: Aufbau einer Seite
 
-/// Zeile mit kleinem Symbol und Text, für Erklärungen in einer Karte
-private struct IntroInfoRow: View {
-    let symbol: String
+/// Eine Seite: große Szene oben, Überschrift, ein Satz, darunter die Übung.
+private struct PresentationPage<Hero: View, Practice: View>: View {
     let title: String
     let text: String
+    @ViewBuilder let hero: () -> Hero
+    @ViewBuilder let practice: () -> Practice
 
     var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: symbol)
-                .font(.system(size: 14, weight: .medium))
+        VStack(spacing: 0) {
+            hero()
+                .frame(height: DemoLayout.shown.height)
+            Text(title)
+                .font(.system(size: 24, weight: .semibold))
+                .padding(.top, 18)
+            Text(text)
+                .font(.system(size: 13.5))
                 .foregroundStyle(.secondary)
-                .frame(width: 22, height: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13.5))
-                Text(text)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 440)
+                .padding(.top, 6)
+            practice()
+                .padding(.top, 20)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, SettingsTheme.rowPadding)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 30)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Übung mit Ergebnis: vorher der Inhalt, danach ein grüner Haken mit kurzer Bestätigung
+private struct PracticeResult<Content: View>: View {
+    let done: Bool
+    let confirmation: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ZStack {
+            if done {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.white, .green)
+                    Text(confirmation)
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
+            } else {
+                content()
+                    .transition(.opacity)
+            }
+        }
+        .frame(height: 96)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: done)
     }
 }
 
 /// Wort für den gewählten Rand im Satz („an den rechten Rand“)
 private func edgeWord(_ settings: AppSettings) -> String {
     settings.edge == .right ? L("right", "rechten") : L("left", "linken")
-}
-
-/// Unter einer Übung: Anleitung, nach dem Schaffen die Bestätigung mit Haken
-private struct PracticeNote: View {
-    let done: Bool
-    let instruction: String
-    let confirmation: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            if done {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white, .green)
-                    .transition(.scale.combined(with: .opacity))
-            }
-            Text(done ? confirmation : instruction)
-                .font(.system(size: 12))
-                .foregroundStyle(done ? Color.primary : Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .id(done)
-                .transition(.opacity)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 8)
-    }
 }
 
 // MARK: Willkommen
@@ -612,29 +524,12 @@ private struct WelcomePage: View {
     @ObservedObject var settings: AppSettings
 
     var body: some View {
-        SettingsPage {
-            Text(L("A place for files at the edge of your screen. Drag something there and it stays at hand until you need it.",
-                   "Ein Platz für Dateien am Rand deines Bildschirms. Zieh etwas dorthin, und es bleibt griffbereit, bis du es brauchst."))
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 8)
-
-            SettingsSection(L("How it works", "So funktioniert es")) {
-                IntroInfoRow(symbol: "1.circle.fill", title: L("Drop", "Ablegen"),
-                             text: L("Drag a file, an image, a link or text to the \(edgeWord(settings)) edge of the screen. The shelf opens and you let go.",
-                                     "Zieh eine Datei, ein Bild, einen Link oder Text an den \(edgeWord(settings)) Bildschirmrand. Die Ablage öffnet sich, und du lässt los."))
-                IntroInfoRow(symbol: "2.circle.fill", title: L("Keep", "Aufbewahren"),
-                             text: L("Everything stays there at hand, even after a restart.",
-                                     "Alles bleibt dort griffbereit, auch nach einem Neustart."))
-                IntroInfoRow(symbol: "3.circle.fill", title: L("Drag out", "Herausziehen"),
-                             text: L("Move the pointer to the edge and drag it into any app.",
-                                     "Fahr mit dem Zeiger an den Rand und zieh es in eine beliebige App."))
-            }
-
-            SettingsSection(L("Set up", "Einrichten"),
-                            note: L("Next, try it out in three short steps.",
-                                    "Danach probierst du es in drei kurzen Schritten aus.")) {
+        PresentationPage(title: L("Welcome to BarDrop", "Willkommen bei BarDrop"),
+                         text: L("A shelf at the edge of your screen for anything you want to keep at hand.",
+                                 "Eine Ablage am Rand deines Bildschirms für alles, was du gleich wieder brauchst.")) {
+            ShelfStage(scene: .overview)
+        } practice: {
+            SettingsCard {
                 SettingsRow(L("Language", "Sprache")) {
                     SegmentedValue(selection: $settings.language,
                                    options: AppLanguage.allCases.map { ($0, $0.title) })
@@ -645,6 +540,7 @@ private struct WelcomePage: View {
                 }
                 ToggleRow(L("Open at login", "Beim Anmelden öffnen"), isOn: $model.launchAtLogin)
             }
+            .frame(maxWidth: 400)
         }
     }
 }
@@ -656,37 +552,26 @@ private struct DropPage: View {
     @ObservedObject var settings: AppSettings
 
     var body: some View {
-        SettingsPage {
-            VStack(alignment: .leading, spacing: 8) {
-                SettingsHeader(L("Try it", "Probier es aus"))
-                    .padding(.horizontal, 8)
-                SettingsCard {
-                    PracticeStage(edge: settings.edge) {
-                        SampleTile(url: model.sampleURL, done: model.stepDone,
-                                   onDragStarted: model.onSampleDragStarted)
+        PresentationPage(title: L("Drop", "Ablegen"),
+                         text: L("Drag something to the \(edgeWord(settings)) edge of your screen. The shelf opens, and you let go.",
+                                 "Zieh etwas an den \(edgeWord(settings)) Rand deines Bildschirms. Die Ablage öffnet sich, und du lässt los.")) {
+            ShelfStage(scene: .drop)
+        } practice: {
+            PracticeResult(done: model.stepDone,
+                           confirmation: L("The image is in the shelf.", "Das Bild liegt in der Ablage.")) {
+                HStack(spacing: 14) {
+                    if settings.edge == .left { EdgeArrows(edge: .left) }
+                    SampleTile(url: model.sampleURL, onDragStarted: model.onSampleDragStarted)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("Your turn", "Jetzt du"))
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(L("Drag this image to the edge of the screen.",
+                               "Zieh dieses Bild an den Bildschirmrand."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                     }
+                    if settings.edge == .right { EdgeArrows(edge: .right) }
                 }
-                PracticeNote(done: model.stepDone,
-                             instruction: L("Drag the image to the \(edgeWord(settings)) edge of the screen. As soon as the shelf opens, let go.",
-                                            "Zieh das Bild an den \(edgeWord(settings)) Bildschirmrand. Sobald sich die Ablage öffnet, lass es los."),
-                             confirmation: L("The image is now in the shelf.", "Das Bild liegt jetzt in der Ablage."))
-            }
-
-            SettingsSection(L("Good to know", "Gut zu wissen")) {
-                IntroInfoRow(symbol: "safari",
-                             title: L("Not just files", "Nicht nur Dateien"),
-                             text: L("Images from the browser, links and selected text work the same way.",
-                                     "Bilder aus dem Browser, Links und markierter Text gehen genauso."))
-                if settings.stackMultiple {
-                    IntroInfoRow(symbol: "square.stack.fill",
-                                 title: L("Several at once", "Mehrere auf einmal"),
-                                 text: L("Several items dropped at once land together in a stack.",
-                                         "Mehrere Objekte auf einmal landen zusammen in einem Stapel."))
-                }
-                IntroInfoRow(symbol: "doc.on.clipboard",
-                             title: L("Paste", "Einfügen"),
-                             text: L("In the open shelf, ⌘V adds what’s on the clipboard.",
-                                     "In der offenen Ablage fügt ⌘V ein, was in der Zwischenablage liegt."))
             }
         }
     }
@@ -699,60 +584,59 @@ private struct RetrievePage: View {
     @ObservedObject var settings: AppSettings
 
     /// Wie man die Ablage öffnet, passend zu den Einstellungen
-    private var instruction: String {
-        let open: String
+    private var howToOpen: String {
         if settings.openMode == .click {
-            open = L(" and click the strip", " und klick auf den Streifen")
-        } else if settings.openDelay >= AppSettings.clickToOpenMinDelay - 0.01 {
-            open = L(" and wait a moment or click the strip", " und warte kurz oder klick auf den Streifen")
-        } else {
-            open = ""
+            return L("Move the pointer to the \(edgeWord(settings)) edge and click the strip.",
+                     "Fahr an den \(edgeWord(settings)) Rand und klick auf den Streifen.")
         }
-        // „etwa auf halber Höhe“ als Einschub: das Komma danach nur, wenn noch etwas folgt
-        let middle = settings.adaptiveZoneFraction != nil
-            ? L(" around the middle", open.isEmpty ? ", etwa auf halber Höhe" : ", etwa auf halber Höhe,") : ""
-        return L("Move the pointer to the \(edgeWord(settings)) edge\(middle)\(open). When the shelf opens, drag the image back here.",
-                 "Fahr mit dem Zeiger an den \(edgeWord(settings)) Rand\(middle)\(open). Wenn sich die Ablage öffnet, zieh das Bild hierher zurück.")
+        return L("Move the pointer to the \(edgeWord(settings)) edge. The shelf opens, and you drag out what you need.",
+                 "Fahr mit dem Zeiger an den \(edgeWord(settings)) Rand. Die Ablage öffnet sich, und du ziehst heraus, was du brauchst.")
     }
 
     var body: some View {
-        SettingsPage {
-            VStack(alignment: .leading, spacing: 8) {
-                SettingsHeader(L("Try it", "Probier es aus"))
-                    .padding(.horizontal, 8)
-                SettingsCard {
-                    PracticeStage(edge: settings.edge) {
-                        ReturnDropZone(url: model.sampleURL, done: model.stepDone) {
-                            model.complete(.retrieve)
-                        }
-                    }
+        PresentationPage(title: L("Drag Out", "Herausziehen"), text: howToOpen) {
+            ShelfStage(scene: .dragOut)
+        } practice: {
+            PracticeResult(done: model.stepDone,
+                           confirmation: L("Works with any app.", "Klappt mit jeder App.")) {
+                ReturnDropZone {
+                    model.complete(.retrieve)
                 }
-                PracticeNote(done: model.stepDone,
-                             instruction: instruction,
-                             confirmation: L("That’s how you use anything in the shelf: drag it out into any app.",
-                                             "So verwendest du alles aus der Ablage: einfach in eine App herausziehen."))
             }
+        }
+    }
+}
 
-            SettingsSection(L("Good to know", "Gut zu wissen")) {
-                if settings.removeAfterDragOut {
-                    IntroInfoRow(symbol: "arrow.uturn.backward",
-                                 title: L("Gone by mistake?", "Versehentlich weg?"),
-                                 text: L("After you drag something out, it leaves the shelf. ⌘Z brings it back within 15 minutes.",
-                                         "Nach dem Herausziehen verschwindet es aus der Ablage. ⌘Z holt es innerhalb von 15 Minuten zurück."))
-                } else {
-                    IntroInfoRow(symbol: "tray.full.fill",
-                                 title: L("Stays in the shelf", "Bleibt in der Ablage"),
-                                 text: L("Items stay in the shelf after you drag them out.",
-                                         "Nach dem Herausziehen bleiben Objekte in der Ablage."))
+// MARK: Zurückholen
+
+private struct UndoPage: View {
+    @ObservedObject var model: OnboardingModel
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        PresentationPage(title: L("Get Back", "Zurückholen"),
+                         text: L("Removed something by mistake? In the open shelf, ⌘Z brings it back.",
+                                 "Versehentlich entfernt? In der offenen Ablage holt ⌘Z es zurück.")) {
+            ShelfStage(scene: .undo)
+        } practice: {
+            PracticeResult(done: model.stepDone,
+                           confirmation: L("The image is back.", "Das Bild ist wieder da.")) {
+                HStack(spacing: 14) {
+                    KeyCaps(keys: [("⌘", "command"), ("Z", "")], size: 50, pressed: false)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("Your turn", "Jetzt du"))
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(model.sampleInShelf
+                             ? L("Open the shelf, select the image, press ⌫ and then ⌘Z.",
+                                 "Öffne die Ablage, wähl das Bild, drück ⌫ und dann ⌘Z.")
+                             : L("Open the shelf and press ⌘Z.",
+                                 "Öffne die Ablage und drück ⌘Z."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: 240, alignment: .leading)
                 }
-                IntroInfoRow(symbol: "cursorarrow.click.2",
-                             title: L("Several at once", "Mehrere auf einmal"),
-                             text: L("Select with ⌘-click or ⇧-click and drag them out together.",
-                                     "Mit ⌘-Klick oder ⇧-Klick auswählen und zusammen herausziehen."))
-                IntroInfoRow(symbol: "contextualmenu.and.cursorarrow",
-                             title: L("More with a right-click", "Mehr per Rechtsklick"),
-                             text: L("Open, Show in Finder, Copy, Share and Convert.",
-                                     "Öffnen, Im Finder zeigen, Kopieren, Teilen und Umwandeln."))
             }
         }
     }
@@ -765,77 +649,60 @@ private struct ShortcutPage: View {
     @ObservedObject var settings: AppSettings
 
     var body: some View {
-        SettingsPage {
-            VStack(alignment: .leading, spacing: 8) {
-                SettingsHeader(L("Try it", "Probier es aus"))
-                    .padding(.horizontal, 8)
-                SettingsCard {
-                    ShortcutKeys(settings: settings, pressed: model.stepDone)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 22)
+        PresentationPage(title: L("Open from Anywhere", "Von überall öffnen"),
+                         text: L("Press \(settings.hotKeyDescription). Press it again to close the shelf. You can change it in Settings → Keyboard.",
+                                 "Drück \(settings.hotKeyDescription). Noch einmal, und die Ablage geht wieder zu. Ändern kannst du das unter Einstellungen → Tastatur.")) {
+            ShelfStage(scene: .shortcut)
+        } practice: {
+            PracticeResult(done: model.stepDone,
+                           confirmation: L("That’s it.", "Genau so.")) {
+                HStack(spacing: 14) {
+                    KeyCaps(keys: ShortcutKeys.keys(settings), size: 50, pressed: false)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("Your turn", "Jetzt du"))
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(L("Press the keys now.", "Drück jetzt die Tasten."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                PracticeNote(done: model.stepDone,
-                             instruction: L("Press \(settings.hotKeyDescription) to open the shelf from anywhere, even without a mouse.",
-                                            "Drück \(settings.hotKeyDescription), um die Ablage von überall zu öffnen, auch ohne Maus."),
-                             confirmation: L("The same shortcut closes it again. You can change it in Settings → Keyboard.",
-                                             "Derselbe Kurzbefehl schließt sie wieder. Ändern kannst du ihn unter Einstellungen → Tastatur."))
-            }
-
-            SettingsSection(L("In the open shelf", "In der offenen Ablage"),
-                            note: L("All keyboard shortcuts are listed in Settings → Keyboard.",
-                                    "Alle Tastenkürzel stehen unter Einstellungen → Tastatur.")) {
-                ShortcutRow(L("Quick Look", "Übersicht"), [L("Space", "Leertaste")])
-                ShortcutRow(L("Remove selection", "Auswahl entfernen"), ["⌫"])
-                ShortcutRow(L("Undo", "Widerrufen"), ["⌘", "Z"])
-                ShortcutRow(L("Clear selection, then close", "Auswahl aufheben, dann schließen"), ["esc"])
             }
         }
     }
 }
 
-/// Die Tasten des Kurzbefehls als Kappen wie unter Einstellungen → Tastatur.
-/// Nach dem Drücken hell hervorgehoben.
-private struct ShortcutKeys: View {
-    @ObservedObject var settings: AppSettings
+/// Tasten als Kappen wie unter Einstellungen → Tastatur; nach dem Drücken in Akzentfarbe
+struct KeyCaps: View {
+    let keys: [(symbol: String, name: String)]
+    let size: CGFloat
     let pressed: Bool
 
-    /// Reihenfolge wie bei Apple und in `hotKeyDescription`: ⌃ ⌥ ⇧ ⌘
-    private var keys: [(symbol: String, name: String)] {
-        let m = settings.hotKeyModifiers
-        var keys: [(symbol: String, name: String)] = []
-        if m & controlKey != 0 { keys.append((symbol: "⌃", name: "control")) }
-        if m & optionKey != 0 { keys.append((symbol: "⌥", name: "option")) }
-        if m & shiftKey != 0 { keys.append((symbol: "⇧", name: "shift")) }
-        if m & cmdKey != 0 { keys.append((symbol: "⌘", name: "command")) }
-        keys.append((symbol: settings.hotKeyLabel, name: ""))
-        return keys
-    }
-
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: size * 0.13) {
             ForEach(Array(keys.enumerated()), id: \.offset) { _, key in
                 VStack(alignment: .leading, spacing: 0) {
                     if key.name.isEmpty {
                         Text(key.symbol)
-                            .font(.system(size: 19, weight: .medium))
+                            .font(.system(size: size * 0.32, weight: .medium))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        Text(key.symbol).font(.system(size: 14, weight: .medium))
+                        Text(key.symbol).font(.system(size: size * 0.24, weight: .medium))
                         Spacer(minLength: 0)
-                        Text(key.name).font(.system(size: 12, weight: .medium))
+                        Text(key.name).font(.system(size: size * 0.17, weight: .medium))
                     }
                 }
                 .foregroundStyle(pressed ? Color.white : Color.primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .frame(width: key.name.isEmpty ? 62 : 74, height: 62, alignment: .leading)
+                .padding(.horizontal, size * 0.15)
+                .padding(.vertical, size * 0.12)
+                .frame(width: key.name.isEmpty ? size : size * 1.2, height: size, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(pressed ? Color(nsColor: .controlAccentColor) : Color.black.opacity(0.32))
+                    RoundedRectangle(cornerRadius: size * 0.16, style: .continuous)
+                        .fill(pressed ? Color(nsColor: .controlAccentColor) : Color.primary.opacity(0.1))
+                        .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1.5)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: size * 0.16, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
                 )
                 .scaleEffect(pressed ? 0.96 : 1)
             }
@@ -858,69 +725,74 @@ private struct FeaturesPage: View {
     }
 
     /// Automatisches Entfernen, mit dem eingestellten Wert
-    private var cleanupText: String {
+    private var cleanup: String {
         let hours = Int(settings.autoRemoveAfter / 3_600)
-        if hours <= 0 {
-            return L("Items stay until you remove them. They can also disappear by themselves after a few hours (Settings → Items).",
-                     "Objekte bleiben, bis du sie entfernst. Auf Wunsch verschwinden sie nach einigen Stunden von selbst (Einstellungen → Objekte).")
-        }
-        let after = hours == 1 ? L("1 hour", "1 Stunde") : L("\(hours) hours", "\(hours) Stunden")
-        return L("Items disappear by themselves after \(after). You can change this in Settings → Items.",
-                 "Objekte verschwinden nach \(after) von selbst. Ändern kannst du das unter Einstellungen → Objekte.")
+        if hours <= 0 { return L("Stays until you remove it", "Bleibt, bis du es entfernst") }
+        return hours == 1 ? L("Gone by itself after 1 hour", "Nach 1 Stunde von selbst weg")
+                          : L("Gone by itself after \(hours) hours", "Nach \(hours) Stunden von selbst weg")
     }
 
     private var features: [Feature] {
-        var list = [
+        [
             Feature(id: "actions", symbol: "paperplane.fill", tint: Color(red: 0.2, green: 0.47, blue: 1),
-                    title: L("Action bar", "Aktionsleiste"),
-                    text: L("Drag items onto AirDrop, a folder or the Trash at the bottom of the shelf, or select them and click an action.",
-                            "Zieh Objekte unten in der Ablage auf AirDrop, einen Ordner oder den Papierkorb, oder wähl sie aus und klick auf eine Aktion."))
+                    title: L("Actions", "Aktionen"),
+                    text: L("Drag onto AirDrop, a folder or the Trash", "Auf AirDrop, Ordner oder Papierkorb ziehen")),
+            Feature(id: "convert", symbol: "arrow.triangle.2.circlepath", tint: Color(red: 0.2, green: 0.78, blue: 0.4),
+                    title: L("Convert", "Umwandeln"),
+                    text: L("Right-click for JPEG, PDF and more", "Per Rechtsklick in JPEG, PDF und mehr")),
+            Feature(id: "stacks", symbol: "square.stack.fill", tint: Color(red: 0.18, green: 0.68, blue: 0.75),
+                    title: L("Stacks", "Stapel"),
+                    text: L("Several items at once stay together", "Mehrere auf einmal bleiben zusammen")),
+            Feature(id: "cleanup", symbol: "clock.fill", tint: Color(red: 0.92, green: 0.3, blue: 0.55),
+                    title: L("Cleanup", "Aufräumen"), text: cleanup)
         ]
-        if settings.stackMultiple {
-            list.append(Feature(id: "stack", symbol: "square.stack.fill", tint: Color(red: 0.18, green: 0.68, blue: 0.75),
-                                title: L("Stacks", "Stapel"),
-                                text: L("Several items dropped at once land in a stack. Click it to open it.",
-                                        "Mehrere Objekte auf einmal landen in einem Stapel. Ein Klick öffnet ihn.")))
-        }
-        list.append(Feature(id: "convert", symbol: "arrow.triangle.2.circlepath", tint: Color(red: 0.2, green: 0.78, blue: 0.4),
-                            title: L("Convert", "Umwandeln"),
-                            text: L("Right-click an item to turn images into JPEG or PDF, resize them and more.",
-                                    "Rechtsklick auf ein Objekt, um Bilder in JPEG oder PDF umzuwandeln, zu verkleinern und mehr.")))
-        if settings.pinFromShelf {
-            list.append(Feature(id: "pin", symbol: "pin.fill", tint: Color(red: 0.95, green: 0.6, blue: 0.1),
-                                title: L("Pin", "Anheften"),
-                                text: L("Drag a folder or app over the shelf and drop it on “Pin” at the end of the action bar.",
-                                        "Zieh einen Ordner oder eine App über die Ablage und lass sie auf „Anheften“ am Ende der Aktionsleiste los.")))
-        }
-        list.append(Feature(id: "cleanup", symbol: "clock.fill", tint: Color(red: 0.92, green: 0.3, blue: 0.55),
-                            title: L("Cleanup", "Aufräumen"), text: cleanupText))
-        list.append(Feature(id: "settings", symbol: "gearshape.fill", tint: Color(white: 0.55),
-                            title: L("Settings", "Einstellungen"),
-                            text: L("Right-click an empty spot in the shelf, press ⌘, there, or simply open BarDrop again.",
-                                    "Rechtsklick auf eine leere Stelle der Ablage, dort ⌘, drücken oder BarDrop einfach noch einmal öffnen.")))
-        return list
     }
 
-    private let columns = [GridItem(.flexible(), spacing: 10, alignment: .top),
-                           GridItem(.flexible(), spacing: 10, alignment: .top)]
+    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     var body: some View {
-        SettingsPage {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+        VStack(spacing: 0) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 46, weight: .regular))
+                .foregroundStyle(Color(nsColor: .controlAccentColor))
+                .frame(height: 70)
+                .padding(.top, 10)
+            Text(L("And There’s More", "Und noch mehr"))
+                .font(.system(size: 24, weight: .semibold))
+                .padding(.top, 12)
+            Text(L("Everything can be adjusted in Settings: right-click an empty spot in the shelf.",
+                   "Alles lässt sich in den Einstellungen anpassen: Rechtsklick auf eine leere Stelle der Ablage."))
+                .font(.system(size: 13.5))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 440)
+                .padding(.top, 6)
+
+            LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(features) { feature in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 9) {
-                            IntroIcon(symbol: feature.symbol, tint: feature.tint, size: 24)
+                    HStack(spacing: 12) {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(LinearGradient(colors: [feature.tint.opacity(0.85), feature.tint],
+                                                 startPoint: .top, endPoint: .bottom))
+                            .overlay(
+                                Image(systemName: feature.symbol)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.white)
+                            )
+                            .frame(width: 40, height: 40)
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(feature.title)
                                 .font(.system(size: 13.5, weight: .semibold))
+                            Text(feature.text)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Text(feature.text)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
                     }
                     .padding(12)
-                    .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
                             .fill(SettingsTheme.card)
@@ -931,94 +803,54 @@ private struct FeaturesPage: View {
                     )
                 }
             }
+            .frame(maxWidth: 520)
+            .padding(.top, 26)
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 30)
     }
 }
 
-// MARK: Bühne der Übungen
-
-/// Fläche einer Übung: links der Inhalt, zum Rand hin Pfeile und ein Stück Bildschirmrand
-/// mit dem schwarzen Streifen, damit klar ist, wohin es geht.
-private struct PracticeStage<Content: View>: View {
+/// Drei Pfeile in Richtung Bildschirmrand, die nacheinander aufleuchten
+private struct EdgeArrows: View {
     let edge: ScreenEdge
-    @ViewBuilder let content: () -> Content
 
     var body: some View {
-        HStack(spacing: 18) {
-            if edge == .left {
-                edgeHint
-                arrows
-            }
-            content()
-                .frame(maxWidth: .infinity)
-            if edge == .right {
-                arrows
-                edgeHint
-            }
-        }
-        .padding(.horizontal, 16)
-        .frame(height: 150)
-    }
-
-    /// Bildschirmrand mit Streifen
-    private var edgeHint: some View {
-        ZStack(alignment: edge == .right ? .trailing : .leading) {
-            Rectangle()
-                .fill(SettingsTheme.separator)
-                .frame(width: 2)
-            UnevenRoundedRectangle(cornerRadii: edge == .right
-                                   ? .init(topLeading: 5, bottomLeading: 5)
-                                   : .init(bottomTrailing: 5, topTrailing: 5),
-                                   style: .continuous)
-                .fill(Color.black)
-                .frame(width: 8, height: 64)
-        }
-        .frame(width: 10, height: 126)
-    }
-
-    /// Drei Pfeile, die nacheinander aufleuchten
-    private var arrows: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: AnimationStyle.reduceMotion)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 2) {
+            HStack(spacing: 1) {
                 ForEach(0..<3, id: \.self) { i in
                     let order = edge == .right ? Double(i) : Double(2 - i)
                     let wave = 0.5 + 0.5 * sin((t * 3.2) - order * 0.9)
                     Image(systemName: edge == .right ? "chevron.right" : "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Color.secondary.opacity(AnimationStyle.reduceMotion ? 0.6 : 0.25 + 0.6 * wave))
                 }
             }
         }
+        .accessibilityHidden(true)
     }
 }
 
-/// Das Beispielbild als Kachel wie im Finder, zum Herausziehen
+/// Das Beispielbild als Kachel, zum Herausziehen wie aus dem Finder
 private struct SampleTile: View {
     let url: URL?
-    let done: Bool
     var onDragStarted: () -> Void = {}
+    @State private var hovering = false
 
     var body: some View {
-        VStack(spacing: 6) {
-            preview
-                .frame(width: 72, height: 72)
-                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-            Text(url?.lastPathComponent ?? L("Image", "Bild"))
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(2)
-                .truncationMode(.middle)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 140)
-        }
-        .padding(6)
-        .opacity(done ? 0.35 : 1)
-        .overlay(
-            Group {
-                if let url, !done { SampleDragArea(url: url, onDragStarted: onDragStarted) }
-            }
-        )
-        .help(L("Drag to the edge", "Zum Rand ziehen"))
+        preview
+            .frame(width: 64, height: 64)
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+            .scaleEffect(hovering ? 1.05 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hovering)
+            .onHover { hovering = $0 }
+            .overlay(
+                Group {
+                    if let url { SampleDragArea(url: url, onDragStarted: onDragStarted) }
+                }
+            )
+            .help(L("Drag to the edge", "Zum Rand ziehen"))
     }
 
     @ViewBuilder
@@ -1028,7 +860,7 @@ private struct SampleTile: View {
                 .resizable()
                 .interpolation(.high)
         } else {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.secondary.opacity(0.15))
         }
     }
@@ -1101,8 +933,6 @@ final class SampleDragView: NSView, NSDraggingSource {
 /// Fläche, in die das Bild aus der Ablage zurückgezogen wird. Nimmt nur Objekte an,
 /// die aus der Ablage kommen, damit man genau das Herausziehen übt.
 private struct ReturnDropZone: View {
-    let url: URL?
-    let done: Bool
     let onDrop: () -> Void
     @State private var targeted = false
 
@@ -1113,43 +943,23 @@ private struct ReturnDropZone: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.secondary.opacity(targeted ? 0.8 : 0.45),
                               style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-                .opacity(done ? 0 : 1)
-
-            if done {
-                ZStack(alignment: .bottomTrailing) {
-                    preview
-                        .frame(width: 72, height: 72)
-                        .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 30))
-                        .foregroundStyle(.white, .green)
-                        .offset(x: 10, y: 10)
-                        .transition(.scale.combined(with: .opacity))
-                }
-            } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "tray.and.arrow.down")
-                        .font(.system(size: 28, weight: .regular))
-                        .foregroundStyle(Color.secondary.opacity(targeted ? 1 : 0.7))
-                    Text(L("Drag the image back here", "Zieh das Bild hierher zurück"))
-                        .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 10) {
+                Image(systemName: "tray.and.arrow.down")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(Color.secondary.opacity(targeted ? 1 : 0.7))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("Your turn", "Jetzt du"))
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(L("Drag the image from the shelf back here.", "Zieh das Bild aus der Ablage hierher zurück."))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .frame(maxWidth: 260, maxHeight: 122)
+        .frame(width: 360, height: 84)
         .scaleEffect(targeted ? 1.02 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: targeted)
-        .overlay(ReturnDropTarget(enabled: !done, targeted: $targeted, onDrop: onDrop))
-    }
-
-    @ViewBuilder
-    private var preview: some View {
-        if let url, let image = NSImage(contentsOf: url) {
-            Image(nsImage: image).resizable().interpolation(.high)
-        } else {
-            RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.secondary.opacity(0.15))
-        }
+        .overlay(ReturnDropTarget(enabled: true, targeted: $targeted, onDrop: onDrop))
     }
 }
 
