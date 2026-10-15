@@ -22,6 +22,8 @@ final class OnboardingModel: ObservableObject {
     /// Beim ersten Start vorgeschlagen; wird die Einführung später erneut geöffnet,
     /// zeigt der Schalter den tatsächlichen Zustand
     @Published var launchAtLogin: Bool
+    /// Die Einführung läuft nicht zum ersten Mal (z. B. über Einstellungen → Über geöffnet)
+    let isRerun: Bool
 
     let settings: AppSettings
     /// Beispieldatei; wird umbenannt, wenn auf der ersten Seite die Sprache wechselt
@@ -34,7 +36,20 @@ final class OnboardingModel: ObservableObject {
     init(settings: AppSettings, sampleURL: URL?) {
         self.settings = settings
         self.sampleURL = sampleURL
+        isRerun = settings.didLaunchBefore
         launchAtLogin = settings.didLaunchBefore ? SMAppService.mainApp.status == .enabled : true
+    }
+
+    enum LoginItemChange: Equatable { case register, unregister }
+
+    /// Was beim Abschluss mit „Beim Anmelden öffnen“ geschieht. Nur „Fertig“ ändert etwas
+    /// (Überspringen und Schließen nie); abgemeldet wird nur bei einem erneuten Durchlauf,
+    /// beim ersten Start bleibt es beim Anmelden auf Wunsch.
+    static func loginItemChange(completed: Bool, wanted: Bool, isRerun: Bool, enabled: Bool) -> LoginItemChange? {
+        guard completed else { return nil }
+        if wanted && !enabled { return .register }
+        if !wanted && enabled && isRerun { return .unregister }
+        return nil
     }
 
     /// Schritte zum Mitmachen
@@ -176,12 +191,23 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         if !sampleFiles.isEmpty { store.forgetFiles(at: sampleFiles) }
         if let url = model.sampleURL { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
 
-        if completed && model.launchAtLogin && SMAppService.mainApp.status != .enabled {
+        switch OnboardingModel.loginItemChange(completed: completed, wanted: model.launchAtLogin,
+                                               isRerun: model.isRerun,
+                                               enabled: SMAppService.mainApp.status == .enabled) {
+        case .register:
             do {
                 try SMAppService.mainApp.register()
             } catch {
                 Log.edge.error("Anmeldeobjekt nicht möglich: \(error.localizedDescription, privacy: .public)")
             }
+        case .unregister:
+            do {
+                try SMAppService.mainApp.unregister()
+            } catch {
+                Log.edge.error("Anmeldeobjekt ließ sich nicht entfernen: \(error.localizedDescription, privacy: .public)")
+            }
+        case nil:
+            break
         }
         subscriptions.removeAll()
         window?.delegate = nil
