@@ -21,6 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
+      # Die Schritte laufen mit „bash -e -o pipefail“: Ein grep ohne Treffer darf den
+      # Schritt nicht beenden, deshalb „|| true“ hinter den Auswertungen.
       # Ergebnisse auch als Annotationen: Sie sind in der Übersicht des Laufs und über
       # die API lesbar, ohne das ganze Protokoll zu laden.
       - name: Toolchain
@@ -34,7 +36,7 @@ jobs:
         run: |
           set -o pipefail
           swift build 2>&1 | tee build.log || {
-            grep -E "error:" build.log | sort -u | head -20 | while IFS= read -r line; do echo "::error title=Build::${line}"; done
+            grep -E "error:" build.log | sort -u | head -20 | while IFS= read -r line; do echo "::error title=Build::${line}"; done || true
             exit 1
           }
           echo "::notice title=Build::$(grep -c 'warning:' build.log || true) Warnungen"
@@ -43,19 +45,19 @@ jobs:
         run: |
           set -o pipefail
           swift test 2>&1 | tee test.log || STATUS=$?
-          grep -E "error:|' failed \(" test.log | sort -u | head -20 | while IFS= read -r line; do echo "::error title=Test::${line}"; done
-          grep -E "Executed [0-9]+ tests" test.log | tail -1 | while IFS= read -r line; do echo "::notice title=Tests::${line}"; done
-          grep -E "' skipped" test.log | sort -u | head -5 | while IFS= read -r line; do echo "::notice title=Übersprungen::${line}"; done
+          grep -E "error:|' failed \(" test.log | sort -u | head -20 | while IFS= read -r line; do echo "::error title=Test::${line}"; done || true
+          grep -E "Executed [0-9]+ tests" test.log | tail -1 | while IFS= read -r line; do echo "::notice title=Tests::${line}"; done || true
+          grep -E "' skipped" test.log | sort -u | head -5 | while IFS= read -r line; do echo "::notice title=Übersprungen::${line}"; done || true
           exit ${STATUS:-0}
 
       - name: Tests mit Thread Sanitizer
         run: |
           set -o pipefail
           swift test --sanitize=thread 2>&1 | tee tsan.log || STATUS=$?
-          grep -E "error:|' failed \(" tsan.log | sort -u | head -20 | while IFS= read -r line; do echo "::error title=TSan Test::${line}"; done
+          grep -E "error:|' failed \(" tsan.log | sort -u | head -20 | while IFS= read -r line; do echo "::error title=TSan Test::${line}"; done || true
           RACES=$(grep -c "WARNING: ThreadSanitizer" tsan.log || true)
           echo "::notice title=Thread Sanitizer::${RACES} Warnungen"
           # Ort jeder Warnung: erste Zeile aus eigenem Code danach
-          grep -A30 "WARNING: ThreadSanitizer" tsan.log | grep -E "Sources/BarDrop/|Tests/BarDropTests/" | sed -E 's/.*(Sources|Tests)\//\1\//' | sort | uniq -c | sort -rn | head -10 | while IFS= read -r line; do echo "::warning title=TSan Ort::${line}"; done
-          grep -E "Executed [0-9]+ tests" tsan.log | tail -1 | while IFS= read -r line; do echo "::notice title=TSan Tests::${line}"; done
+          grep -A30 "WARNING: ThreadSanitizer" tsan.log | grep -E "Sources/BarDrop/|Tests/BarDropTests/" | sed -E 's/.*(Sources|Tests)\//\1\//' | sort | uniq -c | sort -rn | head -10 | while IFS= read -r line; do echo "::warning title=TSan Ort::${line}"; done || true
+          grep -E "Executed [0-9]+ tests" tsan.log | tail -1 | while IFS= read -r line; do echo "::notice title=TSan Tests::${line}"; done || true
           exit ${STATUS:-0}
