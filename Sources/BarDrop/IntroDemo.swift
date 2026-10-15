@@ -267,7 +267,8 @@ final class DemoShelf: ObservableObject {
             after(2.4) { if let entry = self.sampleEntry { self.actions.remove([entry]) } }
             after(3.0) { self.show(nil) }
             after(3.9) { self.show([("⌘", "command"), ("Z", "")]) }
-            after(4.0) { self.actions.undo() }
+            // Nur wenn wirklich etwas zurückzuholen ist, sonst gäbe es den Warnton
+            after(4.0) { if self.store.undoManager.canUndo { self.actions.undo() } }
             after(4.6) { self.show(nil) }
             after(6.4) { self.ui.selection = [] }
 
