@@ -465,10 +465,10 @@ private struct PresentationPage<Hero: View, Practice: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             hero()
-                .frame(height: 252)
+                .frame(height: DemoLayout.shown.height)
             Text(title)
                 .font(.system(size: 24, weight: .semibold))
-                .padding(.top, 22)
+                .padding(.top, 18)
             Text(text)
                 .font(.system(size: 13.5))
                 .foregroundStyle(.secondary)
@@ -527,7 +527,7 @@ private struct WelcomePage: View {
         PresentationPage(title: L("Welcome to BarDrop", "Willkommen bei BarDrop"),
                          text: L("A shelf at the edge of your screen for anything you want to keep at hand.",
                                  "Eine Ablage am Rand deines Bildschirms für alles, was du gleich wieder brauchst.")) {
-            DemoScreen(scene: .overview, edge: settings.edge)
+            ShelfStage(scene: .overview)
         } practice: {
             SettingsCard {
                 SettingsRow(L("Language", "Sprache")) {
@@ -555,7 +555,7 @@ private struct DropPage: View {
         PresentationPage(title: L("Drop", "Ablegen"),
                          text: L("Drag something to the \(edgeWord(settings)) edge of your screen. The shelf opens, and you let go.",
                                  "Zieh etwas an den \(edgeWord(settings)) Rand deines Bildschirms. Die Ablage öffnet sich, und du lässt los.")) {
-            DemoScreen(scene: .drop, edge: settings.edge)
+            ShelfStage(scene: .drop)
         } practice: {
             PracticeResult(done: model.stepDone,
                            confirmation: L("The image is in the shelf.", "Das Bild liegt in der Ablage.")) {
@@ -595,7 +595,7 @@ private struct RetrievePage: View {
 
     var body: some View {
         PresentationPage(title: L("Drag Out", "Herausziehen"), text: howToOpen) {
-            DemoScreen(scene: .dragOut, edge: settings.edge)
+            ShelfStage(scene: .dragOut)
         } practice: {
             PracticeResult(done: model.stepDone,
                            confirmation: L("Works with any app.", "Klappt mit jeder App.")) {
@@ -617,7 +617,7 @@ private struct UndoPage: View {
         PresentationPage(title: L("Get Back", "Zurückholen"),
                          text: L("Removed something by mistake? In the open shelf, ⌘Z brings it back.",
                                  "Versehentlich entfernt? In der offenen Ablage holt ⌘Z es zurück.")) {
-            DemoScreen(scene: .undo, edge: settings.edge)
+            ShelfStage(scene: .undo)
         } practice: {
             PracticeResult(done: model.stepDone,
                            confirmation: L("The image is back.", "Das Bild ist wieder da.")) {
@@ -648,44 +648,31 @@ private struct ShortcutPage: View {
     @ObservedObject var model: OnboardingModel
     @ObservedObject var settings: AppSettings
 
-    /// Reihenfolge wie bei Apple und in `hotKeyDescription`: ⌃ ⌥ ⇧ ⌘
-    private var keys: [(symbol: String, name: String)] {
-        let m = settings.hotKeyModifiers
-        var keys: [(symbol: String, name: String)] = []
-        if m & controlKey != 0 { keys.append((symbol: "⌃", name: "control")) }
-        if m & optionKey != 0 { keys.append((symbol: "⌥", name: "option")) }
-        if m & shiftKey != 0 { keys.append((symbol: "⇧", name: "shift")) }
-        if m & cmdKey != 0 { keys.append((symbol: "⌘", name: "command")) }
-        keys.append((symbol: settings.hotKeyLabel, name: ""))
-        return keys
-    }
-
     var body: some View {
         PresentationPage(title: L("Open from Anywhere", "Von überall öffnen"),
                          text: L("Press \(settings.hotKeyDescription). Press it again to close the shelf. You can change it in Settings → Keyboard.",
                                  "Drück \(settings.hotKeyDescription). Noch einmal, und die Ablage geht wieder zu. Ändern kannst du das unter Einstellungen → Tastatur.")) {
-            KeyCaps(keys: keys, size: 76, pressed: model.stepDone)
-                .frame(width: 420, height: 252)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(SettingsTheme.card)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(SettingsTheme.cardBorder, lineWidth: 1)
-                )
+            ShelfStage(scene: .shortcut)
         } practice: {
             PracticeResult(done: model.stepDone,
                            confirmation: L("That’s it.", "Genau so.")) {
-                Text(L("Your turn: press the keys now.", "Jetzt du: Drück die Tasten."))
-                    .font(.system(size: 13, weight: .semibold))
+                HStack(spacing: 14) {
+                    KeyCaps(keys: ShortcutKeys.keys(settings), size: 50, pressed: false)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("Your turn", "Jetzt du"))
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(L("Press the keys now.", "Drück jetzt die Tasten."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }
 }
 
 /// Tasten als Kappen wie unter Einstellungen → Tastatur; nach dem Drücken in Akzentfarbe
-private struct KeyCaps: View {
+struct KeyCaps: View {
     let keys: [(symbol: String, name: String)]
     let size: CGFloat
     let pressed: Bool
@@ -821,263 +808,6 @@ private struct FeaturesPage: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 30)
-    }
-}
-
-// MARK: Szene auf einem kleinen Bildschirm
-
-/// Ein kleiner Mac-Bildschirm, auf dem gezeigt wird, was passiert: Eine Datei wandert an den
-/// Rand, die Ablage wächst heraus (in ihrer echten Form) und nimmt sie auf; oder sie wird
-/// wieder herausgezogen; oder entfernt und mit ⌘Z zurückgeholt. Läuft in einer Schleife;
-/// mit „Bewegung reduzieren“ steht ein Standbild.
-private struct DemoScreen: View {
-    enum Scene { case overview, drop, dragOut, undo }
-    let scene: Scene
-    let edge: ScreenEdge
-
-    private let size = CGSize(width: 420, height: 252)
-    private let inset: CGFloat = 8
-    private var screen: CGSize { CGSize(width: size.width - 2 * inset, height: size.height - 2 * inset) }
-    private let shelfWidth: CGFloat = 104
-    private let shelfHeight: CGFloat = 150
-
-    private var period: Double {
-        switch scene {
-        case .overview: return 1
-        case .drop: return 4.6
-        case .dragOut: return 4.8
-        case .undo: return 4.8
-        }
-    }
-
-    /// Standbild bei „Bewegung reduzieren“: der aussagekräftigste Moment
-    private var stillTime: Double {
-        switch scene {
-        case .overview: return 0
-        case .drop: return 2.6
-        case .dragOut: return 2.0
-        case .undo: return 3.4
-        }
-    }
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: AnimationStyle.reduceMotion || scene == .overview)) { context in
-            let t = AnimationStyle.reduceMotion || scene == .overview
-                ? stillTime
-                : context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period)
-            frame(at: t)
-        }
-        .frame(width: size.width, height: size.height)
-        .accessibilityHidden(true)
-    }
-
-    // MARK: Zeitlicher Ablauf
-
-    /// 0 … 1 zwischen `a` und `b`, weich beschleunigt und abgebremst
-    private func phase(_ t: Double, _ a: Double, _ b: Double) -> CGFloat {
-        let x = min(max((t - a) / (b - a), 0), 1)
-        return CGFloat(x * x * (3 - 2 * x))
-    }
-
-    private func mix(_ a: CGFloat, _ b: CGFloat, _ p: CGFloat) -> CGFloat { a + (b - a) * p }
-
-    /// Waagrechte Lage, gemessen vom Rand der Ablage aus (gespiegelt für links)
-    private func x(fromEdge d: CGFloat) -> CGFloat {
-        edge == .right ? screen.width - d : d
-    }
-
-    private var centerY: CGFloat { screen.height / 2 + 6 }
-    private var windowCenter: CGPoint { CGPoint(x: x(fromEdge: screen.width - 120), y: centerY + 4) }
-    /// Platz der Datei in der Ablage: oben; die anderen Objekte liegen darunter
-    private var shelfSlot: CGPoint { CGPoint(x: x(fromEdge: shelfWidth / 2 + 2), y: centerY - 40) }
-
-    private struct Pose {
-        var shelf: CGFloat = 0           // sichtbare Breite der Ablage
-        var file = CGPoint.zero
-        var fileScale: CGFloat = 1
-        var fileOpacity: Double = 1
-        var pointer = CGPoint.zero
-        var pointerOpacity: Double = 1
-        var keyOpacity: Double = 0       // „⌘Z“ einblenden
-        var otherTiles: Double = 1       // weitere Objekte in der Ablage
-    }
-
-    private func pose(at t: Double) -> Pose {
-        var s = Pose()
-        let start = windowCenter
-        let slot = shelfSlot
-        let nearEdge = CGPoint(x: x(fromEdge: 30), y: centerY - 6)
-        switch scene {
-        case .overview:
-            s.shelf = shelfWidth
-            s.file = slot
-            s.fileScale = 0.82
-            s.pointer = CGPoint(x: x(fromEdge: shelfWidth + 40), y: centerY + 40)
-        case .drop:
-            // Datei mit dem Zeiger zum Rand, Ablage wächst heraus, Datei landet darin
-            let move = phase(t, 0.4, 1.6)
-            let land = phase(t, 1.9, 2.3)
-            s.file = CGPoint(x: mix(mix(start.x, nearEdge.x, move), slot.x, land),
-                             y: mix(mix(start.y, nearEdge.y, move), slot.y, land))
-            s.fileScale = mix(1, 0.82, land)
-            s.shelf = shelfWidth * phase(t, 1.3, 1.85) + 8 * phase(t, 1.05, 1.3) * (1 - phase(t, 1.3, 1.85))
-            let close = phase(t, 3.6, 4.0)
-            s.shelf *= (1 - close)
-            s.fileOpacity = Double(min(1 - close, phase(t, 0.0, 0.25)))
-            s.pointer = CGPoint(x: s.file.x + 10 + mix(0, edge == .right ? -60 : 60, land),
-                                y: s.file.y + 14 + mix(0, 40, land))
-            s.pointerOpacity = Double(phase(t, 0.0, 0.25) * (1 - close))
-            s.otherTiles = Double(1 - close)
-        case .dragOut:
-            // Zeiger an den Rand, Ablage öffnet sich, Datei wird ins Fenster gezogen
-            let approach = phase(t, 0.3, 1.0)
-            let open = phase(t, 1.0, 1.4)
-            let grab = phase(t, 1.6, 2.6)
-            let close = phase(t, 2.8, 3.2)
-            s.shelf = (8 * phase(t, 0.8, 1.0) * (1 - open) + shelfWidth * open) * (1 - close)
-            s.file = CGPoint(x: mix(slot.x, start.x, grab), y: mix(slot.y, start.y, grab))
-            s.fileScale = mix(0.82, 1, grab)
-            s.fileOpacity = Double(max(open, grab)) * Double(1 - phase(t, 4.3, 4.7))
-            let pointerStart = CGPoint(x: start.x, y: start.y + 30)
-            let atFile = CGPoint(x: slot.x + 10, y: slot.y + 14)
-            let p1 = CGPoint(x: mix(pointerStart.x, atFile.x, approach), y: mix(pointerStart.y, atFile.y, approach))
-            s.pointer = CGPoint(x: mix(p1.x, s.file.x + 10, grab), y: mix(p1.y, s.file.y + 14, grab))
-            s.pointerOpacity = Double(1 - phase(t, 4.3, 4.7))
-            s.otherTiles = Double(1 - close)
-        case .undo:
-            // Ablage offen, Datei verschwindet, ⌘Z erscheint, Datei ist wieder da
-            s.shelf = shelfWidth
-            s.file = slot
-            let gone = phase(t, 0.8, 1.1) * (1 - phase(t, 2.6, 2.95))
-            s.fileScale = 0.82 * (1 - 0.4 * gone)
-            s.fileOpacity = Double(1 - gone)
-            s.keyOpacity = Double(phase(t, 1.7, 2.0) * (1 - phase(t, 3.6, 4.0)))
-            s.pointer = CGPoint(x: x(fromEdge: shelfWidth + 46), y: centerY + 46)
-        }
-        return s
-    }
-
-    // MARK: Zeichnen
-
-    private func frame(at t: Double) -> some View {
-        let s = pose(at: t)
-        return ZStack(alignment: .topLeading) {
-            // Gehäuse
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(white: 0.13))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.25), radius: 10, y: 5)
-
-            // Bildschirm
-            ZStack(alignment: .topLeading) {
-                LinearGradient(colors: [Color(red: 0.36, green: 0.47, blue: 0.86),
-                                        Color(red: 0.62, green: 0.42, blue: 0.78),
-                                        Color(red: 0.93, green: 0.62, blue: 0.55)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                // Menüleiste
-                Rectangle()
-                    .fill(Color.white.opacity(0.28))
-                    .frame(height: 11)
-                // Fenster einer anderen App
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.white.opacity(0.9))
-                    .overlay(alignment: .topLeading) {
-                        HStack(spacing: 4) {
-                            Circle().fill(Color(red: 1, green: 0.37, blue: 0.34))
-                            Circle().fill(Color(red: 1, green: 0.74, blue: 0.18))
-                            Circle().fill(Color(red: 0.16, green: 0.79, blue: 0.25))
-                        }
-                        .frame(width: 34, height: 8)
-                        .padding(7)
-                    }
-                    .frame(width: 176, height: 118)
-                    .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
-                    .position(windowCenter)
-
-                // Die Ablage in ihrer echten Form
-                if s.shelf > 0.5 {
-                    EdgeBlobShape(edge: edge, cornerRadius: min(16, s.shelf * 0.5), fillet: 10)
-                        .fill(Color.black)
-                        .frame(width: s.shelf, height: shelfHeight)
-                        .position(x: x(fromEdge: s.shelf / 2), y: centerY)
-                    // weitere Objekte darin
-                    VStack(spacing: 8) {
-                        miniTile(symbol: "doc.fill", tint: Color(white: 0.85))
-                        miniTile(symbol: "link", tint: Color(red: 0.35, green: 0.6, blue: 1))
-                    }
-                    .scaleEffect(0.82)
-                    .opacity(s.shelf > shelfWidth * 0.8 ? s.otherTiles : 0)
-                    .position(x: x(fromEdge: shelfWidth / 2 + 2), y: centerY + 20)
-                }
-
-                // Die Datei
-                fileTile
-                    .scaleEffect(s.fileScale)
-                    .opacity(s.fileOpacity)
-                    .position(s.file)
-
-                // ⌘Z
-                if s.keyOpacity > 0 {
-                    HStack(spacing: 4) {
-                        miniKey("⌘")
-                        miniKey("Z")
-                    }
-                    .opacity(s.keyOpacity)
-                    .position(x: windowCenter.x, y: windowCenter.y)
-                }
-
-                // Zeiger
-                Image(systemName: "cursorarrow")
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.5), radius: 1, y: 1)
-                    .opacity(s.pointerOpacity)
-                    .position(s.pointer)
-            }
-            .frame(width: screen.width, height: screen.height)
-            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .offset(x: inset, y: inset)
-        }
-        .frame(width: size.width, height: size.height)
-    }
-
-    private var fileTile: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(LinearGradient(colors: [Color(red: 1, green: 0.62, blue: 0.3), Color(red: 0.95, green: 0.35, blue: 0.45)],
-                                 startPoint: .top, endPoint: .bottom))
-            .overlay(
-                Image(systemName: "photo.fill")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
-            )
-            .frame(width: 42, height: 42)
-            .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
-    }
-
-    private func miniTile(symbol: String, tint: Color) -> some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(Color.white.opacity(0.12))
-            .overlay(
-                Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(tint)
-            )
-            .frame(width: 42, height: 42)
-    }
-
-    private func miniKey(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(Color(white: 0.15))
-            .frame(width: 34, height: 34)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.white)
-                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1.5)
-            )
     }
 }
 
