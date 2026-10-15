@@ -100,6 +100,34 @@ final class ViewSmokeTests: XCTestCase {
         }
     }
 
+    /// Das Fenster der Einführung hat eine feste Größe. Keine Seite darf mehr Platz
+    /// verlangen, sonst wächst das Fenster (NSHostingView übernimmt Mindestgröße und
+    /// gewünschte Größe der Ansicht).
+    func testIntroductionFitsWindow() {
+        _ = NSApplication.shared
+        let settings = AppSettings.shared
+        let sample = OnboardingController.makeSample()
+        defer { if let sample { try? FileManager.default.removeItem(at: sample.deletingLastPathComponent()) } }
+        let model = OnboardingModel(settings: settings, sampleURL: sample)
+        model.onFinish = { _ in }
+        for edge in ScreenEdge.allCases {
+            settings.edge = edge
+            for step in OnboardingModel.Step.allCases {
+                model.go(to: step)
+                let host = NSHostingView(rootView: OnboardingView(model: model, openSettings: {}))
+                let fitting = host.fittingSize
+                let intrinsic = host.intrinsicContentSize
+                let size = OnboardingController.size
+                XCTAssertLessThanOrEqual(fitting.height, size.height, "\(step) \(edge): fitting \(fitting), intrinsic \(intrinsic)")
+                XCTAssertLessThanOrEqual(fitting.width, size.width, "\(step) \(edge): fitting \(fitting), intrinsic \(intrinsic)")
+                if intrinsic.height != NSView.noIntrinsicMetric {
+                    XCTAssertLessThanOrEqual(intrinsic.height, size.height, "\(step) \(edge): intrinsic \(intrinsic)")
+                }
+            }
+        }
+        settings.edge = .right
+    }
+
     func testOpenShelfRenders() throws {
         let settings = AppSettings.shared
         let store = ShelfStore(baseDirectory: base)
