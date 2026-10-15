@@ -73,7 +73,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * Convert with a right-click: images, PDF pages, text documents, audio and video, using only what macOS includes
 * Newest or oldest first, stacks, selection like in the Finder
 * Removed something by accident? `⌘Z` brings it back
-* Moved or renamed files stay in the shelf, iCloud files are downloaded when needed, files from disconnected drives stay greyed out
+* Moved or renamed files stay in the shelf, iCloud files are downloaded when needed, files from disconnected drives stay grayed out
 * Contents survive a restart and can be cleaned up automatically after 1 to 24 hours
 
 **Action bar**

@@ -279,7 +279,7 @@ Everything since 1.28.0:
 
 ## 1.9.3
 * Introduction: dragging the sample image now reliably opens the shelf
-* Selection in the open shelf always uses the accent color instead of grey; focus on opening is more reliable
+* Selection in the open shelf always uses the accent color instead of gray; focus on opening is more reliable
 
 ## 1.9.2
 * The message after removing has no button anymore, only text (⌘Z still undoes)
@@ -299,7 +299,7 @@ Everything since 1.28.0:
 * Settings made consistent: explanations left-aligned, all sliders alike, ⌘Z in the keyboard overview
 * New defaults for new installations
 * Menu bar icon only on request (Settings → General), Quit also via right-click in the shelf
-* Action bar without grey background, menus without ellipses
+* Action bar without gray background, menus without ellipses
 * The selection rectangle stays inside the shelf
 * The open shelf has keyboard focus right away (⌘A, arrow keys and more) and gives it back when closing
 
@@ -308,7 +308,7 @@ Everything since 1.28.0:
 * Multiple displays: at the edge between two displays the shelf no longer opens when you move a file or the pointer across
 
 ## 1.8.5
-* Files from external drives stay in the shelf while the drive is disconnected (greyed out) and are back to normal once it’s connected
+* Files from external drives stay in the shelf while the drive is disconnected (grayed out) and are back to normal once it’s connected
 * Links to downloads (ZIP, videos, disk images) are saved as links right away without downloading the whole file
 * Folders in the home folder named “tmp”, “Caches” or “TemporaryItems” count as your own folders: files from them are linked instead of copied
 * A shortcut that’s already taken is reported in the log

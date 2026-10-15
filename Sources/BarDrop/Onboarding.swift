@@ -531,7 +531,7 @@ struct OnboardingView: View {
                 Button(L("Skip", "Überspringen")) { model.onFinish(false) }
                     .buttonStyle(IntroButtonStyle())
                     .keyboardShortcut(.cancelAction)
-                Button(L("Let’s go", "Los geht’s")) { model.advance() }
+                Button(L("Let’s Go", "Los geht’s")) { model.advance() }
                     .buttonStyle(IntroButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
             case .features:
