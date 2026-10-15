@@ -23,7 +23,6 @@ Terms and conventions for all texts in BarDrop, the README, the changelog and th
 | Umwandeln | convert | |
 | Ablegen | drop | |
 | Herausziehen | drag out | |
-| Zurückholen (Schritt der Einführung) | get back | |
 | Entfernen | remove | Aus der Ablage nehmen, nicht löschen / take out of the shelf, not delete |
 | Widerrufen, Wiederholen | undo, redo | |
 | Einführung | introduction | |

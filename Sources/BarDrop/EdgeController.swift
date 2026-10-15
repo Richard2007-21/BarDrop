@@ -36,6 +36,8 @@ final class EdgeController: NSObject {
     /// Adaptive Höhe: Zeigerhöhe, an der die Ablage erscheinen soll.
     private var adaptiveY: CGFloat?
     private var lastLayoutSignature = ""
+    /// Rand beim letzten Anordnen: Ein Wechsel wird anders gezeigt als andere Änderungen
+    private var lastEdge: ScreenEdge?
     private var acceptsMouse = false
 
     // Takt: 60 Hz, solange etwas passiert; im Ruhezustand aus
@@ -104,6 +106,7 @@ final class EdgeController: NSObject {
         panel.ignoresMouseEvents = true
         screen = screenUnderMouse() ?? allowedScreens().first
         lastLayoutSignature = settings.layoutSignature
+        lastEdge = settings.edge
         lastPeekSignature = settings.peekSignature
         lastSizeSignature = settings.sizeSignature
         layoutPanel()
@@ -487,7 +490,38 @@ final class EdgeController: NSObject {
         }
 
         // Einstellungen nur prüfen, wenn sich etwas geändert hat
-        if layoutDirty, settings.layoutSignature != lastLayoutSignature {
+        if layoutDirty, settings.layoutSignature != lastLayoutSignature, settings.edge != lastEdge {
+            // Rand gewechselt: Am alten Rand sofort verschwinden statt hinüberzuspringen, dann
+            // am neuen Rand den Streifen wie beim Hineinziehen einer Datei herauswölben lassen.
+            // So sieht man, wo die Ablage jetzt ist.
+            lastLayoutSignature = settings.layoutSignature
+            lastEdge = settings.edge
+            lastSizeSignature = settings.sizeSignature
+            let wasExpanded = ui.level == .expanded
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                ui.level = .hidden
+                ui.openStack = nil
+            }
+            if wasExpanded && !ui.ownDragActive { resignFocus() }
+            logic.level = .hidden
+            logic.levelSince = now
+            logic.outsideSince = nil
+            logic.manualOpen = false
+            previewUntil = nil
+            // Erst umziehen, wenn die Ablage am alten Rand wirklich weg ist
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+                guard let self else { return }
+                if let s = self.screen, !self.allowedScreens().contains(where: { Self.same($0, s) }) {
+                    self.screen = self.screenUnderMouse() ?? self.allowedScreens().first
+                }
+                self.layoutPanel()
+                self.previewLevel = .peek
+                self.previewUntil = Date().addingTimeInterval(1.2)
+                self.wake()
+            }
+        } else if layoutDirty, settings.layoutSignature != lastLayoutSignature {
             lastLayoutSignature = settings.layoutSignature
             if let s = screen, !allowedScreens().contains(where: { Self.same($0, s) }) {
                 screen = screenUnderMouse() ?? allowedScreens().first

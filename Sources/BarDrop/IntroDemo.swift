@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Carbon
+import Combine
 
 // MARK: Vorführung der echten Ablage für die Einführung
 //
@@ -17,7 +18,7 @@ import Carbon
 /// Ablauf einer Szene: setzt nacheinander Zustände der Vorführablage, in einer Schleife.
 /// Mit „Bewegung reduzieren“ (und in Vorschaubildern) steht der aussagekräftigste Moment.
 final class DemoShelf: ObservableObject {
-    enum Scene { case overview, drop, dragOut, undo, shortcut }
+    enum Scene { case overview, drop, dragOut, shortcut }
 
     let scene: Scene
     let settings = AppSettings.shared
@@ -44,6 +45,7 @@ final class DemoShelf: ObservableObject {
     private let otherURLs: [URL]
     private var generation = 0
     private var running = false
+    private var edgeSubscription: AnyCancellable?
 
     init(scene: Scene) {
         self.scene = scene
@@ -65,6 +67,9 @@ final class DemoShelf: ObservableObject {
             Thumbnails.load(url, size: CGFloat(settings.tileIconSize)) { _ in }
         }
         still()
+        // Vor dem Zeichnen am neuen Rand (willSet): erst verbergen, dann neu zeigen
+        edgeSubscription = settings.$edge.dropFirst().removeDuplicates()
+            .sink { [weak self] _ in self?.edgeChanged() }
     }
 
     deinit {
@@ -75,11 +80,20 @@ final class DemoShelf: ObservableObject {
 
     var layout: DemoLayout { DemoLayout(settings: settings) }
 
-    private var sampleEntry: ShelfEntry? {
-        store.entries.first { $0.files.contains { $0.url == sampleURL } }
+    /// Mitte des Bildes in der offenen Ablage
+    /// Freier Platz hinter den anderen Objekten: Dort wird beim Ablegen hingezogen,
+    /// damit das gezogene Bild keine Kachel verdeckt
+    /// Mitte der ersten freien Reihe, so bleibt auch der Name unter dem Bild ganz zu sehen.
+    private var freeSlot: CGPoint {
+        let l = layout
+        let row = (others.count + l.columns - 1) / l.columns
+        return l.away(l.full.width / 2, y: l.tileCenter(row * l.columns).y)
     }
 
-    /// Mitte des Bildes in der offenen Ablage
+    /// Weitere Objekte in der Szene. Beim Ablegen nur eine Reihe, damit darunter Platz für
+    /// das gezogene Bild ist
+    private var others: [URL] { scene == .drop ? Array(otherURLs.prefix(2)) : otherURLs }
+
     private var sampleTile: CGPoint {
         let index = actions.orderedEntries.firstIndex { $0.files.contains { $0.url == sampleURL } } ?? 0
         return layout.tileCenter(index)
@@ -91,7 +105,7 @@ final class DemoShelf: ObservableObject {
     private func fill(withSample: Bool) {
         ui.selection = []
         ui.notice = nil
-        let wanted = (withSample ? [sampleURL].compactMap { $0 } : []) + otherURLs
+        let wanted = (withSample ? [sampleURL].compactMap { $0 } : []) + others
         // Liegt schon alles so da (etwa nach ⌘Z), nichts neu aufbauen: das würde flackern
         guard store.entries.flatMap({ $0.files.map(\.url) }) != wanted else { return }
         var transaction = Transaction()
@@ -148,19 +162,13 @@ final class DemoShelf: ObservableObject {
             ui.isDropTargeted = true
             iconSelected = true
             dragging = true
-            pointer = l.away(l.full.width * 0.55, y: l.size.height * 0.5)
+            pointer = freeSlot
         case .dragOut:
             fill(withSample: true)
             set(level: .expanded, animation: nil)
             dragging = true
             folderTargeted = true
             pointer = l.folder
-        case .undo:
-            fill(withSample: false)
-            set(level: .expanded, animation: nil)
-            ui.notice = ShelfUIModel.Notice(text: L("1 item removed", "1 Objekt entfernt"), canUndo: true)
-            keys = [("⌘", "command"), ("Z", "")]
-            pointer = l.away(l.full.width + 90, y: l.size.height * 0.72)
         case .shortcut:
             fill(withSample: true)
             set(level: .expanded, animation: nil)
@@ -170,6 +178,27 @@ final class DemoShelf: ObservableObject {
     }
 
     // MARK: Ablauf
+
+    /// Rand gewechselt: am alten Rand sofort weg, am neuen mit der normalen Animation
+    /// wieder da, wie die echte Ablage. Laufende Szenen beginnen von vorn.
+    private func edgeChanged() {
+        generation += 1
+        dragging = false
+        keys = nil
+        set(level: .hidden, animation: nil)
+        let g = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self, self.generation == g else { return }
+            if self.running {
+                self.loop()
+            } else {
+                self.still()
+                let level = self.ui.level
+                self.set(level: .hidden, animation: nil)
+                self.set(level: level, animation: self.settings.animationStyle.open)
+            }
+        }
+    }
 
     func start() {
         guard !running, scene != .overview, !AnimationStyle.reduceMotion else { return }
@@ -221,7 +250,7 @@ final class DemoShelf: ObservableObject {
                 self.set(level: .expanded, animation: style.open)
                 withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) { self.ui.isDropTargeted = true }
             }
-            after(2.1) { self.move(to: l.away(l.full.width * 0.55, y: l.size.height * 0.5), duration: 0.5) }
+            after(2.1) { self.move(to: self.freeSlot, duration: 0.5) }
             after(2.9) {
                 withAnimation(.easeOut(duration: 0.15)) { self.dragging = false }
                 withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) { self.ui.isDropTargeted = false }
@@ -251,27 +280,6 @@ final class DemoShelf: ObservableObject {
                 withAnimation(.easeOut(duration: 0.15)) { self.dragging = false; self.folderTargeted = false }
             }
 
-        case .undo:
-            // Bild auswählen, ⌫ entfernt es, ⌘Z holt es zurück
-            period = 7.0
-            fill(withSample: true)
-            set(level: .expanded, animation: nil)
-            pointer = l.away(l.full.width + 90, y: l.size.height * 0.72)
-            after(0.5) { self.move(to: self.sampleTile, duration: 0.6) }
-            after(1.2) {
-                self.click()
-                if let entry = self.sampleEntry { self.ui.selection = [entry.id] }
-            }
-            after(1.6) { self.move(to: l.away(l.full.width + 90, y: l.size.height * 0.72), duration: 0.6) }
-            after(2.3) { self.show([("⌫", "delete")]) }
-            after(2.4) { if let entry = self.sampleEntry { self.actions.remove([entry]) } }
-            after(3.0) { self.show(nil) }
-            after(3.9) { self.show([("⌘", "command"), ("Z", "")]) }
-            // Nur wenn wirklich etwas zurückzuholen ist, sonst gäbe es den Warnton
-            after(4.0) { if self.store.undoManager.canUndo { self.actions.undo() } }
-            after(4.6) { self.show(nil) }
-            after(6.4) { self.ui.selection = [] }
-
         case .shortcut:
             // Kurzbefehl öffnet die Ablage, noch einmal schließt sie
             period = 5.6
@@ -290,14 +298,29 @@ final class DemoShelf: ObservableObject {
 
     // MARK: Beispieldateien
 
-    /// Notizen, ein Dokument und ein Foto, wie sie im Alltag in der Ablage liegen
+    /// Ein Diagramm, ein Dokument und ein Foto, wie sie im Alltag in der Ablage liegen
     private static func makeExamples(in directory: URL) -> [URL] {
         var urls: [URL] = []
 
-        let notes = directory.appendingPathComponent(L("Notes.txt", "Notizen.txt"))
-        let text = L("Shopping\n\nCoffee\nMilk\nBread\n\nCall Anna back\nBook the train",
-                     "Einkaufen\n\nKaffee\nMilch\nBrot\n\nAnna zurückrufen\nZug buchen")
-        if (try? text.write(to: notes, atomically: true, encoding: .utf8)) != nil { urls.append(notes) }
+        // Ein Diagramm statt Text: In der kleinen Kachel ist Text nicht zu erkennen
+        let chart = directory.appendingPathComponent(L("Chart.png", "Diagramm.png"))
+        let chartImage = NSImage(size: NSSize(width: 480, height: 360), flipped: false) { rect in
+            NSColor.white.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 24, yRadius: 24).fill()
+            let colors: [NSColor] = [.systemBlue, .systemTeal, .systemGreen, .systemOrange, .systemPink]
+            let heights: [CGFloat] = [120, 190, 150, 250, 210]
+            for (i, h) in heights.enumerated() {
+                colors[i].setFill()
+                NSBezierPath(roundedRect: NSRect(x: 52 + CGFloat(i) * 80, y: 50, width: 56, height: h),
+                             xRadius: 10, yRadius: 10).fill()
+            }
+            return true
+        }
+        if let tiff = chartImage.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+           let png = rep.representation(using: .png, properties: [:]),
+           (try? png.write(to: chart)) != nil {
+            urls.append(chart)
+        }
 
         let document = directory.appendingPathComponent(L("Trip.pdf", "Reiseplan.pdf"))
         var box = CGRect(x: 0, y: 0, width: 420, height: 595)
@@ -344,7 +367,7 @@ final class DemoShelf: ObservableObject {
 /// eingestellten Größe hineinpasst, und wird dann verkleinert gezeigt.
 struct DemoLayout {
     /// Größe auf der Seite der Einführung
-    static let shown = CGSize(width: 560, height: 264)
+    static let shown = CGSize(width: 500, height: 220)
 
     let edge: ScreenEdge
     let full: ShelfMetrics
@@ -380,10 +403,14 @@ struct DemoLayout {
 
     /// Mitte des Symbols der Kachel an Stelle `index`, nachgerechnet wie das Raster der
     /// Ablage (ShelfContent: Kopf, Abstände, anpassbare Spalten)
+    /// Spalten des Rasters (anpassbare Spalten wie in ShelfContent)
+    var columns: Int {
+        max(1, Int((full.width - 24 + 8) / (iconSize + 22 + 8)))
+    }
+
     func tileCenter(_ index: Int) -> CGPoint {
         let available = full.width - 24
-        let minimum = iconSize + 22, maximum = iconSize + 40, spacing: CGFloat = 8
-        let columns = max(1, Int((available + spacing) / (minimum + spacing)))
+        let maximum = iconSize + 40, spacing: CGFloat = 8
         let column = min(maximum, (available - spacing * CGFloat(columns - 1)) / CGFloat(columns))
         let used = column * CGFloat(columns) + spacing * CGFloat(columns - 1)
         let start = 12 + (available - used) / 2

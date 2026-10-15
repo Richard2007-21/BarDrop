@@ -128,6 +128,33 @@ final class ViewSmokeTests: XCTestCase {
         settings.edge = .right
     }
 
+    /// Das echte Fenster der Einführung (Titelleiste, Werkzeugleiste, volle Inhaltsfläche):
+    /// Es behält seine Größe, und die Ansicht füllt es ganz, auch unter der Titelleiste.
+    func testIntroductionWindow() {
+        _ = NSApplication.shared
+        let settings = AppSettings.shared
+        let controller = OnboardingController(store: ShelfStore(baseDirectory: base),
+                                              ui: ShelfUIModel(), settings: settings)
+        let window = controller.makeWindow()
+        defer { window.orderOut(nil) }
+        for step in OnboardingModel.Step.allCases {
+            controller.model.go(to: step)
+            window.contentView?.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+            XCTAssertEqual(window.contentLayoutRect.width, OnboardingController.size.width, accuracy: 1, "\(step)")
+            XCTAssertEqual(window.frame.height, window.frameRect(forContentRect: NSRect(origin: .zero, size: OnboardingController.size)).height,
+                           accuracy: 1, "\(step): Fenster ist gewachsen")
+            guard let view = window.contentView,
+                  let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return XCTFail("kein Bild") }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            if let dir = ProcessInfo.processInfo.environment["BARDROP_PREVIEW_DIR"], !dir.isEmpty,
+               let png = rep.representation(using: .png, properties: [:]) {
+                try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+                try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("Fenster_\(step.rawValue)_\(step).png"))
+            }
+        }
+    }
+
     func testOpenShelfRenders() throws {
         let settings = AppSettings.shared
         let store = ShelfStore(baseDirectory: base)
