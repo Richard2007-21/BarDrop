@@ -119,7 +119,7 @@ struct KeyboardSettings: View {
 }
 
 /// Eine Zeile mit Tasten als kleine Kappen, wie die Tasten oben beim Kurzbefehl
-private struct ShortcutRow: View {
+struct ShortcutRow: View {
     let title: String
     let keys: [String]
     init(_ title: String, _ keys: [String]) {
