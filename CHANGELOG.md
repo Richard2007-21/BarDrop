@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.30.0-beta.6
+* Items that can’t be read are written back unchanged instead of being dropped on the next save; while there are any, or a backup of an unreadable list exists, no stored files are cleaned up at launch (the log says so)
+* File promises (Photos, Mail, browsers) wait as long as the destination folder changes, at most 30 minutes, instead of a fixed 90 seconds
+* Introduction: only the sample image is removed at the end; Open at login starts with the real setting when the introduction runs again, and Done with the switch off turns it off; ⌘W closes it; the sample image is named in the language chosen on the first page
+* ↑ and ↓ use the real number of columns for every icon size and shelf width
+* Removing the open stack leaves no hidden selection behind
+* Silent updates wait until a release is 48 hours old; Install in the dialog or menu still updates right away
+* Fixed a data race when dropping user files together with other items while “Always store a copy” is off
+* Tests: saved shelves of every version since 1.26 must load completely
+
 ## 1.30.0-beta.5
 * Right-click menus are system menus again, in the Liquid Glass look of macOS; Convert is a regular submenu next to them
 * The introduction looks like the open shelf: black shape, the same tiles, fonts and transitions; the last step shows the features as tiles
