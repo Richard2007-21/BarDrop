@@ -41,6 +41,9 @@ final class OnboardingSampleTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        // Die Beispieldatei zeichnet das App-Symbol über NSApp; im Testprozess gibt es
+        // die App sonst noch nicht
+        _ = NSApplication.shared
         base = FileManager.default.temporaryDirectory.appendingPathComponent("BarDropIntro-\(UUID().uuidString)")
         language = AppSettings.shared.language
         didLaunchBefore = AppSettings.shared.didLaunchBefore
