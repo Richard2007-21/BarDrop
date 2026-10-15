@@ -109,7 +109,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         windowMenu.addItem(ClosureMenuItem(L("Close", "Schließen"), key: "w") {
             // Nur echte Fenster schließen, nie die Ablage selbst
             guard let window = NSApp.keyWindow, !(window is ShelfPanel) else { return }
-            window.performClose(nil)
+            // Die Einführung ist randlos und hat keinen Schließknopf: `performClose` gäbe
+            // dort nur einen Warnton. Schließen wie mit ihrem eigenen ×
+            if window is IntroWindow {
+                window.close()
+            } else {
+                window.performClose(nil)
+            }
         })
         windowItem.submenu = windowMenu
         main.addItem(windowItem)

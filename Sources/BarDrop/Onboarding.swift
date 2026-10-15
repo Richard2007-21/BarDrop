@@ -24,7 +24,8 @@ final class OnboardingModel: ObservableObject {
     @Published var launchAtLogin: Bool
 
     let settings: AppSettings
-    let sampleURL: URL?
+    /// Beispieldatei; wird umbenannt, wenn auf der ersten Seite die Sprache wechselt
+    @Published var sampleURL: URL?
     var onFinish: (_ completed: Bool) -> Void = { _ in }
     /// Ziehen der Beispieldatei hat begonnen: Die Ablage muss davon erfahren, denn
     /// Ziehen aus dem eigenen Fenster melden die Ereignisse des Systems nicht.
@@ -131,6 +132,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         switch step {
         case .drop:
             baseline = Set(store.entries.map(\.id))
+            renameSampleForLanguage()
         default:
             break
         }
@@ -144,6 +146,16 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         guard model.step == .drop else { return }
         if entries.contains(where: { !baseline.contains($0.id) }) {
             model.complete(.drop)
+        }
+    }
+
+    /// Die Sprache kann auf der ersten Seite gewechselt worden sein: Die Beispieldatei
+    /// bekommt den Namen in der aktuellen Sprache, bevor sie zum ersten Mal zu sehen ist.
+    private func renameSampleForLanguage() {
+        guard let url = model.sampleURL, url.lastPathComponent != Self.sampleName else { return }
+        let renamed = url.deletingLastPathComponent().appendingPathComponent(Self.sampleName)
+        if (try? FileManager.default.moveItem(at: url, to: renamed)) != nil {
+            model.sampleURL = renamed
         }
     }
 
@@ -210,12 +222,14 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         return window
     }
 
+    static var sampleName: String { L("Welcome to BarDrop.png", "Willkommen bei BarDrop.png") }
+
     /// Beispielbild zum Ablegen. Liegt in einem temporären Ordner und wird beim
     /// Ablegen wie ein Bild aus dem Web in die Ablage kopiert.
     static func makeSample() -> URL? {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("BarDropEinfuehrung-\(UUID().uuidString)", isDirectory: true)
-        let url = dir.appendingPathComponent(L("Welcome to BarDrop.png", "Willkommen bei BarDrop.png"))
+        let url = dir.appendingPathComponent(sampleName)
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         } catch {
