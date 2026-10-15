@@ -115,8 +115,33 @@ struct ShelfContent: View {
     @State private var selectionBeforeBand: Set<UUID> = []
     /// Höhe der Aktionsleiste: so viel Platz bleibt unter den Kacheln frei
     @State private var barHeight: CGFloat = 0
-    /// Länge des Verlaufs über der Leiste
+    /// Hinter der Aktionsleiste ganz deckend, darüber ein kurzer Übergang. Sanft beginnend
+    /// und sanft endend (S-Kurve), damit weder oben noch am Übergang eine Linie zu sehen ist.
+    private var barBackdrop: some View {
+        let total = barHeight + Self.barFade
+        let fade = Self.barFade / max(1, total)
+        var stops: [Gradient.Stop] = []
+        for (t, alpha) in Self.fadeCurve {
+            stops.append(Gradient.Stop(color: Color.black.opacity(alpha), location: t * fade))
+        }
+        stops.append(Gradient.Stop(color: Color.black, location: 1))
+        return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
+            .frame(height: total)
+            .allowsHitTesting(false)
+    }
+
+    /// Länge des Verlaufs über der Leiste: kurz, damit er nicht weit in die Kacheln reicht
     private static let barFade: CGFloat = 24
+    /// Deckkraft entlang des Verlaufs (S-Kurve, smoothstep)
+    private static let fadeCurve: [(CGFloat, Double)] = {
+        var points: [(CGFloat, Double)] = []
+        for i in 0...8 {
+            let t: Double = Double(i) / 8
+            let alpha: Double = t * t * (3.0 - 2.0 * t)
+            points.append((CGFloat(t), alpha))
+        }
+        return points
+    }()
 
     private let columns = [GridItem(.adaptive(minimum: 78, maximum: 96), spacing: 8)]
 
@@ -172,19 +197,7 @@ struct ShelfContent: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 12)
                     .padding(.top, 4)
-                    .background(alignment: .bottom) {
-                        // Darüber noch ein Stück Verlauf, damit nirgends eine Kante entsteht
-                        // Hinter den Aktionen ganz deckend, nur darüber ein kurzer Übergang
-                        let fade = Self.barFade / max(1, barHeight + Self.barFade)
-                        LinearGradient(stops: [
-                            .init(color: .black.opacity(0), location: 0),
-                            .init(color: .black.opacity(0.65), location: fade * 0.55),
-                            .init(color: .black, location: fade),
-                            .init(color: .black, location: 1)
-                        ], startPoint: .top, endPoint: .bottom)
-                        .frame(height: barHeight + Self.barFade)
-                        .allowsHitTesting(false)
-                    }
+                    .background(alignment: .bottom) { barBackdrop }
                     .background(
                         GeometryReader { g in
                             Color.clear.preference(key: BarHeightKey.self, value: g.size.height)

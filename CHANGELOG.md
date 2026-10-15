@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.25.0
+* The fade above the action bar starts and ends softly, so no line is visible where it turns opaque; it still reaches only 24 points into the items
+* Dropped files no longer flash a white blank document first: tiles show the icon of the file type and wait a moment for the preview
+* Settings open on the display where the shelf is
+* New defaults: actions AirDrop, Downloads and Trash; always store a copy; larger hit area; pin by dragging; no outline; shelf height 380 pt; strip 7 × 80 pt with 65 % edge curve. Settings you changed yourself stay as they are
+
 ## 1.24.1
 * Menus under a button open upward when there isn’t enough room below, instead of running into the screen edge
 * Not in these apps: list and “Add App” look like the action list, with “No apps” while it’s empty
