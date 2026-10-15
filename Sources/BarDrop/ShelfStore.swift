@@ -164,6 +164,10 @@ final class ShelfStore: ObservableObject {
     private let dbURL: URL
     private let importer: ContentImporter
     private var loaded = false
+    /// Einträge, die diese Version nicht lesen kann, als rohes JSON. Sie werden beim
+    /// Speichern unverändert mitgeschrieben: So gehen sie nicht verloren, und solange
+    /// es sie gibt, wird nicht aufgeräumt (ihre Dateien könnten noch gebraucht werden).
+    private var unreadableEntries: [Any] = []
 
     /// Aus der Ablage genommene eigene Dateien, die erst später gelöscht werden.
     /// Schlägt das Herausziehen fehl, kommen sie von hier zurück.
@@ -239,7 +243,13 @@ final class ShelfStore: ObservableObject {
             return
         }
         let broken = decoded.filter { $0.entry == nil }.count
-        if broken > 0 { Log.store.error("\(broken, privacy: .public) beschädigte Einträge übersprungen") }
+        if broken > 0 {
+            Log.store.error("\(broken, privacy: .public) beschädigte Einträge übersprungen")
+            // Rohdaten aufheben, damit das nächste Speichern sie nicht verwirft
+            if let raw = try? JSONSerialization.jsonObject(with: data) as? [Any], raw.count == decoded.count {
+                unreadableEntries = zip(raw, decoded).filter { $0.1.entry == nil }.map { $0.0 }
+            }
+        }
 
         entries = decoded.compactMap(\.entry).compactMap { entry in
             var e = entry
@@ -247,8 +257,9 @@ final class ShelfStore: ObservableObject {
             return e.files.isEmpty ? nil : e
         }
         // Nur aufräumen, wenn alles lesbar war: sonst gehörten die Dateien vielleicht
-        // zu einem Eintrag, der gerade nicht gelesen werden konnte.
-        if broken == 0 {
+        // zu einem Eintrag, der gerade nicht gelesen werden konnte. Dasselbe gilt, solange
+        // eine früher unlesbare Liste als Sicherung daneben liegt.
+        if broken == 0 && !hasUnreadableBackup {
             removeOrphanedItems()
             save()      // wiedergefundene Orte und neue Lesezeichen festhalten
         }
@@ -294,9 +305,27 @@ final class ShelfStore: ObservableObject {
         }
     }
 
+    /// Liegt eine gesicherte, unlesbare Liste daneben (`shelf-unlesbar-….json`)?
+    private var hasUnreadableBackup: Bool {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: baseDir.path)) ?? []
+        return names.contains { $0.hasPrefix("shelf-unlesbar-") }
+    }
+
     private func save() {
         do {
-            let data = try JSONEncoder().encode(entries)
+            var data = try JSONEncoder().encode(entries)
+            // Unlesbare Einträge unverändert hinten anhängen. Die lesbaren bleiben Byte für
+            // Byte so, wie JSONEncoder sie schreibt.
+            if !unreadableEntries.isEmpty {
+                let extra = try JSONSerialization.data(withJSONObject: unreadableEntries)
+                if entries.isEmpty {
+                    data = extra
+                } else {
+                    data.removeLast()                    // "]"
+                    data.append(UInt8(ascii: ","))
+                    data.append(extra.dropFirst())       // ohne "["
+                }
+            }
             try data.write(to: dbURL, options: .atomic)
         } catch {
             Log.store.error("Speichern fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
