@@ -40,10 +40,8 @@ jobs:
             exit 1
           }
           echo "::notice title=Build::$(grep -c 'warning:' build.log || true) Warnungen"
-          # Warnungen je Datei (ohne Dubletten), damit neue auffallen
-          grep -E "^/.*/Sources/BarDrop/[A-Za-z+]+\.swift:[0-9]+:[0-9]+: warning:" build.log | sed -E 's|.*/Sources/BarDrop/([^:]+):.*|\1|' | sort | uniq -c | sort -rn | tr '\n' ';' | while IFS= read -r line; do echo "::notice title=Warnungen je Datei::${line}"; done || true
-          # Wortlaut der Warnungen in den Dateien, die dieser Zweig ändert
-          grep -E "/Sources/BarDrop/(AppDelegate|ContentImporter|Onboarding|ShelfActions|ShelfStore|Updater)\.swift:[0-9]+:[0-9]+: warning:" build.log | sed -E 's|.*/Sources/BarDrop/||' | sort -u | head -10 | while IFS= read -r line; do echo "::notice title=Warnung::${line}"; done || true
+          # Wortlaut der Warnungen (ohne Dubletten), damit neue auffallen
+          grep "warning:" build.log | sed -E 's#^.*/(Sources|Tests)/#\1/#' | sort | uniq -c | sort -rn | head -10 | while IFS= read -r line; do echo "::notice title=Warnung::${line}"; done || true
 
       - name: Tests
         run: |
