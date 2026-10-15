@@ -83,7 +83,13 @@ final class DemoShelf: ObservableObject {
     /// Mitte des Bildes in der offenen Ablage
     /// Freier Platz hinter den anderen Objekten: Dort wird beim Ablegen hingezogen,
     /// damit das gezogene Bild keine Kachel verdeckt
-    private var freeSlot: CGPoint { layout.tileCenter(otherURLs.count) }
+    /// Mindestabstand zum Rand, damit der Name unter dem Bild ganz zu sehen ist.
+    private var freeSlot: CGPoint {
+        let l = layout
+        let p = l.tileCenter(otherURLs.count)
+        let fromEdge = l.edge == .right ? l.size.width - p.x : p.x
+        return l.away(max(fromEdge, 84), y: p.y)
+    }
 
     private var sampleTile: CGPoint {
         let index = actions.orderedEntries.firstIndex { $0.files.contains { $0.url == sampleURL } } ?? 0
