@@ -4,7 +4,7 @@ name: CI
 # Releases macht weiterhin release.yml.
 on:
   push:
-    branches: [review/beta5-fixes]
+    branches: ['review/**']
   workflow_dispatch:
 
 permissions:
