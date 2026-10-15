@@ -7,12 +7,12 @@ import Carbon
 // MARK: Ablauf
 
 /// Einführung beim ersten Start, aufgebaut wie eine Produktvorstellung: je Schritt eine
-/// große, bewegte Szene auf einem kleinen Bildschirm, eine Überschrift, ein Satz. Vier
-/// kurze Übungen (ablegen, herausziehen, zurückholen, Kurzbefehl) erkennen von selbst,
-/// wann sie geschafft sind. Farben, Schalter und Knöpfe wie in den Einstellungen.
+/// bewegte Szene mit der echten Ablage, eine Überschrift, ein Satz. Im Mittelpunkt steht
+/// jeweils eine Übung (ablegen, herausziehen, Kurzbefehl), die von selbst erkennt, wann sie
+/// geschafft ist. Farben, Schalter und Knöpfe wie in den Einstellungen.
 final class OnboardingModel: ObservableObject {
     enum Step: Int, CaseIterable, Identifiable {
-        case welcome, drop, retrieve, undo, shortcut, features
+        case welcome, drop, retrieve, shortcut, features
         var id: Int { rawValue }
     }
 
@@ -28,8 +28,6 @@ final class OnboardingModel: ObservableObject {
     let settings: AppSettings
     /// Beispieldatei; wird umbenannt, wenn auf der ersten Seite die Sprache wechselt
     @Published var sampleURL: URL?
-    /// Liegt die Beispieldatei gerade in der Ablage? (für die Anleitung beim Zurückholen)
-    @Published var sampleInShelf = false
     var onFinish: (_ completed: Bool) -> Void = { _ in }
     /// Ziehen der Beispieldatei hat begonnen: Die Ablage muss davon erfahren, denn
     /// Ziehen aus dem eigenen Fenster melden die Ereignisse des Systems nicht.
@@ -55,7 +53,7 @@ final class OnboardingModel: ObservableObject {
     }
 
     /// Schritte zum Mitmachen
-    static let practice: [Step] = [.drop, .retrieve, .undo, .shortcut]
+    static let practice: [Step] = [.drop, .retrieve, .shortcut]
 
     /// Der aktuelle Schritt ist geschafft
     var stepDone: Bool { completed.contains(step) }
@@ -103,8 +101,6 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     private var baseline: Set<UUID> = []
     /// Einträge mit der Beispieldatei: werden am Ende wieder entfernt
     private var sampleEntries: Set<UUID> = []
-    /// Schritt „Zurückholen“: Die Beispieldatei war seit Beginn des Schritts einmal weg
-    private var sampleWasGone = false
     private var finished = false
 
     /// Wird nach dem Schließen aufgerufen, damit der Besitzer loslassen kann.
@@ -159,9 +155,6 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         case .drop:
             baseline = Set(store.entries.map(\.id))
             renameSampleForLanguage()
-        case .undo:
-            // Nach dem Herausziehen ist das Bild meist schon weg; dann genügt ⌘Z
-            sampleWasGone = !containsSample(store.entries)
         default:
             break
         }
@@ -172,29 +165,14 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         for entry in entries where entry.files.contains(where: { $0.url.lastPathComponent == name }) {
             if !baseline.contains(entry.id) { sampleEntries.insert(entry.id) }
         }
-        let present = containsSample(entries)
-        if model.sampleInShelf != present { model.sampleInShelf = present }
         switch model.step {
         case .drop:
             if entries.contains(where: { !baseline.contains($0.id) }) {
                 model.complete(.drop)
             }
-        case .undo:
-            // Erst weg (entfernt oder herausgezogen), dann wieder da: zurückgeholt
-            if !present {
-                sampleWasGone = true
-            } else if sampleWasGone {
-                model.complete(.undo)
-            }
         default:
             break
         }
-    }
-
-    /// Liegt die Beispieldatei in einem der Einträge?
-    private func containsSample(_ entries: [ShelfEntry]) -> Bool {
-        guard let name = model.sampleURL?.lastPathComponent else { return false }
-        return entries.contains { $0.files.contains { $0.url.lastPathComponent == name } }
     }
 
     /// Die Sprache kann auf der ersten Seite gewechselt worden sein: Die Beispieldatei
@@ -283,7 +261,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         })
         // Feste Größe: Die Ansicht darf das Fenster nicht verändern. Sonst übernimmt
         // NSHostingView Größenwünsche der Inhalte, und das Fenster kann wachsen.
-        let host = NSHostingView(rootView: root.frame(width: Self.size.width, height: Self.size.height))
+        let host = NSHostingView(rootView: root.frame(width: Self.size.width, height: Self.size.height)
+                                                  .ignoresSafeArea())
         host.sizingOptions = []
         window.contentView = host
         window.contentMinSize = Self.size
@@ -306,17 +285,11 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         } catch {
             return nil
         }
+        // Das Symbol der App, ganz und ohne eigenen Rahmen: Es bringt seine Form selbst mit
         let side: CGFloat = 512
+        let icon = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
         let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
-            let card = NSBezierPath(roundedRect: rect, xRadius: side * 0.22, yRadius: side * 0.22)
-            NSGradient(colors: [NSColor(white: 0.24, alpha: 1), NSColor(white: 0.03, alpha: 1)])?
-                .draw(in: card, angle: -90)
-            NSColor(white: 1, alpha: 0.12).setStroke()
-            card.lineWidth = 4
-            card.stroke()
-            if let icon = NSApp.applicationIconImage {
-                icon.draw(in: rect.insetBy(dx: side * 0.2, dy: side * 0.2))
-            }
+            icon.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
             return true
         }
         guard let tiff = image.tiffRepresentation,
@@ -342,7 +315,6 @@ extension OnboardingModel.Step {
         case .welcome: return L("Welcome", "Willkommen")
         case .drop: return L("Drop", "Ablegen")
         case .retrieve: return L("Drag Out", "Herausziehen")
-        case .undo: return L("Get Back", "Zurückholen")
         case .shortcut: return L("Shortcut", "Kurzbefehl")
         case .features: return L("Discover More", "Mehr entdecken")
         }
@@ -361,7 +333,7 @@ struct OnboardingView: View {
                 .id(model.step)
                 .transition(.opacity)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, 34)          // unter der Titelleiste
+                .padding(.top, 52)          // unter der Titelleiste mit den Fensterknöpfen
 
             footer
                 .padding(.horizontal, 22)
@@ -379,7 +351,6 @@ struct OnboardingView: View {
         case .welcome: WelcomePage(model: model, settings: settings)
         case .drop: DropPage(model: model, settings: settings)
         case .retrieve: RetrievePage(model: model, settings: settings)
-        case .undo: UndoPage(model: model, settings: settings)
         case .shortcut: ShortcutPage(model: model, settings: settings)
         case .features: FeaturesPage(settings: settings)
         }
@@ -461,7 +432,7 @@ private struct StepDots: View {
 
 // MARK: Aufbau einer Seite
 
-/// Eine Seite: große Szene oben, Überschrift, ein Satz, darunter die Übung.
+/// Eine Seite: Szene oben, Überschrift, ein Satz, darunter die Übung als eigene Karte.
 private struct PresentationPage<Hero: View, Practice: View>: View {
     let title: String
     let text: String
@@ -473,17 +444,17 @@ private struct PresentationPage<Hero: View, Practice: View>: View {
             hero()
                 .frame(height: DemoLayout.shown.height)
             Text(title)
-                .font(.system(size: 24, weight: .semibold))
-                .padding(.top, 18)
+                .font(.system(size: 22, weight: .semibold))
+                .padding(.top, 16)
             Text(text)
-                .font(.system(size: 13.5))
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 440)
-                .padding(.top, 6)
+                .padding(.top, 5)
             practice()
-                .padding(.top, 20)
+                .padding(.top, 18)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 30)
@@ -491,29 +462,58 @@ private struct PresentationPage<Hero: View, Practice: View>: View {
     }
 }
 
-/// Übung mit Ergebnis: vorher der Inhalt, danach ein grüner Haken mit kurzer Bestätigung
-private struct PracticeResult<Content: View>: View {
+/// Die Übung einer Seite: hervorgehoben in der Akzentfarbe, damit klar ist, dass man hier
+/// selbst etwas tut. Danach ein grüner Haken mit kurzer Bestätigung an derselben Stelle.
+private struct TaskCard<Leading: View>: View {
     let done: Bool
+    let instruction: String
     let confirmation: String
-    @ViewBuilder let content: () -> Content
+    /// Gestrichelt: die Karte selbst ist ein Ziel zum Ablegen
+    var dashed = false
+    /// Etwas wird gerade über die Karte gezogen
+    var targeted = false
+    @ViewBuilder let leading: () -> Leading
+
+    static var size: CGSize { CGSize(width: 440, height: 112) }
+
+    private var accent: Color { Color(nsColor: .controlAccentColor) }
 
     var body: some View {
         ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(done ? Color.green.opacity(0.1) : accent.opacity(targeted ? 0.2 : 0.08))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(done ? Color.green.opacity(0.5) : accent.opacity(targeted ? 0.95 : 0.55),
+                              style: StrokeStyle(lineWidth: 1.5, dash: dashed && !done ? [6, 5] : []))
             if done {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22))
+                        .font(.system(size: 24))
                         .foregroundStyle(.white, .green)
                     Text(confirmation)
                         .font(.system(size: 14, weight: .medium))
                 }
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
             } else {
-                content()
-                    .transition(.opacity)
+                HStack(spacing: 16) {
+                    leading()
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L("Your turn", "Jetzt du"))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(accent)
+                        Text(instruction)
+                            .font(.system(size: 13))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 20)
+                .transition(.opacity)
             }
         }
-        .frame(height: 96)
+        .frame(width: Self.size.width, height: Self.size.height)
+        .scaleEffect(targeted ? 1.02 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: targeted)
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: done)
     }
 }
@@ -546,7 +546,7 @@ private struct WelcomePage: View {
                 }
                 ToggleRow(L("Open at login", "Beim Anmelden öffnen"), isOn: $model.launchAtLogin)
             }
-            .frame(maxWidth: 400)
+            .frame(maxWidth: 440)
         }
     }
 }
@@ -563,21 +563,11 @@ private struct DropPage: View {
                                  "Zieh etwas an den \(edgeWord(settings)) Rand deines Bildschirms. Die Ablage öffnet sich, und du lässt los.")) {
             ShelfStage(scene: .drop)
         } practice: {
-            PracticeResult(done: model.stepDone,
-                           confirmation: L("The image is in the shelf.", "Das Bild liegt in der Ablage.")) {
-                HStack(spacing: 14) {
-                    if settings.edge == .left { EdgeArrows(edge: .left) }
-                    SampleTile(url: model.sampleURL, onDragStarted: model.onSampleDragStarted)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("Your turn", "Jetzt du"))
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(L("Drag this image to the edge of the screen.",
-                               "Zieh dieses Bild an den Bildschirmrand."))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                    if settings.edge == .right { EdgeArrows(edge: .right) }
-                }
+            TaskCard(done: model.stepDone,
+                     instruction: L("Drag this image to the \(edgeWord(settings)) edge of your screen and let go.",
+                                    "Zieh dieses Bild an den \(edgeWord(settings)) Bildschirmrand und lass es dort los."),
+                     confirmation: L("The image is in the shelf.", "Das Bild liegt in der Ablage.")) {
+                SampleTile(url: model.sampleURL, edge: settings.edge, onDragStarted: model.onSampleDragStarted)
             }
         }
     }
@@ -588,12 +578,13 @@ private struct DropPage: View {
 private struct RetrievePage: View {
     @ObservedObject var model: OnboardingModel
     @ObservedObject var settings: AppSettings
+    @State private var targeted = false
 
     /// Wie man die Ablage öffnet, passend zu den Einstellungen
     private var howToOpen: String {
         if settings.openMode == .click {
-            return L("Move the pointer to the \(edgeWord(settings)) edge and click the strip.",
-                     "Fahr an den \(edgeWord(settings)) Rand und klick auf den Streifen.")
+            return L("Move the pointer to the \(edgeWord(settings)) edge and click the strip. Then drag out what you need.",
+                     "Fahr an den \(edgeWord(settings)) Rand und klick auf den Streifen. Dann ziehst du heraus, was du brauchst.")
         }
         return L("Move the pointer to the \(edgeWord(settings)) edge. The shelf opens, and you drag out what you need.",
                  "Fahr mit dem Zeiger an den \(edgeWord(settings)) Rand. Die Ablage öffnet sich, und du ziehst heraus, was du brauchst.")
@@ -603,47 +594,21 @@ private struct RetrievePage: View {
         PresentationPage(title: L("Drag Out", "Herausziehen"), text: howToOpen) {
             ShelfStage(scene: .dragOut)
         } practice: {
-            PracticeResult(done: model.stepDone,
-                           confirmation: L("Works with any app.", "Klappt mit jeder App.")) {
-                ReturnDropZone {
+            TaskCard(done: model.stepDone,
+                     instruction: L("Open the shelf and drag the image onto this box.",
+                                    "Öffne die Ablage und zieh das Bild auf dieses Feld."),
+                     confirmation: L("Works with any app.", "Klappt mit jeder App."),
+                     dashed: true, targeted: targeted) {
+                Image(systemName: "tray.and.arrow.down")
+                    .font(.system(size: 30, weight: .regular))
+                    .foregroundStyle(Color(nsColor: .controlAccentColor))
+                    .frame(width: 72, height: 72)
+            }
+            .overlay(
+                ReturnDropTarget(enabled: !model.stepDone, targeted: $targeted) {
                     model.complete(.retrieve)
                 }
-            }
-        }
-    }
-}
-
-// MARK: Zurückholen
-
-private struct UndoPage: View {
-    @ObservedObject var model: OnboardingModel
-    @ObservedObject var settings: AppSettings
-
-    var body: some View {
-        PresentationPage(title: L("Get Back", "Zurückholen"),
-                         text: L("Removed something by mistake? In the open shelf, ⌘Z brings it back.",
-                                 "Versehentlich entfernt? In der offenen Ablage holt ⌘Z es zurück.")) {
-            ShelfStage(scene: .undo)
-        } practice: {
-            PracticeResult(done: model.stepDone,
-                           confirmation: L("The image is back.", "Das Bild ist wieder da.")) {
-                HStack(spacing: 14) {
-                    KeyCaps(keys: [("⌘", "command"), ("Z", "")], size: 50, pressed: false)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("Your turn", "Jetzt du"))
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(model.sampleInShelf
-                             ? L("Open the shelf, select the image, press ⌫ and then ⌘Z.",
-                                 "Öffne die Ablage, wähl das Bild, drück ⌫ und dann ⌘Z.")
-                             : L("Open the shelf and press ⌘Z.",
-                                 "Öffne die Ablage und drück ⌘Z."))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: 240, alignment: .leading)
-                }
-            }
+            )
         }
     }
 }
@@ -656,22 +621,14 @@ private struct ShortcutPage: View {
 
     var body: some View {
         PresentationPage(title: L("Open from Anywhere", "Von überall öffnen"),
-                         text: L("Press \(settings.hotKeyDescription). Press it again to close the shelf. You can change it in Settings → Keyboard.",
-                                 "Drück \(settings.hotKeyDescription). Noch einmal, und die Ablage geht wieder zu. Ändern kannst du das unter Einstellungen → Tastatur.")) {
+                         text: L("The shortcut opens the shelf wherever you are. Press it again to close it. You can change it in Settings → Keyboard.",
+                                 "Der Kurzbefehl öffnet die Ablage, egal wo du bist. Noch einmal, und sie geht wieder zu. Ändern kannst du ihn unter Einstellungen → Tastatur.")) {
             ShelfStage(scene: .shortcut)
         } practice: {
-            PracticeResult(done: model.stepDone,
-                           confirmation: L("That’s it.", "Genau so.")) {
-                HStack(spacing: 14) {
-                    KeyCaps(keys: ShortcutKeys.keys(settings), size: 50, pressed: false)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("Your turn", "Jetzt du"))
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(L("Press the keys now.", "Drück jetzt die Tasten."))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                }
+            TaskCard(done: model.stepDone,
+                     instruction: L("Press \(settings.hotKeyDescription).", "Drück \(settings.hotKeyDescription)."),
+                     confirmation: L("That’s it.", "Genau so.")) {
+                KeyCaps(keys: ShortcutKeys.keys(settings), size: 46, pressed: false)
             }
         }
     }
@@ -838,25 +795,47 @@ private struct EdgeArrows: View {
     }
 }
 
-/// Das Beispielbild als Kachel, zum Herausziehen wie aus dem Finder
+/// Das Beispielbild wie eine Datei im Finder: Bild und Name, zum Herausziehen. Es wippt
+/// leicht in Richtung Bildschirmrand, daneben zeigen Pfeile dorthin.
 private struct SampleTile: View {
     let url: URL?
+    let edge: ScreenEdge
     var onDragStarted: () -> Void = {}
     @State private var hovering = false
 
     var body: some View {
-        preview
-            .frame(width: 64, height: 64)
-            .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-            .scaleEffect(hovering ? 1.05 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hovering)
-            .onHover { hovering = $0 }
-            .overlay(
-                Group {
-                    if let url { SampleDragArea(url: url, onDragStarted: onDragStarted) }
-                }
-            )
-            .help(L("Drag to the edge", "Zum Rand ziehen"))
+        HStack(spacing: 10) {
+            if edge == .left { EdgeArrows(edge: .left) }
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: AnimationStyle.reduceMotion || hovering)) { context in
+                let t = context.date.timeIntervalSinceReferenceDate
+                let nudge = AnimationStyle.reduceMotion || hovering ? 0 : CGFloat(max(0, sin(t * 2.6))) * 4
+                tile
+                    .offset(x: edge == .right ? nudge : -nudge)
+            }
+            if edge == .right { EdgeArrows(edge: .right) }
+        }
+    }
+
+    private var tile: some View {
+        VStack(spacing: 4) {
+            preview
+                .frame(width: 64, height: 64)
+                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+            Text(url?.lastPathComponent ?? "")
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 110)
+        }
+        .scaleEffect(hovering ? 1.05 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hovering)
+        .onHover { hovering = $0 }
+        .overlay(
+            Group {
+                if let url { SampleDragArea(url: url, onDragStarted: onDragStarted) }
+            }
+        )
+        .help(L("Drag to the edge", "Zum Rand ziehen"))
     }
 
     @ViewBuilder
@@ -865,6 +844,7 @@ private struct SampleTile: View {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
         } else {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.secondary.opacity(0.15))
@@ -938,37 +918,6 @@ final class SampleDragView: NSView, NSDraggingSource {
 
 /// Fläche, in die das Bild aus der Ablage zurückgezogen wird. Nimmt nur Objekte an,
 /// die aus der Ablage kommen, damit man genau das Herausziehen übt.
-private struct ReturnDropZone: View {
-    let onDrop: () -> Void
-    @State private var targeted = false
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.primary.opacity(targeted ? 0.1 : 0.04))
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.secondary.opacity(targeted ? 0.8 : 0.45),
-                              style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-            HStack(spacing: 10) {
-                Image(systemName: "tray.and.arrow.down")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(Color.secondary.opacity(targeted ? 1 : 0.7))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L("Your turn", "Jetzt du"))
-                        .font(.system(size: 13, weight: .semibold))
-                    Text(L("Drag the image from the shelf back here.", "Zieh das Bild aus der Ablage hierher zurück."))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .frame(width: 360, height: 84)
-        .scaleEffect(targeted ? 1.02 : 1)
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: targeted)
-        .overlay(ReturnDropTarget(enabled: true, targeted: $targeted, onDrop: onDrop))
-    }
-}
-
 private struct ReturnDropTarget: NSViewRepresentable {
     let enabled: Bool
     @Binding var targeted: Bool

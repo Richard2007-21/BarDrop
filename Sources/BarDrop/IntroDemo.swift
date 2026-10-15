@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Carbon
+import Combine
 
 // MARK: Vorführung der echten Ablage für die Einführung
 //
@@ -17,7 +18,7 @@ import Carbon
 /// Ablauf einer Szene: setzt nacheinander Zustände der Vorführablage, in einer Schleife.
 /// Mit „Bewegung reduzieren“ (und in Vorschaubildern) steht der aussagekräftigste Moment.
 final class DemoShelf: ObservableObject {
-    enum Scene { case overview, drop, dragOut, undo, shortcut }
+    enum Scene { case overview, drop, dragOut, shortcut }
 
     let scene: Scene
     let settings = AppSettings.shared
@@ -44,6 +45,7 @@ final class DemoShelf: ObservableObject {
     private let otherURLs: [URL]
     private var generation = 0
     private var running = false
+    private var edgeSubscription: AnyCancellable?
 
     init(scene: Scene) {
         self.scene = scene
@@ -65,6 +67,9 @@ final class DemoShelf: ObservableObject {
             Thumbnails.load(url, size: CGFloat(settings.tileIconSize)) { _ in }
         }
         still()
+        // Vor dem Zeichnen am neuen Rand (willSet): erst verbergen, dann neu zeigen
+        edgeSubscription = settings.$edge.dropFirst().removeDuplicates()
+            .sink { [weak self] _ in self?.edgeChanged() }
     }
 
     deinit {
@@ -74,10 +79,6 @@ final class DemoShelf: ObservableObject {
     // MARK: Geometrie
 
     var layout: DemoLayout { DemoLayout(settings: settings) }
-
-    private var sampleEntry: ShelfEntry? {
-        store.entries.first { $0.files.contains { $0.url == sampleURL } }
-    }
 
     /// Mitte des Bildes in der offenen Ablage
     private var sampleTile: CGPoint {
@@ -155,12 +156,6 @@ final class DemoShelf: ObservableObject {
             dragging = true
             folderTargeted = true
             pointer = l.folder
-        case .undo:
-            fill(withSample: false)
-            set(level: .expanded, animation: nil)
-            ui.notice = ShelfUIModel.Notice(text: L("1 item removed", "1 Objekt entfernt"), canUndo: true)
-            keys = [("⌘", "command"), ("Z", "")]
-            pointer = l.away(l.full.width + 90, y: l.size.height * 0.72)
         case .shortcut:
             fill(withSample: true)
             set(level: .expanded, animation: nil)
@@ -170,6 +165,27 @@ final class DemoShelf: ObservableObject {
     }
 
     // MARK: Ablauf
+
+    /// Rand gewechselt: am alten Rand sofort weg, am neuen mit der normalen Animation
+    /// wieder da, wie die echte Ablage. Laufende Szenen beginnen von vorn.
+    private func edgeChanged() {
+        generation += 1
+        dragging = false
+        keys = nil
+        set(level: .hidden, animation: nil)
+        let g = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self, self.generation == g else { return }
+            if self.running {
+                self.loop()
+            } else {
+                self.still()
+                let level = self.ui.level
+                self.set(level: .hidden, animation: nil)
+                self.set(level: level, animation: self.settings.animationStyle.open)
+            }
+        }
+    }
 
     func start() {
         guard !running, scene != .overview, !AnimationStyle.reduceMotion else { return }
@@ -251,27 +267,6 @@ final class DemoShelf: ObservableObject {
                 withAnimation(.easeOut(duration: 0.15)) { self.dragging = false; self.folderTargeted = false }
             }
 
-        case .undo:
-            // Bild auswählen, ⌫ entfernt es, ⌘Z holt es zurück
-            period = 7.0
-            fill(withSample: true)
-            set(level: .expanded, animation: nil)
-            pointer = l.away(l.full.width + 90, y: l.size.height * 0.72)
-            after(0.5) { self.move(to: self.sampleTile, duration: 0.6) }
-            after(1.2) {
-                self.click()
-                if let entry = self.sampleEntry { self.ui.selection = [entry.id] }
-            }
-            after(1.6) { self.move(to: l.away(l.full.width + 90, y: l.size.height * 0.72), duration: 0.6) }
-            after(2.3) { self.show([("⌫", "delete")]) }
-            after(2.4) { if let entry = self.sampleEntry { self.actions.remove([entry]) } }
-            after(3.0) { self.show(nil) }
-            after(3.9) { self.show([("⌘", "command"), ("Z", "")]) }
-            // Nur wenn wirklich etwas zurückzuholen ist, sonst gäbe es den Warnton
-            after(4.0) { if self.store.undoManager.canUndo { self.actions.undo() } }
-            after(4.6) { self.show(nil) }
-            after(6.4) { self.ui.selection = [] }
-
         case .shortcut:
             // Kurzbefehl öffnet die Ablage, noch einmal schließt sie
             period = 5.6
@@ -344,7 +339,7 @@ final class DemoShelf: ObservableObject {
 /// eingestellten Größe hineinpasst, und wird dann verkleinert gezeigt.
 struct DemoLayout {
     /// Größe auf der Seite der Einführung
-    static let shown = CGSize(width: 560, height: 264)
+    static let shown = CGSize(width: 500, height: 220)
 
     let edge: ScreenEdge
     let full: ShelfMetrics
