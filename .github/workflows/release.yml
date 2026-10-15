@@ -101,8 +101,9 @@ jobs:
             gh release edit "$TAG" --notes-file .github/RELEASE_NOTES.md --prerelease="$PRE"
             if [ "$PRE" = "false" ]; then gh release edit "$TAG" --latest; fi
           else
+            # Titel lesbar: „BarDrop 1.30.0 Beta 7“ statt „1.30.0-beta.7“
             gh release create "$TAG" build/BarDrop.dmg \
-              --title "BarDrop $VERSION" \
+              --title "BarDrop ${VERSION/-beta./ Beta }" \
               --notes-file .github/RELEASE_NOTES.md \
               --target "$GITHUB_SHA" \
               $CHANNEL_FLAGS

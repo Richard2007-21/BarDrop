@@ -1,21 +1,17 @@
-* Items BarDrop can’t read are kept, and their files are no longer cleaned up
-* Large files from Photos and other apps are accepted for as long as data keeps arriving
-* The introduction removes only its sample image at the end, never files you added to it
-* Open at login in the introduction shows the real setting; turning it off and clicking Done turns it off
-* ⌘W closes the introduction, and the sample image is named in the chosen language
-* ↑ and ↓ move by a full row with every icon size and shelf width
-* After removing an open stack, Escape closes the shelf right away
-* Automatic updates install only once a release is two days old; Install still updates right away
-* Fixed a rare problem when dropping files together with web images
+* New introduction in the style of Settings: five short steps with a sidebar, two quick exercises and an overview of all features
+* Versions are shown as “1.30.0 Beta 7”
+* Texts in English and German checked and aligned: both languages now say exactly the same
+* Settings describe automatic updates correctly: they arrive two days after a release, once BarDrop hasn’t been used for 15 minutes
+* Settings say when copies, images, links and text are deleted: 15 minutes after dragging them out or using an action
+* Resetting all settings keeps beta versions, and the dialog now says so
+* Menu items and buttons use consistent capitalization in English
 
 <!-- de -->
 
-* Einträge, die BarDrop nicht lesen kann, bleiben erhalten, und ihre Dateien werden nicht mehr aufgeräumt
-* Große Dateien aus Fotos und anderen Apps werden angenommen, solange noch Daten ankommen
-* Die Einführung entfernt am Ende nur ihr Beispielbild, nie Dateien, die du dazugelegt hast
-* „Beim Anmelden öffnen“ zeigt in der Einführung den echten Zustand; ausgeschaltet und „Fertig“ schaltet es aus
-* ⌘W schließt die Einführung, und das Beispielbild heißt in der gewählten Sprache
-* ↑ und ↓ springen bei jeder Symbolgröße und Breite um eine ganze Reihe
-* Nach dem Entfernen eines geöffneten Stapels schließt Escape die Ablage gleich
-* Automatische Updates kommen erst, wenn ein Release zwei Tage alt ist; „Installieren“ aktualisiert weiterhin sofort
-* Ein seltenes Problem beim gemeinsamen Ablegen von Dateien und Bildern aus dem Web ist behoben
+* Neue Einführung im Stil der Einstellungen: fünf kurze Schritte mit Seitenleiste, zwei schnelle Übungen und ein Überblick über alle Funktionen
+* Versionen erscheinen als „1.30.0 Beta 7“
+* Texte in Deutsch und Englisch geprüft und angeglichen: Beide Sprachen sagen jetzt genau dasselbe
+* Die Einstellungen beschreiben automatische Updates richtig: Sie kommen zwei Tage nach dem Erscheinen, sobald BarDrop 15 Minuten nicht benutzt wurde
+* Die Einstellungen sagen, wann Kopien, Bilder, Links und Texte gelöscht werden: 15 Minuten nach dem Herausziehen oder einer Aktion
+* Beim Zurücksetzen aller Einstellungen bleiben Beta-Versionen erhalten, und der Dialog sagt das jetzt auch
+* Menüeinträge und Knöpfe sind im Englischen einheitlich geschrieben

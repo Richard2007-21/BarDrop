@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.30.0-beta.7
+* New introduction built like Settings: a 680 × 620 window in the middle of the screen, the five steps in a sidebar that tick themselves off, the same cards, switches and buttons, light and dark like the system
+* Introduction pages: Welcome (how it works, language, screen edge, open at login), Drop and Drag Out (one short exercise each), Shortcut (try the shortcut, the most important keys) and Discover More (action bar, stacks, convert, pin, cleanup with the current setting, Settings)
+* Back and Continue at the bottom; any step can also be opened from the sidebar
+* Versions read “1.30.0 Beta 7” everywhere in the app and in the titles of new GitHub releases
+* All texts checked in English and German; both languages say the same, glossary in docs/GLOSSARY.md
+* About BarDrop: automatic updates are described with the two-day wait; with automatic updates off, an available version no longer claims to install by itself
+* Reset all settings: the dialog mentions that beta versions are kept
+* Items: deletion of stored copies, images, links and text 15 minutes after dragging out or an action is described; ⌘Z brings them back within 15 minutes
+* Title Case for Convert menu items (“Audio Only (M4A)”, “Plain Text (TXT)”, “MP4 (HEVC, Smaller)”) and the “Let’s Go” button
+* Info.plist copyright no longer contains German text
+* README: GitHub connections, Xcode 26 to build, update timing, ⌘↑ in the keyboard table; American spelling “gray”
+
 ## 1.30.0-beta.6
 * Items that can’t be read are written back unchanged instead of being dropped on the next save; while there are any, or a backup of an unreadable list exists, no stored files are cleaned up at launch (the log says so)
 * File promises (Photos, Mail, browsers) wait as long as the destination folder changes, at most 30 minutes, instead of a fixed 90 seconds
@@ -279,7 +292,7 @@ Everything since 1.28.0:
 
 ## 1.9.3
 * Introduction: dragging the sample image now reliably opens the shelf
-* Selection in the open shelf always uses the accent color instead of grey; focus on opening is more reliable
+* Selection in the open shelf always uses the accent color instead of gray; focus on opening is more reliable
 
 ## 1.9.2
 * The message after removing has no button anymore, only text (⌘Z still undoes)
@@ -299,7 +312,7 @@ Everything since 1.28.0:
 * Settings made consistent: explanations left-aligned, all sliders alike, ⌘Z in the keyboard overview
 * New defaults for new installations
 * Menu bar icon only on request (Settings → General), Quit also via right-click in the shelf
-* Action bar without grey background, menus without ellipses
+* Action bar without gray background, menus without ellipses
 * The selection rectangle stays inside the shelf
 * The open shelf has keyboard focus right away (⌘A, arrow keys and more) and gives it back when closing
 
@@ -308,7 +321,7 @@ Everything since 1.28.0:
 * Multiple displays: at the edge between two displays the shelf no longer opens when you move a file or the pointer across
 
 ## 1.8.5
-* Files from external drives stay in the shelf while the drive is disconnected (greyed out) and are back to normal once it’s connected
+* Files from external drives stay in the shelf while the drive is disconnected (grayed out) and are back to normal once it’s connected
 * Links to downloads (ZIP, videos, disk images) are saved as links right away without downloading the whole file
 * Folders in the home folder named “tmp”, “Caches” or “TemporaryItems” count as your own folders: files from them are linked instead of copied
 * A shortcut that’s already taken is reported in the log

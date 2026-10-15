@@ -603,7 +603,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         }
         menu.addItem(.separator())
         if case .available(let version) = Updater.shared.state {
-            menu.addItem(ClosureMenuItem(L("Update to \(version)", "Auf \(version) aktualisieren")) {
+            menu.addItem(ClosureMenuItem(L("Update to \(AboutSettings.readable(version))", "Auf \(AboutSettings.readable(version)) aktualisieren")) {
                 DispatchQueue.main.async { Updater.shared.install() }
             })
         }

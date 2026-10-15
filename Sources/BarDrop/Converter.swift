@@ -32,7 +32,7 @@ enum Converter {
             case .text(let format): return Converter.textFormats.first { $0.format == format }?.title ?? format
             case .audio(let id): return Converter.audioFormats.first { $0.id == id }?.title ?? id
             case .video(let id): return Converter.videoFormats.first { $0.id == id }?.title ?? id
-            case .audioFromVideo: return L("Audio only (M4A)", "Nur Ton (M4A)")
+            case .audioFromVideo: return L("Audio Only (M4A)", "Nur Ton (M4A)")
             }
         }
     }
@@ -54,7 +54,7 @@ enum Converter {
 
     /// Formate von `textutil`
     static let textFormats: [(format: String, ext: String, title: String)] = [
-        ("txt", "txt", L("Plain text (TXT)", "Reiner Text (TXT)")),
+        ("txt", "txt", L("Plain Text (TXT)", "Reiner Text (TXT)")),
         ("rtf", "rtf", "RTF"),
         ("html", "html", "HTML"),
         ("docx", "docx", L("Word (DOCX)", "Word (DOCX)")),
@@ -76,7 +76,7 @@ enum Converter {
     static let videoFormats: [(id: String, preset: String, type: AVFileType, ext: String, title: String)] = [
         ("mp4", AVAssetExportPresetHighestQuality, .mp4, "mp4", "MP4"),
         ("mov", AVAssetExportPresetHighestQuality, .mov, "mov", "MOV"),
-        ("hevc", AVAssetExportPresetHEVCHighestQuality, .mp4, "mp4", L("MP4 (HEVC, smaller)", "MP4 (HEVC, kleiner)")),
+        ("hevc", AVAssetExportPresetHEVCHighestQuality, .mp4, "mp4", L("MP4 (HEVC, Smaller)", "MP4 (HEVC, kleiner)")),
         ("1080", AVAssetExportPreset1920x1080, .mp4, "mp4", "MP4 1080p"),
         ("720", AVAssetExportPreset1280x720, .mp4, "mp4", "MP4 720p")
     ]

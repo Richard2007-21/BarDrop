@@ -50,8 +50,8 @@ struct GeneralSettings: View {
     private func confirmReset() {
         let alert = NSAlert()
         alert.messageText = L("Reset all settings?", "Alle Einstellungen zurücksetzen?")
-        alert.informativeText = L("All settings, including the shortcut and the action bar, go back to their defaults. The language and the items in the shelf are kept. This can’t be undone.",
-                                  "Alle Einstellungen, auch Kurzbefehl und Aktionsleiste, werden auf den Standard zurückgesetzt. Sprache und Objekte in der Ablage bleiben erhalten. Das lässt sich nicht widerrufen.")
+        alert.informativeText = L("All settings, including the shortcut and the action bar, go back to their defaults. The language, beta versions and the items in the shelf are kept. This can’t be undone.",
+                                  "Alle Einstellungen, auch Kurzbefehl und Aktionsleiste, werden auf den Standard zurückgesetzt. Sprache, Beta-Versionen und Objekte in der Ablage bleiben erhalten. Das lässt sich nicht widerrufen.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: L("Reset", "Zurücksetzen"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
@@ -119,7 +119,7 @@ struct KeyboardSettings: View {
 }
 
 /// Eine Zeile mit Tasten als kleine Kappen, wie die Tasten oben beim Kurzbefehl
-private struct ShortcutRow: View {
+struct ShortcutRow: View {
     let title: String
     let keys: [String]
     init(_ title: String, _ keys: [String]) {
@@ -392,8 +392,8 @@ struct ItemSettings: View {
             return L("Items disappear after AirDrop, Mail, folders and other actions, but stay when you drag them out.",
                      "Objekte verschwinden nach AirDrop, Mail, Ordnern und anderen Aktionen, bleiben aber nach dem Herausziehen erhalten.") + move
         case .always:
-            return L("Items disappear after you drag them out and after actions. Press ⌘Z to bring them back.",
-                     "Objekte verschwinden nach dem Herausziehen und nach Aktionen. Mit ⌘Z holst du sie zurück.") + move
+            return L("Items disappear after you drag them out and after actions. Press ⌘Z within 15 minutes to bring them back.",
+                     "Objekte verschwinden nach dem Herausziehen und nach Aktionen. Mit ⌘Z holst du sie innerhalb von 15 Minuten zurück.") + move
         }
     }
 
@@ -428,8 +428,8 @@ struct ItemSettings: View {
             }
 
             SettingsSection(L("Cleanup", "Aufräumen"),
-                            info: L("Files from the Finder are never deleted when you remove them. Copies, images, links and text that only exist in BarDrop are deleted once removing them can no longer be undone with ⌘Z.",
-                                    "Dateien aus dem Finder bleiben beim Entfernen erhalten. Kopien, Bilder, Links und Texte, die nur in BarDrop liegen, werden gelöscht, sobald sich das Entfernen nicht mehr mit ⌘Z widerrufen lässt.")) {
+                            info: L("Files from the Finder are never deleted when you remove them. Copies, images, links and text that only exist in BarDrop are deleted 15 minutes after you drag them out or use them in an action, and otherwise once removing them can no longer be undone with ⌘Z.",
+                                    "Dateien aus dem Finder bleiben beim Entfernen erhalten. Kopien, Bilder, Links und Texte, die nur in BarDrop liegen, werden 15 Minuten nach dem Herausziehen oder einer Aktion gelöscht, sonst sobald sich das Entfernen nicht mehr mit ⌘Z widerrufen lässt.")) {
                 PickerRow(L("Remove automatically", "Automatisch entfernen"), selection: autoRemove,
                           options: AutoRemoveOption.allCases.map { ($0, $0.title) })
                 SettingsRow(L("Remove all items", "Alle Objekte entfernen")) {

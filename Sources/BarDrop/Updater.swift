@@ -124,7 +124,7 @@ final class Updater: ObservableObject {
             state = .upToDate
             if interactive {
                 showMessage(L("BarDrop is up to date", "BarDrop ist aktuell"),
-                            L("Version \(currentVersion) is the latest.", "Version \(currentVersion) ist die neueste."))
+                            L("Version \(AboutSettings.readable(currentVersion)) is the latest.", "Version \(AboutSettings.readable(currentVersion)) ist die neueste."))
             }
             return
         }
@@ -200,9 +200,9 @@ final class Updater: ObservableObject {
 
     private func offer(_ version: String) {
         let alert = NSAlert()
-        alert.messageText = L("BarDrop \(version) is available", "BarDrop \(version) ist verfügbar")
-        alert.informativeText = L("You have version \(currentVersion). BarDrop will be replaced and restart; your items stay in the shelf.",
-                                  "Installiert ist Version \(currentVersion). BarDrop wird ersetzt und startet neu, die Objekte bleiben in der Ablage.")
+        alert.messageText = L("BarDrop \(AboutSettings.readable(version)) is available", "BarDrop \(AboutSettings.readable(version)) ist verfügbar")
+        alert.informativeText = L("You have version \(AboutSettings.readable(currentVersion)). BarDrop will be replaced and restart; your items stay in the shelf.",
+                                  "Installiert ist Version \(AboutSettings.readable(currentVersion)). BarDrop wird ersetzt und startet neu, die Objekte bleiben in der Ablage.")
         alert.addButton(withTitle: L("Install", "Installieren"))
         alert.addButton(withTitle: L("Later", "Später"))
         alert.icon = NSApp.applicationIconImage
