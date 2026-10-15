@@ -259,9 +259,14 @@ final class ShelfStore: ObservableObject {
         // Nur aufräumen, wenn alles lesbar war: sonst gehörten die Dateien vielleicht
         // zu einem Eintrag, der gerade nicht gelesen werden konnte. Dasselbe gilt, solange
         // eine früher unlesbare Liste als Sicherung daneben liegt.
-        if broken == 0 && !hasUnreadableBackup {
+        let backups = unreadableBackups
+        if broken == 0 && backups.isEmpty {
             removeOrphanedItems()
             save()      // wiedergefundene Orte und neue Lesezeichen festhalten
+        } else if broken == 0 {
+            for backup in backups {
+                Log.store.notice("Aufräumen übersprungen, unlesbare Liste gesichert: \(backup.lastPathComponent, privacy: .public) (\(backup.path, privacy: .private))")
+            }
         }
         sanitizeExistingItemsOnce()
         Outbox.shared.cleanUp()
@@ -305,10 +310,10 @@ final class ShelfStore: ObservableObject {
         }
     }
 
-    /// Liegt eine gesicherte, unlesbare Liste daneben (`shelf-unlesbar-….json`)?
-    private var hasUnreadableBackup: Bool {
+    /// Gesicherte, unlesbare Listen daneben (`shelf-unlesbar-….json`)
+    private var unreadableBackups: [URL] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: baseDir.path)) ?? []
-        return names.contains { $0.hasPrefix("shelf-unlesbar-") }
+        return names.filter { $0.hasPrefix("shelf-unlesbar-") }.sorted().map { baseDir.appendingPathComponent($0) }
     }
 
     private func save() {
