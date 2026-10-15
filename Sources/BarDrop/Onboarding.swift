@@ -281,7 +281,13 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         let root = OnboardingView(model: model, openSettings: { [weak self] in
             self?.openSettings()
         })
-        window.contentView = NSHostingView(rootView: root)
+        // Feste Größe: Die Ansicht darf das Fenster nicht verändern. Sonst übernimmt
+        // NSHostingView Größenwünsche der Inhalte, und das Fenster kann wachsen.
+        let host = NSHostingView(rootView: root.frame(width: Self.size.width, height: Self.size.height))
+        host.sizingOptions = []
+        window.contentView = host
+        window.contentMinSize = Self.size
+        window.contentMaxSize = Self.size
         window.setContentSize(Self.size)
         window.center()
         return window
