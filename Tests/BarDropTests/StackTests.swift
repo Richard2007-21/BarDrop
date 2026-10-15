@@ -44,6 +44,40 @@ final class StackTests: XCTestCase {
         return store.entries[0]
     }
 
+    /// Wie das Aufräumen der Einführung: Nur die genannte Datei verlässt den Stapel,
+    /// die übrigen bleiben samt Eintrag erhalten.
+    func testForgettingOneFileKeepsRestOfStack() {
+        let stack = makeStack(3)
+        let first = stack.files[0].url
+        store.forgetFiles(at: [first])
+        XCTAssertEqual(store.entries.count, 1)
+        XCTAssertEqual(store.entries[0].id, stack.id)
+        XCTAssertEqual(store.entries[0].files.map(\.url), Array(stack.files.dropFirst()).map(\.url))
+    }
+
+    /// Alles entfernen, während ein Stapel offen ist: keine unsichtbare Auswahl bleibt zurück.
+    func testRemovingOpenStackLeavesNoSelection() {
+        let stack = makeStack(3)
+        actions.openStack(stack)
+        actions.remove(store.entries)
+        XCTAssertNil(ui.openStack)
+        XCTAssertTrue(ui.selection.isEmpty)
+        XCTAssertFalse(actions.hasCurrentSelection, "Escape schließt danach gleich die Ablage")
+    }
+
+    /// Pfeiltasten springen um so viele Kacheln, wie eine Reihe tatsächlich hat.
+    func testColumnCountFollowsIconSizeAndWidth() {
+        let settings = AppSettings.shared
+        let (width, icon) = (settings.shelfWidth, settings.tileIconSize)
+        defer { settings.shelfWidth = width; settings.tileIconSize = icon }
+        settings.shelfWidth = 240; settings.tileIconSize = 64
+        XCTAssertEqual(actions.columnCount, 2, "Standard wie bisher")
+        settings.tileIconSize = 40
+        XCTAssertEqual(actions.columnCount, 3)
+        settings.shelfWidth = 360; settings.tileIconSize = 64
+        XCTAssertEqual(actions.columnCount, 3)
+    }
+
     func testSelectAllAndRemoveInsideStack() {
         let stack = makeStack(4)
         actions.openStack(stack)

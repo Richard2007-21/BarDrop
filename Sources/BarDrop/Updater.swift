@@ -27,6 +27,26 @@ final class Updater: ObservableObject {
         let dmg: URL
         let sha256: String?
         let page: URL
+        /// Zeitpunkt der Veröffentlichung auf GitHub (`published_at`)
+        let published: Date?
+    }
+
+    /// So alt muss ein Release sein, bevor es still installiert wird. Bis dahin bleibt Zeit,
+    /// ein fehlerhaftes oder missbräuchliches Release zu bemerken und zurückzuziehen.
+    /// Wer selbst auf „Installieren“ klickt, bekommt es sofort.
+    static let silentInstallMinimumAge: TimeInterval = 48 * 3600
+
+    /// Darf ein Release mit diesem Veröffentlichungsdatum jetzt still installiert werden?
+    /// Ohne Datum nie (dann nur auf Nachfrage).
+    static func isOldEnoughForSilentInstall(published: Date?, now: Date = Date()) -> Bool {
+        guard let published else { return false }
+        return now.timeIntervalSince(published) >= silentInstallMinimumAge
+    }
+
+    /// `published_at` aus der Antwort von GitHub, z. B. „2026-10-15T18:09:48Z“
+    static func publishedDate(_ value: Any?) -> Date? {
+        guard let text = value as? String else { return nil }
+        return ISO8601DateFormatter().date(from: text)
     }
 
     /// Neueste reguläre Version (GitHub zählt Vorabversionen hier nicht mit)
@@ -108,7 +128,8 @@ final class Updater: ObservableObject {
             }
             return
         }
-        release = Release(version: version, dmg: dmg, sha256: digest, page: page)
+        release = Release(version: version, dmg: dmg, sha256: digest, page: page,
+                          published: Self.publishedDate(json["published_at"]))
         state = .available(version)
         if interactive {
             offer(version)
@@ -167,7 +188,8 @@ final class Updater: ObservableObject {
                 self.idleTimer = nil
                 return
             }
-            guard AppSettings.shared.autoUpdateCheck, self.isIdle() else { return }
+            guard AppSettings.shared.autoUpdateCheck, self.isIdle(),
+                  Self.isOldEnoughForSilentInstall(published: self.release?.published) else { return }
             timer.invalidate()
             self.idleTimer = nil
             self.install(silent: true)

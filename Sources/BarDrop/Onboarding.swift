@@ -19,10 +19,15 @@ final class OnboardingModel: ObservableObject {
     @Published private(set) var step: Step = .welcome
     /// Geschaffte Schritte (Häkchen in der Seitenleiste)
     @Published private(set) var completed: Set<Step> = []
-    @Published var launchAtLogin = true
+    /// Beim ersten Start vorgeschlagen; wird die Einführung später erneut geöffnet,
+    /// zeigt der Schalter den tatsächlichen Zustand
+    @Published var launchAtLogin: Bool
+    /// Die Einführung läuft nicht zum ersten Mal (z. B. über Einstellungen → Über geöffnet)
+    let isRerun: Bool
 
     let settings: AppSettings
-    let sampleURL: URL?
+    /// Beispieldatei; wird umbenannt, wenn auf der ersten Seite die Sprache wechselt
+    @Published var sampleURL: URL?
     var onFinish: (_ completed: Bool) -> Void = { _ in }
     /// Ziehen der Beispieldatei hat begonnen: Die Ablage muss davon erfahren, denn
     /// Ziehen aus dem eigenen Fenster melden die Ereignisse des Systems nicht.
@@ -31,6 +36,20 @@ final class OnboardingModel: ObservableObject {
     init(settings: AppSettings, sampleURL: URL?) {
         self.settings = settings
         self.sampleURL = sampleURL
+        isRerun = settings.didLaunchBefore
+        launchAtLogin = settings.didLaunchBefore ? SMAppService.mainApp.status == .enabled : true
+    }
+
+    enum LoginItemChange: Equatable { case register, unregister }
+
+    /// Was beim Abschluss mit „Beim Anmelden öffnen“ geschieht. Nur „Fertig“ ändert etwas
+    /// (Überspringen und Schließen nie); abgemeldet wird nur bei einem erneuten Durchlauf,
+    /// beim ersten Start bleibt es beim Anmelden auf Wunsch.
+    static func loginItemChange(completed: Bool, wanted: Bool, isRerun: Bool, enabled: Bool) -> LoginItemChange? {
+        guard completed else { return nil }
+        if wanted && !enabled { return .register }
+        if !wanted && enabled && isRerun { return .unregister }
+        return nil
     }
 
     /// Schritte zum Mitmachen
@@ -67,7 +86,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     private let store: ShelfStore
     private let ui: ShelfUIModel
     private let settings: AppSettings
-    private let model: OnboardingModel
+    /// Ohne „private“, damit Tests den Ablauf steuern können
+    let model: OnboardingModel
     private var window: NSWindow?
     private var subscriptions: Set<AnyCancellable> = []
 
@@ -128,6 +148,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         switch step {
         case .drop:
             baseline = Set(store.entries.map(\.id))
+            renameSampleForLanguage()
         default:
             break
         }
@@ -144,23 +165,50 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// Die Sprache kann auf der ersten Seite gewechselt worden sein: Die Beispieldatei
+    /// bekommt den Namen in der aktuellen Sprache, bevor sie zum ersten Mal zu sehen ist.
+    private func renameSampleForLanguage() {
+        guard let url = model.sampleURL, url.lastPathComponent != Self.sampleName else { return }
+        let renamed = url.deletingLastPathComponent().appendingPathComponent(Self.sampleName)
+        if (try? FileManager.default.moveItem(at: url, to: renamed)) != nil {
+            model.sampleURL = renamed
+        }
+    }
+
     // MARK: Ende
 
     private func finish(completed: Bool) {
         guard !finished else { return }
         finished = true
         settings.didLaunchBefore = true
-        // Die Beispieldatei hat ihren Zweck erfüllt
-        let leftovers = sampleEntries.intersection(Set(store.entries.map(\.id)))
-        if !leftovers.isEmpty { store.discard(leftovers) }
+        // Die Beispieldatei hat ihren Zweck erfüllt. Nur sie selbst entfernen, nicht was
+        // inzwischen dazugelegt wurde (z. B. eigene Dateien, die mit ihr einen Stapel bilden)
+        let name = model.sampleURL?.lastPathComponent
+        let sampleFiles = store.entries
+            .filter { sampleEntries.contains($0.id) }
+            .flatMap(\.files)
+            .filter { $0.url.lastPathComponent == name }
+            .map(\.url)
+        if !sampleFiles.isEmpty { store.forgetFiles(at: sampleFiles) }
         if let url = model.sampleURL { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
 
-        if completed && model.launchAtLogin && SMAppService.mainApp.status != .enabled {
+        switch OnboardingModel.loginItemChange(completed: completed, wanted: model.launchAtLogin,
+                                               isRerun: model.isRerun,
+                                               enabled: SMAppService.mainApp.status == .enabled) {
+        case .register:
             do {
                 try SMAppService.mainApp.register()
             } catch {
                 Log.edge.error("Anmeldeobjekt nicht möglich: \(error.localizedDescription, privacy: .public)")
             }
+        case .unregister:
+            do {
+                try SMAppService.mainApp.unregister()
+            } catch {
+                Log.edge.error("Anmeldeobjekt ließ sich nicht entfernen: \(error.localizedDescription, privacy: .public)")
+            }
+        case nil:
+            break
         }
         subscriptions.removeAll()
         window?.delegate = nil
@@ -201,12 +249,14 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         return window
     }
 
+    static var sampleName: String { L("Welcome to BarDrop.png", "Willkommen bei BarDrop.png") }
+
     /// Beispielbild zum Ablegen. Liegt in einem temporären Ordner und wird beim
     /// Ablegen wie ein Bild aus dem Web in die Ablage kopiert.
     static func makeSample() -> URL? {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("BarDropEinfuehrung-\(UUID().uuidString)", isDirectory: true)
-        let url = dir.appendingPathComponent(L("Welcome to BarDrop.png", "Willkommen bei BarDrop.png"))
+        let url = dir.appendingPathComponent(sampleName)
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         } catch {

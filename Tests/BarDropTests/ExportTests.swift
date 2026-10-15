@@ -179,6 +179,84 @@ final class PersistenceTests: XCTestCase {
                       "Gespeicherte Dateien dürfen dann nicht aufgeräumt werden")
     }
 
+    /// Ein unlesbarer Eintrag übersteht weitere Änderungen und Neustarts, und seine
+    /// eigenen Dateien werden nicht aufgeräumt.
+    func testCorruptEntrySurvivesSaveAndKeepsItsFiles() throws {
+        let keep = userFile("bleibt.txt")
+        defer { try? FileManager.default.removeItem(at: keep.deletingLastPathComponent()) }
+        ShelfStore(baseDirectory: base).add([ShelfFile(url: keep, owned: false)])
+
+        // Eigene Datei eines Eintrags, den diese Version nicht lesen kann
+        let ownDir = base.appendingPathComponent("Items/fremd")
+        try FileManager.default.createDirectory(at: ownDir, withIntermediateDirectories: true)
+        let ownFile = ownDir.appendingPathComponent("Bild.png")
+        try Data("x".utf8).write(to: ownFile)
+        let db = base.appendingPathComponent("shelf.json")
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: db)) as? [Any])
+        json.append(["kaputt": true, "datei": ownFile.absoluteString] as [String: Any])
+        try JSONSerialization.data(withJSONObject: json).write(to: db)
+
+        // Start mit dem kaputten Eintrag, dann eine Änderung (speichert)
+        let second = userFile("neu.txt")
+        defer { try? FileManager.default.removeItem(at: second.deletingLastPathComponent()) }
+        let store = ShelfStore(baseDirectory: base)
+        store.add([ShelfFile(url: second, owned: false)])
+        XCTAssertEqual(store.entries.count, 2)
+
+        let saved = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: db)) as? [[String: Any]])
+        XCTAssertEqual(saved.count, 3, "Der unlesbare Eintrag wird mitgeschrieben")
+        XCTAssertEqual(saved.last?["kaputt"] as? Bool, true)
+
+        // Erneuter Start: lesbare Einträge wie bisher, Datei des unlesbaren bleibt
+        let reloaded = ShelfStore(baseDirectory: base)
+        XCTAssertEqual(reloaded.entries.count, 2)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: ownFile.path), "Nicht aufräumen, solange ein Eintrag unlesbar ist")
+    }
+
+    /// Nach einer unlesbaren Liste wird auch beim nächsten Start nicht aufgeräumt.
+    func testNoCleanupWhileUnreadableBackupExists() throws {
+        try Data("kein json".utf8).write(to: base.appendingPathComponent("shelf.json"))
+        let items = base.appendingPathComponent("Items/abc")
+        try FileManager.default.createDirectory(at: items, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: items.appendingPathComponent("Bild.png"))
+
+        let keep = userFile("neu.txt")
+        defer { try? FileManager.default.removeItem(at: keep.deletingLastPathComponent()) }
+        ShelfStore(baseDirectory: base).add([ShelfFile(url: keep, owned: false)])   // schreibt eine neue Liste
+
+        let reloaded = ShelfStore(baseDirectory: base)
+        XCTAssertEqual(reloaded.entries.count, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: items.appendingPathComponent("Bild.png").path),
+                      "Solange die Sicherung daneben liegt, wird nicht aufgeräumt")
+    }
+
+    /// Auch neben einer Sicherung hält der Start wiedergefundene Orte fest wie bisher.
+    func testMovedFileIsSavedAtLaunchEvenWithBackup() throws {
+        let original = userFile("Plan.pdf")
+        defer { try? FileManager.default.removeItem(at: original.deletingLastPathComponent()) }
+        ShelfStore(baseDirectory: base).add([ShelfFile(url: original, owned: false)])
+        try Data("alt".utf8).write(to: base.appendingPathComponent("shelf-unlesbar-1.json"))
+        let moved = original.deletingLastPathComponent().appendingPathComponent("Plan neu.pdf")
+        try FileManager.default.moveItem(at: original, to: moved)
+
+        _ = ShelfStore(baseDirectory: base)      // findet die Datei über das Lesezeichen
+        let saved = try String(contentsOf: base.appendingPathComponent("shelf.json"), encoding: .utf8)
+        XCTAssertTrue(saved.contains("Plan%20neu.pdf"), "Neuer Ort steht ohne weitere Änderung in der Liste")
+    }
+
+    /// Ohne unlesbare Einträge wird weiter aufgeräumt wie bisher.
+    func testOrphanedItemsAreStillRemovedNormally() throws {
+        let keep = userFile("bleibt.txt")
+        defer { try? FileManager.default.removeItem(at: keep.deletingLastPathComponent()) }
+        ShelfStore(baseDirectory: base).add([ShelfFile(url: keep, owned: false)])
+        let orphan = base.appendingPathComponent("Items/verwaist")
+        try FileManager.default.createDirectory(at: orphan, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: orphan.appendingPathComponent("rest.png"))
+
+        _ = ShelfStore(baseDirectory: base)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+    }
+
     func testRemovedOwnFileCanBeRestored() {
         let store = ShelfStore(baseDirectory: base)
         let pb = NSPasteboard(name: NSPasteboard.Name("BarDropPersist-\(UUID().uuidString)"))
