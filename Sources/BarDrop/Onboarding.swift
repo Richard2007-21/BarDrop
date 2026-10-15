@@ -665,7 +665,15 @@ private struct ShortcutPage: View {
                          text: L("Press \(settings.hotKeyDescription). Press it again to close the shelf. You can change it in Settings → Keyboard.",
                                  "Drück \(settings.hotKeyDescription). Noch einmal, und die Ablage geht wieder zu. Ändern kannst du das unter Einstellungen → Tastatur.")) {
             KeyCaps(keys: keys, size: 76, pressed: model.stepDone)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(width: 420, height: 252)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(SettingsTheme.card)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(SettingsTheme.cardBorder, lineWidth: 1)
+                )
         } practice: {
             PracticeResult(done: model.stepDone,
                            confirmation: L("That’s it.", "Genau so.")) {
@@ -880,7 +888,8 @@ private struct DemoScreen: View {
 
     private var centerY: CGFloat { screen.height / 2 + 6 }
     private var windowCenter: CGPoint { CGPoint(x: x(fromEdge: screen.width - 120), y: centerY + 4) }
-    private var shelfSlot: CGPoint { CGPoint(x: x(fromEdge: shelfWidth / 2 + 2), y: centerY - 18) }
+    /// Platz der Datei in der Ablage: oben; die anderen Objekte liegen darunter
+    private var shelfSlot: CGPoint { CGPoint(x: x(fromEdge: shelfWidth / 2 + 2), y: centerY - 40) }
 
     private struct Pose {
         var shelf: CGFloat = 0           // sichtbare Breite der Ablage
@@ -1001,7 +1010,7 @@ private struct DemoScreen: View {
                     }
                     .scaleEffect(0.82)
                     .opacity(s.shelf > shelfWidth * 0.8 ? s.otherTiles : 0)
-                    .position(x: x(fromEdge: shelfWidth / 2 + 2), y: centerY + 30)
+                    .position(x: x(fromEdge: shelfWidth / 2 + 2), y: centerY + 20)
                 }
 
                 // Die Datei
