@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.30.0-beta.9
+* Introduction: the window always stays 680 × 620; it could grow far beyond that on some Macs, with a large empty area under the content
+
 ## 1.30.0-beta.8
 * Introduction redone as a short presentation: one scene per page, a headline, one sentence and a small exercise; Back, page dots and Continue at the bottom; Welcome, Drop, Drag Out, Get Back (⌘Z), Open from Anywhere (shortcut) and And There’s More
 * The scenes show the real shelf in your size, edge and animation style, with real tiles, the action bar and notices like “1 item removed”, the macOS pointer and the desktop picture (only pictures that come with macOS; otherwise a gradient)
