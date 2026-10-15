@@ -83,13 +83,16 @@ final class DemoShelf: ObservableObject {
     /// Mitte des Bildes in der offenen Ablage
     /// Freier Platz hinter den anderen Objekten: Dort wird beim Ablegen hingezogen,
     /// damit das gezogene Bild keine Kachel verdeckt
-    /// Mindestabstand zum Rand, damit der Name unter dem Bild ganz zu sehen ist.
+    /// Mitte der ersten freien Reihe, so bleibt auch der Name unter dem Bild ganz zu sehen.
     private var freeSlot: CGPoint {
         let l = layout
-        let p = l.tileCenter(otherURLs.count)
-        let fromEdge = l.edge == .right ? l.size.width - p.x : p.x
-        return l.away(max(fromEdge, 84), y: p.y)
+        let row = (others.count + l.columns - 1) / l.columns
+        return l.away(l.full.width / 2, y: l.tileCenter(row * l.columns).y)
     }
+
+    /// Weitere Objekte in der Szene. Beim Ablegen nur eine Reihe, damit darunter Platz für
+    /// das gezogene Bild ist
+    private var others: [URL] { scene == .drop ? Array(otherURLs.prefix(2)) : otherURLs }
 
     private var sampleTile: CGPoint {
         let index = actions.orderedEntries.firstIndex { $0.files.contains { $0.url == sampleURL } } ?? 0
@@ -102,7 +105,7 @@ final class DemoShelf: ObservableObject {
     private func fill(withSample: Bool) {
         ui.selection = []
         ui.notice = nil
-        let wanted = (withSample ? [sampleURL].compactMap { $0 } : []) + otherURLs
+        let wanted = (withSample ? [sampleURL].compactMap { $0 } : []) + others
         // Liegt schon alles so da (etwa nach ⌘Z), nichts neu aufbauen: das würde flackern
         guard store.entries.flatMap({ $0.files.map(\.url) }) != wanted else { return }
         var transaction = Transaction()
@@ -400,10 +403,14 @@ struct DemoLayout {
 
     /// Mitte des Symbols der Kachel an Stelle `index`, nachgerechnet wie das Raster der
     /// Ablage (ShelfContent: Kopf, Abstände, anpassbare Spalten)
+    /// Spalten des Rasters (anpassbare Spalten wie in ShelfContent)
+    var columns: Int {
+        max(1, Int((full.width - 24 + 8) / (iconSize + 22 + 8)))
+    }
+
     func tileCenter(_ index: Int) -> CGPoint {
         let available = full.width - 24
-        let minimum = iconSize + 22, maximum = iconSize + 40, spacing: CGFloat = 8
-        let columns = max(1, Int((available + spacing) / (minimum + spacing)))
+        let maximum = iconSize + 40, spacing: CGFloat = 8
         let column = min(maximum, (available - spacing * CGFloat(columns - 1)) / CGFloat(columns))
         let used = column * CGFloat(columns) + spacing * CGFloat(columns - 1)
         let start = 12 + (available - used) / 2
