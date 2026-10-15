@@ -86,7 +86,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     private let store: ShelfStore
     private let ui: ShelfUIModel
     private let settings: AppSettings
-    private let model: OnboardingModel
+    /// Ohne „private“, damit Tests den Ablauf steuern können
+    let model: OnboardingModel
     private var window: NSWindow?
     private var subscriptions: Set<AnyCancellable> = []
 
