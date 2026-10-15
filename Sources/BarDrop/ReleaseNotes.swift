@@ -214,7 +214,7 @@ private struct ReleaseNotesList: View {
     private func entryView(_ entry: ReleaseNotes.Entry) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(L("Version \(entry.version)", "Version \(entry.version)"))
+                Text(L("Version \(AboutSettings.readable(entry.version))", "Version \(AboutSettings.readable(entry.version))"))
                     .font(.system(size: 13, weight: .semibold))
                 if entry.beta {
                     Text("Beta")

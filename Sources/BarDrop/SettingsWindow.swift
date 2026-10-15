@@ -244,11 +244,11 @@ struct AboutSettings: View {
         case .available(let v):
             // Von selbst nur mit „Automatisch aktualisieren“ und erst zwei Tage nach dem Erscheinen
             guard settings.autoUpdateCheck else {
-                return L("Version \(v) is ready. Your items stay in the shelf when you update.",
-                         "Version \(v) ist bereit. Beim Aktualisieren bleiben die Objekte in der Ablage.")
+                return L("Version \(Self.readable(v)) is ready. Your items stay in the shelf when you update.",
+                         "Version \(Self.readable(v)) ist bereit. Beim Aktualisieren bleiben die Objekte in der Ablage.")
             }
-            return L("Version \(v) is ready. BarDrop installs it by itself two days after its release, once you haven’t used it for a while, or you can update now. Your items stay in the shelf.",
-                     "Version \(v) ist bereit. BarDrop installiert sie von selbst zwei Tage nach dem Erscheinen, sobald du es eine Weile nicht benutzt. Du kannst auch gleich aktualisieren. Die Objekte bleiben in der Ablage.")
+            return L("Version \(Self.readable(v)) is ready. BarDrop installs it by itself two days after its release, once you haven’t used it for a while, or you can update now. Your items stay in the shelf.",
+                     "Version \(Self.readable(v)) ist bereit. BarDrop installiert sie von selbst zwei Tage nach dem Erscheinen, sobald du es eine Weile nicht benutzt. Du kannst auch gleich aktualisieren. Die Objekte bleiben in der Ablage.")
         // Feste Meldung statt der gespeicherten: bleibt in der gewählten Sprache
         case .failed: return L("The last attempt didn’t work. Please try again later.",
                                "Der letzte Versuch hat nicht geklappt. Versuch es später noch einmal.")
@@ -346,7 +346,7 @@ struct AboutSettings: View {
         case .available(let v):
             // Kurz, damit es neben Symbol und Version passt; die Version steht darunter
             Button(L("Update", "Aktualisieren")) { updater.install() }
-                .help(L("Update to \(v)", "Auf \(v) aktualisieren"))
+                .help(L("Update to \(Self.readable(v))", "Auf \(Self.readable(v)) aktualisieren"))
                 .buttonStyle(KlackButtonStyle(prominent: true))
         default:
             Button(L("Check for Updates", "Nach Updates suchen")) { updater.check(interactive: true) }
