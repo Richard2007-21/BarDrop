@@ -71,7 +71,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Dateien, Ordner, Bilder aus dem Web (WebP, AVIF und HEIC werden als PNG oder JPEG gespeichert), Links und Text
 * Neue Bildschirmfotos landen auf Wunsch automatisch in der Ablage
 * Umwandeln per Rechtsklick: Bilder, PDF-Seiten, Textdokumente, Audio und Video, nur mit dem, was macOS mitbringt
-* Neueste oder älteste zuerst, Stapel per Auswahl, Auswahl wie im Finder
+* Neueste oder älteste zuerst, Stapel, Auswahl wie im Finder
 * Versehentlich entfernt? `⌘Z` holt es zurück
 * Verschobene oder umbenannte Dateien bleiben in der Ablage, Dateien aus iCloud werden bei Bedarf geladen, Dateien von getrennten Laufwerken bleiben ausgegraut erhalten
 * Inhalt bleibt nach einem Neustart erhalten, auf Wunsch nach 1 bis 24 Stunden automatisch aufgeräumt

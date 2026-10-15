@@ -774,8 +774,8 @@ private struct FeatureTiles: View {
         if settings.stackMultiple {
             list.append(Feature(id: "stack", symbol: "square.stack.fill", tint: Color(red: 0.3, green: 0.7, blue: 0.75),
                                 title: L("Stacks", "Stapel"),
-                                text: L("Several files dropped at once land together in a stack.",
-                                        "Mehrere Dateien auf einmal landen zusammen in einem Stapel.")))
+                                text: L("Several items dropped at once land together in a stack.",
+                                        "Mehrere Objekte auf einmal landen zusammen in einem Stapel.")))
         }
         list.append(Feature(id: "convert", symbol: "arrow.triangle.2.circlepath", tint: Color(red: 0.3, green: 0.75, blue: 0.4),
                             title: L("Convert", "Umwandeln"),
