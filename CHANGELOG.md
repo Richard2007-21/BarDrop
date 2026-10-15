@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.30.0-beta.10
+* Changing the screen edge: the shelf disappears at the old edge right away and the strip pops out at the new edge with the normal animation, like when dragging a file in; no more jumping from side to side (also in the introduction)
+* Introduction: the window is no longer cut off at the bottom, and the content starts below the window buttons
+* Introduction: each exercise is on its own highlighted card with “Your turn” and a clear instruction; the sample image is the whole app icon with its name, like a file, and nudges toward the edge
+* Introduction: the ⌘Z step is gone (⌘Z itself works as before); four pages remain plus And There’s More
+* Introduction scenes: the dragged image goes to a free spot in the shelf instead of covering a tile; a chart instead of a text file, which was unreadable as a small tile
+
 ## 1.30.0-beta.9
 * Introduction: the window always stays 680 × 620; it could grow far beyond that on some Macs, with a large empty area under the content
 
