@@ -141,6 +141,7 @@ The shelf stores its contents in `shelf.json`. So that an update never loses ite
 | `SettingsWindow.swift`, `SettingsView.swift`, `SettingsStyle.swift`, `AppSettings.swift` | Settings |
 | `L10n.swift` | English and German texts |
 | `Onboarding.swift` | Introduction on first launch |
+| `IntroDemo.swift` | Scenes of the introduction: the real shelf in demo mode |
 | `Updater.swift`, `ReleaseNotes.swift` | Updates and release notes from GitHub |
 | `Tests/` | Automated tests |
 | `scripts/` | Build, DMG, app icon, preview |
