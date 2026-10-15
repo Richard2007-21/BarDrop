@@ -153,7 +153,11 @@ final class ContentImporter {
         for (index, url) in urls.enumerated() {
             let userFile = Self.isUserFile(url)
             if userFile && !alwaysCopy {
-                results[index] = ShelfFile(url: url, owned: false)
+                // Mit Sperre: Kopien früherer Dateien schreiben schon im Hintergrund in `results`
+                let file = ShelfFile(url: url, owned: false)
+                lock.lock()
+                results[index] = file
+                lock.unlock()
                 CloudFiles.requestDownload(url)     // damit Herausziehen später sofort klappt
                 continue
             }
