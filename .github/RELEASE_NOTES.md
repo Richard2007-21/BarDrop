@@ -1,11 +1,13 @@
-* The strip briefly shows at the edge after launch, so you can see BarDrop is running
-* Introduction appears again if it didn’t finish on first launch
-* Fewer info buttons in Settings
-* Add actions with the new row at the end of the list, remove them right on the row
+* Settings: new tabs Opening and Appearance, so you find things where you expect them
+* Trash as an optional quick action
+* Put things back: drag an item back to the edge and the shelf opens again
+* Dragging actions or sliders no longer moves the settings window
+* Introduction shows your progress and the real settings tabs
 
 <!-- de -->
 
-* Nach dem Start zeigt sich kurz der Streifen am Rand, so siehst du, dass BarDrop läuft
-* Die Einführung erscheint erneut, wenn sie beim ersten Start nicht fertig wurde
-* Weniger Info-Symbole in den Einstellungen
-* Aktionen über die neue Zeile am Ende der Liste hinzufügen, direkt an der Zeile entfernen
+* Einstellungen: neue Reiter Öffnen und Aussehen, damit du alles dort findest, wo du es erwartest
+* Papierkorb als zusätzliche Schnellaktion
+* Zurücklegen: Ein herausgezogenes Objekt zurück an den Rand ziehen, die Ablage öffnet sich wieder
+* Das Ziehen von Aktionen oder Reglern verschiebt nicht mehr das Einstellungsfenster
+* Die Einführung zeigt den Fortschritt und die echten Reiter der Einstellungen
