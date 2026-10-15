@@ -267,6 +267,7 @@ final class ShelfStore: ObservableObject {
             for backup in backups {
                 Log.store.notice("Aufräumen übersprungen, unlesbare Liste gesichert: \(backup.lastPathComponent, privacy: .public) (\(backup.path, privacy: .private))")
             }
+            save()      // wie bisher: wiedergefundene Orte festhalten, nur ohne Aufräumen
         }
         sanitizeExistingItemsOnce()
         Outbox.shared.cleanUp()

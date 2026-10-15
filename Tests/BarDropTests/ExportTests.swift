@@ -230,6 +230,20 @@ final class PersistenceTests: XCTestCase {
                       "Solange die Sicherung daneben liegt, wird nicht aufgeräumt")
     }
 
+    /// Auch neben einer Sicherung hält der Start wiedergefundene Orte fest wie bisher.
+    func testMovedFileIsSavedAtLaunchEvenWithBackup() throws {
+        let original = userFile("Plan.pdf")
+        defer { try? FileManager.default.removeItem(at: original.deletingLastPathComponent()) }
+        ShelfStore(baseDirectory: base).add([ShelfFile(url: original, owned: false)])
+        try Data("alt".utf8).write(to: base.appendingPathComponent("shelf-unlesbar-1.json"))
+        let moved = original.deletingLastPathComponent().appendingPathComponent("Plan neu.pdf")
+        try FileManager.default.moveItem(at: original, to: moved)
+
+        _ = ShelfStore(baseDirectory: base)      // findet die Datei über das Lesezeichen
+        let saved = try String(contentsOf: base.appendingPathComponent("shelf.json"), encoding: .utf8)
+        XCTAssertTrue(saved.contains("Plan%20neu.pdf"), "Neuer Ort steht ohne weitere Änderung in der Liste")
+    }
+
     /// Ohne unlesbare Einträge wird weiter aufgeräumt wie bisher.
     func testOrphanedItemsAreStillRemovedNormally() throws {
         let keep = userFile("bleibt.txt")
