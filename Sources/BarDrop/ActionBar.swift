@@ -205,6 +205,8 @@ struct QuickActionIcon: View {
 struct QuickActionButton: View {
     let action: QuickAction
     @ObservedObject var ui: ShelfUIModel
+    /// Vorführung in der Einführung: ohne Drop-Fläche
+    @Environment(\.shelfDemo) private var shelfDemo
     let store: ShelfStore
     let actions: ShelfActions
     /// Als Wert übergeben, damit die Leiste beim Verstellen sofort neu zeichnet
@@ -253,7 +255,7 @@ struct QuickActionButton: View {
                 .fill(Color.white.opacity(targeted ? 0.12 : 0))
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: targeted)
-        .overlay(
+        .overlay(Group { if !shelfDemo {
             ActionDropTarget(
                 ui: ui,
                 onTargeted: { targeted = $0 },
@@ -282,7 +284,7 @@ struct QuickActionButton: View {
                     withAnimation(.easeOut(duration: 0.15)) { draggingOut = value }
                 }
             )
-        )
+        } })
         .help(action.help)
     }
 }
@@ -365,6 +367,8 @@ struct QuickActionBar: View {
 private struct PinSlot: View {
     let url: URL
     @ObservedObject var ui: ShelfUIModel
+    /// Vorführung in der Einführung: ohne Drop-Fläche
+    @Environment(\.shelfDemo) private var shelfDemo
     let settings: AppSettings
     var iconSize: CGFloat = 34
     @State private var targeted = false
@@ -407,12 +411,12 @@ private struct PinSlot: View {
                 .fill(Color.white.opacity(targeted ? 0.12 : 0))
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: targeted)
-        .overlay(PinDropTarget(ui: ui, onTargeted: { targeted = $0 }) {
+        .overlay(Group { if !shelfDemo {PinDropTarget(ui: ui, onTargeted: { targeted = $0 }) {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 settings.pin(url)
                 ui.setPinCandidate(nil)
             }
-        })
+        }} })
         .help(L("Pin “\(name)” to the action bar", "„\(name)“ an die Aktionsleiste anheften"))
     }
 }

@@ -106,6 +106,8 @@ private struct BarHeightKey: PreferenceKey {
 
 struct ShelfContent: View {
     @ObservedObject var ui: ShelfUIModel
+    /// Vorführung in der Einführung: ohne Klick-, Zieh- und Drop-Flächen
+    @Environment(\.shelfDemo) private var shelfDemo
     @ObservedObject var store: ShelfStore
     @ObservedObject var settings: AppSettings
     let actions: ShelfActions
@@ -187,14 +189,14 @@ struct ShelfContent: View {
                         // Kacheln dann sofort zeigen statt unsichtbar am Anfang der Animation
                         .transaction { if !ui.isKey { $0.animation = nil } }
                         .coordinateSpace(name: "grid")
-                        .background(
+                        .background(Group { if !shelfDemo {
                             SelectionBackground(
                                 ui: ui,
                                 onBandChanged: updateBand,
                                 onClick: { actions.clearCurrentSelection() },
                                 menu: { actions.backgroundMenu() }
                             )
-                        )
+                        } })
                         .overlay(alignment: .topLeading) { bandOverlay }
                         .onPreferenceChange(TileFramesKey.self) { tileFrames = $0 }
                     }
@@ -213,7 +215,7 @@ struct ShelfContent: View {
             }
             .onPreferenceChange(BarHeightKey.self) { barHeight = $0 }
         }
-        .background(
+        .background(Group { if !shelfDemo {
             // Leere Stellen außerhalb des Rasters (Kopfbereich, Ränder): Klick und Rechtsklick
             SelectionBackground(
                 ui: ui,
@@ -222,7 +224,7 @@ struct ShelfContent: View {
                 menu: { actions.backgroundMenu() },
                 allowsBand: false
             )
-        )
+        } })
         .overlay(dropHighlight)
         .onChange(of: store.pendingImports) { _, count in
             if count == 0 {
@@ -536,6 +538,8 @@ struct TileLabel<Preview: View>: View {
 struct TileView: View {
     let entry: ShelfEntry
     @ObservedObject var ui: ShelfUIModel
+    /// Vorführung in der Einführung: ohne Klick-, Zieh- und Drop-Flächen
+    @Environment(\.shelfDemo) private var shelfDemo
     let actions: ShelfActions
     let isSelected: Bool
     /// Als Wert übergeben, damit sich die Kachel beim Verstellen sofort neu zeichnet
@@ -549,7 +553,7 @@ struct TileView: View {
                 ThumbnailView(url: file.url, size: iconSize)
             }
         }
-        .overlay(
+        .overlay(Group { if !shelfDemo {
             DragSource(
                 ui: ui,
                 files: { actions.dragFiles(for: entry) },
@@ -568,7 +572,7 @@ struct TileView: View {
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) { ui.isDropTargeted = targeted }
                 }
             )
-        )
+        } })
         .opacity(offlineVolume != nil ? 0.4 : 1)
         .help(offlineVolume.map { L("Drive “\($0)” isn’t connected", "Laufwerk „\($0)“ ist nicht angeschlossen") }
               ?? (entry.isStack ? L("Open stack", "Stapel öffnen") : entry.urls.map(\.lastPathComponent).joined(separator: "\n")))
@@ -587,6 +591,8 @@ struct StackMemberTile: View {
     let file: ShelfFile
     let entry: ShelfEntry
     @ObservedObject var ui: ShelfUIModel
+    /// Vorführung in der Einführung: ohne Klick-, Zieh- und Drop-Flächen
+    @Environment(\.shelfDemo) private var shelfDemo
     let actions: ShelfActions
     let isSelected: Bool
     var iconSize: CGFloat = 64
@@ -596,7 +602,7 @@ struct StackMemberTile: View {
                   iconSize: iconSize) {
             ThumbnailView(url: file.url, size: iconSize)
         }
-        .overlay(
+        .overlay(Group { if !shelfDemo {
             DragSource(
                 ui: ui,
                 files: { actions.memberDragFiles(for: file) },
@@ -610,7 +616,7 @@ struct StackMemberTile: View {
                 },
                 menu: { anchor in actions.menu(for: file, in: entry, anchor: anchor) }
             )
-        )
+        } })
         .opacity(file.offlineVolumeNameForDisplay != nil ? 0.4 : 1)
         .help(file.offlineVolumeNameForDisplay.map { L("Drive “\($0)” isn’t connected", "Laufwerk „\($0)“ ist nicht angeschlossen") } ?? file.url.lastPathComponent)
     }
@@ -637,5 +643,20 @@ private struct StackPreview: View {
                     .offset(x: offsetX(index), y: CGFloat(-2 * index))
             }
         }
+    }
+}
+
+// MARK: Vorführung
+
+private struct ShelfDemoKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Die Ablage wird nur vorgeführt (Einführung): Sie zeichnet sich wie immer, legt aber
+    /// keine AppKit-Flächen für Klicks, Ziehen und Ablegen an. So kann sie nichts auslösen.
+    var shelfDemo: Bool {
+        get { self[ShelfDemoKey.self] }
+        set { self[ShelfDemoKey.self] = newValue }
     }
 }
