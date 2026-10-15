@@ -119,6 +119,13 @@ swift test                    # automatische Tests
 
 Benötigt macOS 14 und Xcode 15 oder neuer. Jeder Push auf `main` baut die App, führt die Tests aus und veröffentlicht die DMG als Release der Version in [`VERSION`](../Resources/VERSION).
 
+### Entwicklung
+
+Die Ablage speichert ihren Inhalt in `shelf.json`. Damit ein Update nie Einträge verliert, gelten zwei Regeln:
+
+* **Neue Felder** in `ShelfFile` oder `ShelfEntry` sind optional (`var feld: Typ?`) oder werden in einem eigenen `init(from:)` mit `decodeIfPresent(…) ?? Standardwert` gelesen. Ein Vorgabewert wie `= Date()` genügt nicht: Der vom Compiler erzeugte Decoder verlangt das Feld trotzdem, und alte Einträge wären unlesbar.
+* **Pro Release eine Fixture:** `Tests/Fixtures/shelf-<Version>.json` ist eine `shelf.json` dieser Version. Darin steht `__ROOT__` statt des Benutzerordners, und die Ablage selbst liegt unter `__ROOT__/Support/BarDrop` (statt `~/Library/Application Support/BarDrop`). `FixtureTests` lädt alle Fixtures und schlägt fehl, sobald ein Eintrag unlesbar wird oder verloren geht.
+
 <details>
 <summary><b>Projektaufbau</b></summary>
 

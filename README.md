@@ -119,6 +119,13 @@ swift test                    # automated tests
 
 Requires macOS 14 and Xcode 15 or later. Every push to `main` builds the app, runs the tests and publishes the DMG as a release of the version in [`VERSION`](Resources/VERSION).
 
+### Development
+
+The shelf stores its contents in `shelf.json`. So that an update never loses items, two rules apply:
+
+* **New fields** in `ShelfFile` or `ShelfEntry` are optional (`var field: Type?`) or are read in a custom `init(from:)` with `decodeIfPresent(…) ?? default`. A default value like `= Date()` is not enough: the decoder the compiler generates still requires the field, and older items would become unreadable.
+* **One fixture per release:** `Tests/Fixtures/shelf-<version>.json` is a `shelf.json` of that version, with `__ROOT__` in place of the home folder and the shelf itself under `__ROOT__/Support/BarDrop` (instead of `~/Library/Application Support/BarDrop`). `FixtureTests` loads every fixture and fails as soon as an item becomes unreadable or gets lost.
+
 <details>
 <summary><b>Project layout</b></summary>
 
