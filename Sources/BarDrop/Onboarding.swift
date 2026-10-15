@@ -19,7 +19,9 @@ final class OnboardingModel: ObservableObject {
     @Published private(set) var step: Step = .welcome
     /// Geschaffte Schritte (Häkchen in der Seitenleiste)
     @Published private(set) var completed: Set<Step> = []
-    @Published var launchAtLogin = true
+    /// Beim ersten Start vorgeschlagen; wird die Einführung später erneut geöffnet,
+    /// zeigt der Schalter den tatsächlichen Zustand
+    @Published var launchAtLogin: Bool
 
     let settings: AppSettings
     let sampleURL: URL?
@@ -31,6 +33,7 @@ final class OnboardingModel: ObservableObject {
     init(settings: AppSettings, sampleURL: URL?) {
         self.settings = settings
         self.sampleURL = sampleURL
+        launchAtLogin = settings.didLaunchBefore ? SMAppService.mainApp.status == .enabled : true
     }
 
     /// Schritte zum Mitmachen
