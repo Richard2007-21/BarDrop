@@ -286,9 +286,15 @@ final class ContentImporter {
             }
         }
         // Nicht ewig warten, falls eine Quelle weniger Dateien liefert als angekündigt.
-        // Großzügig bemessen: Fotos exportiert große Videos erst beim Ablegen.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 90) { state.complete() }
+        // Gewartet wird, solange sich im Zielordner etwas tut (Fotos exportiert große
+        // Videos erst beim Ablegen), höchstens aber `promiseMaxWait`.
+        state.watch(idleLimit: Self.promiseIdleLimit, maxWait: Self.promiseMaxWait)
     }
+
+    /// So lange darf sich im Zielordner eines Versprechens nichts tun (auch vor dem ersten Byte)
+    static let promiseIdleLimit: TimeInterval = 120
+    /// Spätestens dann gilt ein Versprechen als erledigt, auch wenn noch geschrieben wird
+    static let promiseMaxWait: TimeInterval = 30 * 60
 
     // MARK: Bilddaten, Links, Text
 
@@ -509,6 +515,8 @@ private final class PromiseCollector {
     private var finished = 0
     private var urls: [URL] = []
     private var done = false
+    /// Prüft regelmäßig, ob sich im Zielordner noch etwas tut
+    private var watchdog: DispatchSourceTimer?
 
     init(expected: Int, directory: URL, completion: @escaping ([ShelfFile]) -> Void) {
         self.expected = expected
@@ -525,12 +533,67 @@ private final class PromiseCollector {
         if all { complete() }
     }
 
+    /// Schließt ab, wenn sich `idleLimit` Sekunden lang nichts im Zielordner geändert hat
+    /// (Dateien, Größen, Änderungsdaten) oder `maxWait` Sekunden vergangen sind.
+    func watch(idleLimit: TimeInterval, maxWait: TimeInterval) {
+        let start = Date()
+        var lastChange = start
+        var lastSignature = Self.signature(of: directory)
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + 2, repeating: 2, leeway: .milliseconds(500))
+        // Hält den Sammler am Leben, bis er abgeschlossen ist (`complete` beendet den Takt)
+        timer.setEventHandler {
+            let now = Date()
+            let signature = Self.signature(of: self.directory)
+            if signature != lastSignature {
+                lastSignature = signature
+                lastChange = now
+            }
+            if now.timeIntervalSince(lastChange) > idleLimit {
+                Log.importing.error("Versprechen: \(Int(idleLimit), privacy: .public) s ohne Fortschritt, abgeschlossen")
+                self.complete()
+            } else if now.timeIntervalSince(start) > maxWait {
+                Log.importing.error("Versprechen: Obergrenze erreicht, abgeschlossen")
+                self.complete()
+            }
+        }
+        lock.lock()
+        let alreadyDone = done
+        if !alreadyDone { watchdog = timer }
+        lock.unlock()
+        // Auch wenn schon alles da ist: erst starten, dann beenden (ein nie gestarteter
+        // Takt darf nicht freigegeben werden)
+        timer.resume()
+        if alreadyDone { timer.cancel() }
+    }
+
+    /// Stand des Zielordners: Anzahl, Gesamtgröße und jüngste Änderung aller Einträge
+    private static func signature(of directory: URL) -> String {
+        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
+        guard let items = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys) else {
+            return ""
+        }
+        var count = 0
+        var size = 0
+        var latest: TimeInterval = 0
+        for case let url as URL in items {
+            let values = try? url.resourceValues(forKeys: Set(keys))
+            count += 1
+            size += values?.fileSize ?? 0
+            latest = max(latest, values?.contentModificationDate?.timeIntervalSince1970 ?? 0)
+        }
+        return "\(count)|\(size)|\(latest)"
+    }
+
     func complete() {
         lock.lock()
         guard !done else { lock.unlock(); return }
         done = true
         let result = urls
+        let timer = watchdog
+        watchdog = nil
         lock.unlock()
+        timer?.cancel()
         if result.isEmpty { try? FileManager.default.removeItem(at: directory) }
         let completion = self.completion
         DispatchQueue.main.async { completion(result.map { ShelfFile(url: $0, owned: true) }) }
