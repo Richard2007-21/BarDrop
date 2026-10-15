@@ -86,9 +86,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         ui.selectionAnchor = id
     }
 
+    /// Spalten des Rasters, wie es `ShelfContent` anlegt (Kachel mindestens Symbol + 22 pt, 8 pt Abstand)
     var columnCount: Int {
         let usable = CGFloat(settings.shelfWidth) - 24
-        return max(1, Int((usable + 8) / (78 + 8)))
+        let tile = CGFloat(settings.tileIconSize) + 22
+        return max(1, Int((usable + 8) / (tile + 8)))
     }
 
     // MARK: Aktionen auf Einträgen
@@ -125,8 +127,9 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         guard !entries.isEmpty else { return }
         let ids = Set(entries.map(\.id))
         let count = entries.reduce(0) { $0 + $1.files.count }
-        ui.selection.subtract(ids)
+        // Erst den Stapel verlassen (das wählt ihn aus), dann die Auswahl bereinigen
         if let open = ui.openStack, ids.contains(open) { closeStack() }
+        ui.selection.subtract(ids)
         store.remove(ids)
         announceRemoval(count)
     }
