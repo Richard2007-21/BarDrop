@@ -613,26 +613,12 @@ private struct WelcomePage: View {
 
     var body: some View {
         SettingsPage {
-            SettingsCard {
-                HStack(spacing: 14) {
-                    Image(nsImage: NSApp.applicationIconImage ?? NSImage())
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: 52, height: 52)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(L("Welcome to BarDrop", "Willkommen bei BarDrop"))
-                            .font(.system(size: 15, weight: .semibold))
-                        Text(L("A place for files at the edge of your screen. Drag something there and it stays at hand until you need it.",
-                               "Ein Platz für Dateien am Rand deines Bildschirms. Zieh etwas dorthin, und es bleibt griffbereit, bis du es brauchst."))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, SettingsTheme.rowPadding)
-                .padding(.vertical, 12)
-            }
+            Text(L("A place for files at the edge of your screen. Drag something there and it stays at hand until you need it.",
+                   "Ein Platz für Dateien am Rand deines Bildschirms. Zieh etwas dorthin, und es bleibt griffbereit, bis du es brauchst."))
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 8)
 
             SettingsSection(L("How it works", "So funktioniert es")) {
                 IntroInfoRow(symbol: "1.circle.fill", title: L("Drop", "Ablegen"),
