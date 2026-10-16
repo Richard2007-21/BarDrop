@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.30.0-beta.11
+* Introduction: while it is open, the screens behind it are slightly dimmed and clicks there no longer open another app; they bring the introduction back to the front. The shelf works as usual for the exercises
+* Changing the icon size: the examples in the shelf look like real files (PDF, photo, text, folder, video, archive) with icon and name instead of empty dashed squares
+* Settings and introduction are only slightly see-through (about 3.5 % instead of 30 %)
+
 ## 1.30.0-beta.10
 * Changing the screen edge: the shelf disappears at the old edge right away and the strip pops out at the new edge with the normal animation, like when dragging a file in; no more jumping from side to side (also in the introduction)
 * Introduction: the window is no longer cut off at the bottom, and the content starts below the window buttons

@@ -184,4 +184,23 @@ final class ViewSmokeTests: XCTestCase {
                    size: CGSize(width: 420, height: 720), "Stapel")
         }
     }
+
+    /// Beim Verstellen der Symbolgröße: Beispieldateien in der neuen Größe, auch in einer
+    /// leeren Ablage
+    func testSizeGuidesRender() {
+        let settings = AppSettings.shared
+        let store = ShelfStore(baseDirectory: base)
+        let ui = ShelfUIModel()
+        let actions = ShelfActions(store: store, ui: ui, settings: settings)
+        ui.level = .expanded
+        ui.showSampleTile = true
+        ui.expandedBody = CGRect(x: 0, y: 0, width: settings.shelfWidth, height: settings.shelfHeight)
+        let before = settings.tileIconSize
+        defer { settings.tileIconSize = before }
+        for size in [40.0, 64.0, 96.0] {
+            settings.tileIconSize = size
+            render(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
+                   size: CGSize(width: 420, height: 720), "Symbolgroesse \(Int(size))")
+        }
+    }
 }
