@@ -55,6 +55,23 @@ final class EdgeLogicTests: XCTestCase {
         XCTAssertEqual(EdgeLogic.decide(&h, sample(dx: 1, at: 2, level: .hint), config).target, .hint)
     }
 
+    /// Einführung: Der Streifen als Vorschau bleibt stehen, auch während eine Datei weit
+    /// weg vom Rand gezogen wird; nahe am Rand öffnet die Ablage wie immer.
+    func testGuideStripStaysWhileDragging() {
+        var s = state(.peek)
+        let config = EdgeLogic.Config(dragReveal: .nearEdge)
+        var far = sample(dx: 600, dragging: true, level: .peek)
+        far.preview = .peek
+        XCTAssertEqual(EdgeLogic.decide(&s, far, config).target, .peek)
+        var near = sample(dx: 20, dragging: true, level: .peek)
+        near.preview = .peek
+        XCTAssertEqual(EdgeLogic.decide(&s, near, config).target, .expanded)
+        var idle = sample(dx: 600, level: .hidden)
+        idle.preview = .peek
+        var h = state(.hidden)
+        XCTAssertEqual(EdgeLogic.decide(&h, idle, .init()).target, .peek, "Ohne Ziehen: Streifen als Vorschau")
+    }
+
     func testOutsideRevealZoneNoStripAppears() {
         var s = state(.hidden)
         var outside = sample(dx: 1)

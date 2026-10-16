@@ -116,6 +116,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     var wakeShelf: () -> Void = {} {
         didSet { model.onSampleDragStarted = wakeShelf }
     }
+    /// Zeigt den Streifen am Rand, solange eine Übung ihn braucht.
+    var showGuide: (Bool) -> Void = { _ in }
 
     var isVisible: Bool { window?.isVisible == true }
 
@@ -150,6 +152,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         backdrops = NSScreen.screens.map { screen in
             let backdrop = IntroBackdrop(screen: screen, edge: settings.edge,
                                          shelfWidth: CGFloat(settings.shelfWidth))
+            backdrop.onMove = { [weak self] in self?.wakeShelf() }
             backdrop.onClick = { [weak self] in self?.bringToFront() }
             backdrop.alphaValue = fresh ? 0 : 1
             backdrop.orderFrontRegardless()
@@ -220,6 +223,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     }
 
     private func prepare(_ step: OnboardingModel.Step) {
+        // Beim Ablegen und Herausziehen: zeigen, wo die Ablage wartet
+        showGuide(step == .drop || step == .retrieve)
         switch step {
         case .drop:
             baseline = Set(store.entries.map(\.id))
@@ -290,6 +295,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             break
         }
         subscriptions.removeAll()
+        showGuide(false)
         hideBackdrop()
         window?.delegate = nil
         window?.close()
@@ -386,12 +392,15 @@ final class IntroWindow: NSWindow {
 final class IntroBackdrop: NSPanel {
     var onClick: () -> Void = {}
 
-    /// Verlauf: am Rand der Ablage hell, zur Mitte hin abgedunkelt
+    var onMove: () -> Void = {}
+    /// Verlauf: zum Rand der Ablage hin hell, zur Mitte hin abgedunkelt
     private let shade = CAGradientLayer()
+    private let screenFrame: CGRect
     /// Abdunkeln abseits des Rands
-    static let dim: CGFloat = 0.35
+    static let dim: CGFloat = 0.42
 
     init(screen: NSScreen, edge: ScreenEdge, shelfWidth: CGFloat) {
+        screenFrame = screen.frame
         super.init(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)
         level = OnboardingController.backdropLevel
@@ -401,9 +410,9 @@ final class IntroBackdrop: NSPanel {
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        setFrame(screen.frame, display: false)
         let view = ClickCatcher()
         view.onClick = { [weak self] in self?.onClick() }
+        view.onMove = { [weak self] in self?.onMove() }
         view.wantsLayer = true
         shade.frame = CGRect(origin: .zero, size: screen.frame.size)
         shade.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
@@ -412,13 +421,18 @@ final class IntroBackdrop: NSPanel {
         update(edge: edge, shelfWidth: shelfWidth, animated: false)
     }
 
-    /// Der Rand, an dem die Ablage erscheint, bleibt hell: Dort wölbt sie sich heraus, und
-    /// sie soll nicht wirken, als läge sie hinter der Einführung im Hintergrund.
+    /// Der Rand, an dem die Ablage erscheint, bleibt frei: Dort liegt keine Fläche, der
+    /// Bereich ist hell, und Zeiger, Hinfahren und Ablegen verhalten sich genau wie sonst.
+    /// Daneben geht es weich ins Dunkle über.
     func update(edge: ScreenEdge, shelfWidth: CGFloat, animated: Bool = true) {
-        let width = max(frame.width, 1)
-        // Ganz hell bis knapp hinter der offenen Ablage, dann weich ins Dunkle
-        let clear = min(0.6, (shelfWidth + 40) / width)
-        let soft = min(0.85, (shelfWidth + 320) / width)
+        let band = shelfWidth + ShelfMetrics.panelMargin
+        var covered = screenFrame
+        covered.size.width = max(1, screenFrame.width - band)
+        if edge == .left { covered.origin.x = screenFrame.minX + band }
+        setFrame(covered, display: true)
+        let width = max(covered.width, 1)
+        let clear: CGFloat = 0
+        let soft = min(0.85, 280 / width)
         let dark = NSColor.black.withAlphaComponent(Self.dim).cgColor
         let none = NSColor.black.withAlphaComponent(0).cgColor
         CATransaction.begin()
@@ -437,6 +451,18 @@ final class IntroBackdrop: NSPanel {
 
     private final class ClickCatcher: NSView {
         var onClick: () -> Void = {}
+        var onMove: () -> Void = {}
+
+        // Zeigerbewegungen über der Fläche gehen an BarDrop selbst, nicht an andere Apps:
+        // Damit die Ablage trotzdem wach bleibt, hier melden
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            trackingAreas.forEach(removeTrackingArea)
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeAlways, .inVisibleRect],
+                                           owner: self, userInfo: nil))
+        }
+
+        override func mouseMoved(with event: NSEvent) { onMove() }
         override func mouseDown(with event: NSEvent) { onClick() }
         override func rightMouseDown(with event: NSEvent) { onClick() }
         override func otherMouseDown(with event: NSEvent) { onClick() }

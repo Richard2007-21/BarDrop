@@ -31,6 +31,8 @@ final class EdgeController: NSObject {
     private var previewUntil: Date?
     /// Welche Stufe die Vorschau beim Ändern der Einstellungen zeigt
     private var previewLevel: ShelfUIModel.Level = .hint
+    /// Einführung: Der Streifen bleibt zu sehen, damit man weiß, wohin man ziehen soll
+    private var guideActive = false
     private var lastPeekSignature = ""
     private var lastSizeSignature = ""
     /// Adaptive Höhe: Zeigerhöhe, an der die Ablage erscheinen soll.
@@ -438,6 +440,20 @@ final class EdgeController: NSObject {
         }
     }
 
+    /// Einführung: den ersten Streifen in der eingestellten Größe dauerhaft zeigen, bis die
+    /// Übung vorbei ist. Hinfahren, Hineinziehen und Öffnen funktionieren wie immer.
+    func showGuide(_ on: Bool) {
+        guard on != guideActive else { return }
+        guideActive = on
+        if on {
+            previewLevel = .peek
+            previewUntil = .distantFuture
+        } else if previewUntil == .distantFuture {
+            previewUntil = Date()
+        }
+        wake()
+    }
+
     /// Beim Start kurz den Streifen am Rand zeigen, damit man sieht, dass BarDrop läuft
     /// und wo die Ablage wartet.
     func greet() {
@@ -601,6 +617,11 @@ final class EdgeController: NSObject {
         if let until = previewUntil, until <= now {
             previewUntil = nil
             if ui.showSampleTile { ui.showSampleTile = false }
+            // Nach einer kurzen Vorschau zurück zum Streifen der Einführung
+            if guideActive {
+                previewLevel = .peek
+                previewUntil = .distantFuture
+            }
         }
 
         // Rand zu einem Bildschirm daneben, der selbst eine Ablage hat: Dort gehört sie nicht hin.
