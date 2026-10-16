@@ -95,6 +95,10 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     /// Ohne „private“, damit Tests den Ablauf steuern können
     let model: OnboardingModel
     private var window: NSWindow?
+    /// Abgedunkelter Hintergrund auf allen Bildschirmen: Klicks daneben öffnen keine andere
+    /// App, die Einführung bleibt vorn, bis man sie beendet
+    private var backdrops: [IntroBackdrop] = []
+    private var screenObserver: NSObjectProtocol?
     private var subscriptions: Set<AnyCancellable> = []
 
     /// Einträge vor dem Schritt „Ablegen“
@@ -127,7 +131,61 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     func show() {
         if window == nil { window = makeWindow() }
         NSApp.activate(ignoringOtherApps: true)
+        showBackdrop()
         window?.center()
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: Hintergrund
+
+    /// Über dem Dock, damit auch dort kein Klick eine App öffnet. Das Fenster der Einführung
+    /// liegt darüber, die Ablage (Statusleistenebene) noch höher: Ablegen und Herausziehen
+    /// am Bildschirmrand funktionieren wie immer.
+    static let backdropLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)) + 1)
+
+    private func showBackdrop() {
+        let fresh = backdrops.isEmpty
+        backdrops.forEach { $0.orderOut(nil) }
+        backdrops = NSScreen.screens.map { screen in
+            let backdrop = IntroBackdrop(screen: screen)
+            backdrop.onClick = { [weak self] in self?.bringToFront() }
+            backdrop.alphaValue = fresh ? 0 : 1
+            backdrop.orderFrontRegardless()
+            return backdrop
+        }
+        if fresh {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                backdrops.forEach { $0.animator().alphaValue = 1 }
+            }
+        }
+        if screenObserver == nil {
+            // Bildschirm angeschlossen oder umgestellt: Hintergrund neu verteilen
+            screenObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                guard let self, !self.backdrops.isEmpty else { return }
+                self.showBackdrop()
+            }
+        }
+    }
+
+    private func hideBackdrop() {
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        screenObserver = nil
+        let leaving = backdrops
+        backdrops = []
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            leaving.forEach { $0.animator().alphaValue = 0 }
+        }, completionHandler: {
+            leaving.forEach { $0.orderOut(nil) }
+        })
+    }
+
+    /// Klick daneben: zurück zur Einführung
+    private func bringToFront() {
+        NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
 
@@ -221,6 +279,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             break
         }
         subscriptions.removeAll()
+        hideBackdrop()
         window?.delegate = nil
         window?.close()
         window = nil
@@ -238,7 +297,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     static let size = NSSize(width: 680, height: 620)
 
     /// Fenster wie die Einstellungen: hohe, durchsichtige Titelleiste, leicht durchscheinend,
-    /// feste Größe, mittig. Bleibt über anderen Fenstern, damit man beim Üben zum Rand ziehen kann.
+    /// feste Größe, mittig. Liegt über dem abgedunkelten Hintergrund (siehe `backdropLevel`), damit man beim Üben zum Rand ziehen kann.
     /// Ohne „private“ für den Test, der das echte Fenster abbildet
     func makeWindow() -> NSWindow {
         let window = IntroWindow(contentRect: NSRect(origin: .zero, size: Self.size),
@@ -254,7 +313,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.level = .floating
+        window.level = NSWindow.Level(rawValue: Self.backdropLevel.rawValue + 1)
         window.collectionBehavior = [.moveToActiveSpace]
         window.delegate = self
         let root = OnboardingView(model: model, openSettings: { [weak self] in
@@ -308,6 +367,39 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 final class IntroWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+}
+
+/// Abgedunkelte Fläche hinter der Einführung über einem ganzen Bildschirm. Fängt Klicks ab,
+/// nimmt nichts zum Ablegen an (Ziehen geht durch zur Ablage) und wird nie selbst aktiv.
+final class IntroBackdrop: NSPanel {
+    var onClick: () -> Void = {}
+
+    init(screen: NSScreen) {
+        super.init(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
+        level = OnboardingController.backdropLevel
+        isOpaque = false
+        backgroundColor = NSColor.black.withAlphaComponent(0.3)
+        hasShadow = false
+        isReleasedWhenClosed = false
+        hidesOnDeactivate = false
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        setFrame(screen.frame, display: false)
+        let view = ClickCatcher()
+        view.onClick = { [weak self] in self?.onClick() }
+        contentView = view
+    }
+
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+
+    private final class ClickCatcher: NSView {
+        var onClick: () -> Void = {}
+        override func mouseDown(with event: NSEvent) { onClick() }
+        override func rightMouseDown(with event: NSEvent) { onClick() }
+        override func otherMouseDown(with event: NSEvent) { onClick() }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    }
 }
 
 extension OnboardingModel.Step {
