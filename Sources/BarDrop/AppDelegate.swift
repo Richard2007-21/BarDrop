@@ -130,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let onboarding = OnboardingController(store: store, ui: ui, settings: settings)
             onboarding.onClose = { [weak self] in self?.onboarding = nil }
             onboarding.wakeShelf = { [weak self] in self?.controller.wake() }
+            onboarding.showGuide = { [weak self] on in self?.controller.showGuide(on) }
             onboarding.openSettings = { [weak self] in
                 DispatchQueue.main.async { self?.showSettings() }
             }

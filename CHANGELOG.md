@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.30.0-beta.13
+* Introduction: dropping the sample image works again. The dimmed background no longer covers the edge where the shelf sits; that strip stays bright and behaves exactly as without the introduction (hovering, dragging in, opening)
+* Introduction: while dropping and dragging out, the first strip stays visible at the edge in the size set in Settings, so you know where to drag; it stays while dragging and the shelf opens as usual near the edge
+* Introduction: the background is tinted a little darker (42 % instead of 35 %)
+* Settings and introduction: 64 % opaque instead of 62 %
+
 ## 1.30.0-beta.12
 * Introduction: the dimmed background stays bright at the edge where the shelf appears, so the shelf no longer looks like it is behind everything; the bright area follows a change of edge
 * Settings and introduction are a little more see-through than before beta 11 (62 % opaque instead of 70 %)

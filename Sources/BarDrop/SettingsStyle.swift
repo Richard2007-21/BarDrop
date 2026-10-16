@@ -17,7 +17,7 @@ enum SettingsTheme {
     static let content = dynamic(dark: (0.192, 0.196, 0.2), light: (0.94, 0.94, 0.945))
     /// Deckkraft von Seitenleiste und Inhalt über dem Schreibtisch: etwas durchscheinender
     /// als früher (70 %), aber Text und Karten bleiben auf jedem Hintergrund ruhig
-    static let backdropOpacity = 0.62
+    static let backdropOpacity = 0.64
     /// Karten
     static let card = dynamic(dark: (0.184, 0.188, 0.188), light: (0.99, 0.99, 0.99))
     /// Gewählter Eintrag der Seitenleiste
