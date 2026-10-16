@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.30.0-beta.12
+* Introduction: the dimmed background stays bright at the edge where the shelf appears, so the shelf no longer looks like it is behind everything; the bright area follows a change of edge
+* Settings and introduction are a little more see-through than before beta 11 (62 % opaque instead of 70 %)
+
 ## 1.30.0-beta.11
 * Introduction: while it is open, the screens behind it are slightly dimmed and clicks there no longer open another app; they bring the introduction back to the front. The shelf works as usual for the exercises
 * Changing the icon size: the examples in the shelf look like real files (PDF, photo, text, folder, video, archive) with icon and name instead of empty dashed squares

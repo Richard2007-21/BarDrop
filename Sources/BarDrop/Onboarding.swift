@@ -99,6 +99,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     /// App, die Einführung bleibt vorn, bis man sie beendet
     private var backdrops: [IntroBackdrop] = []
     private var screenObserver: NSObjectProtocol?
+    private var edgeSubscription: AnyCancellable?
     private var subscriptions: Set<AnyCancellable> = []
 
     /// Einträge vor dem Schritt „Ablegen“
@@ -147,7 +148,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         let fresh = backdrops.isEmpty
         backdrops.forEach { $0.orderOut(nil) }
         backdrops = NSScreen.screens.map { screen in
-            let backdrop = IntroBackdrop(screen: screen)
+            let backdrop = IntroBackdrop(screen: screen, edge: settings.edge,
+                                         shelfWidth: CGFloat(settings.shelfWidth))
             backdrop.onClick = { [weak self] in self?.bringToFront() }
             backdrop.alphaValue = fresh ? 0 : 1
             backdrop.orderFrontRegardless()
@@ -158,6 +160,14 @@ final class OnboardingController: NSObject, NSWindowDelegate {
                 context.duration = 0.25
                 backdrops.forEach { $0.animator().alphaValue = 1 }
             }
+        }
+        if edgeSubscription == nil {
+            // Rand auf der ersten Seite gewechselt: der helle Bereich wandert mit
+            edgeSubscription = settings.$edge.removeDuplicates().receive(on: RunLoop.main)
+                .sink { [weak self] edge in
+                    guard let self else { return }
+                    self.backdrops.forEach { $0.update(edge: edge, shelfWidth: CGFloat(self.settings.shelfWidth)) }
+                }
         }
         if screenObserver == nil {
             // Bildschirm angeschlossen oder umgestellt: Hintergrund neu verteilen
@@ -173,6 +183,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     private func hideBackdrop() {
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
+        edgeSubscription = nil
         let leaving = backdrops
         backdrops = []
         NSAnimationContext.runAnimationGroup({ context in
@@ -369,17 +380,23 @@ final class IntroWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
-/// Abgedunkelte Fläche hinter der Einführung über einem ganzen Bildschirm. Fängt Klicks ab,
+/// Abgedunkelte Fläche hinter der Einführung über einem ganzen Bildschirm, am Rand der Ablage
+/// hell. Fängt Klicks ab,
 /// nimmt nichts zum Ablegen an (Ziehen geht durch zur Ablage) und wird nie selbst aktiv.
 final class IntroBackdrop: NSPanel {
     var onClick: () -> Void = {}
 
-    init(screen: NSScreen) {
+    /// Verlauf: am Rand der Ablage hell, zur Mitte hin abgedunkelt
+    private let shade = CAGradientLayer()
+    /// Abdunkeln abseits des Rands
+    static let dim: CGFloat = 0.35
+
+    init(screen: NSScreen, edge: ScreenEdge, shelfWidth: CGFloat) {
         super.init(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)
         level = OnboardingController.backdropLevel
         isOpaque = false
-        backgroundColor = NSColor.black.withAlphaComponent(0.3)
+        backgroundColor = .clear
         hasShadow = false
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
@@ -387,7 +404,32 @@ final class IntroBackdrop: NSPanel {
         setFrame(screen.frame, display: false)
         let view = ClickCatcher()
         view.onClick = { [weak self] in self?.onClick() }
+        view.wantsLayer = true
+        shade.frame = CGRect(origin: .zero, size: screen.frame.size)
+        shade.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        view.layer?.addSublayer(shade)
         contentView = view
+        update(edge: edge, shelfWidth: shelfWidth, animated: false)
+    }
+
+    /// Der Rand, an dem die Ablage erscheint, bleibt hell: Dort wölbt sie sich heraus, und
+    /// sie soll nicht wirken, als läge sie hinter der Einführung im Hintergrund.
+    func update(edge: ScreenEdge, shelfWidth: CGFloat, animated: Bool = true) {
+        let width = max(frame.width, 1)
+        // Ganz hell bis knapp hinter der offenen Ablage, dann weich ins Dunkle
+        let clear = min(0.6, (shelfWidth + 40) / width)
+        let soft = min(0.85, (shelfWidth + 320) / width)
+        let dark = NSColor.black.withAlphaComponent(Self.dim).cgColor
+        let none = NSColor.black.withAlphaComponent(0).cgColor
+        CATransaction.begin()
+        CATransaction.setDisableActions(!animated)
+        CATransaction.setAnimationDuration(0.35)
+        shade.colors = [none, none, dark, dark]
+        shade.locations = [0, NSNumber(value: Double(clear)), NSNumber(value: Double(soft)), 1]
+        // Vom Rand der Ablage zur anderen Seite
+        shade.startPoint = CGPoint(x: edge == .right ? 1 : 0, y: 0.5)
+        shade.endPoint = CGPoint(x: edge == .right ? 0 : 1, y: 0.5)
+        CATransaction.commit()
     }
 
     override var canBecomeKey: Bool { false }
