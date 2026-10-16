@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import AppKit
 
 // MARK: Übergang: weich einblenden mit Unschärfe (Stärke je nach Einstellung)
@@ -366,8 +367,8 @@ struct ShelfContent: View {
         let width = max(ui.expandedBody.width - 24, icon + 22)
         let perRow = max(1, Int((width + 8) / (icon + 22 + 8)))
         let count = max(0, perRow * 2 - store.entries.count)
-        ForEach(0..<count, id: \.self) { _ in
-            SizeGuideTile(iconSize: icon)
+        ForEach(0..<count, id: \.self) { i in
+            SizeGuideTile(index: i, iconSize: icon)
         }
     }
 
@@ -474,19 +475,43 @@ struct ShelfContent: View {
 
 /// Gemeinsame Darstellung: Vorschau mit grauer Fläche und Name in Akzentfarbe, wenn ausgewählt.
 /// Leerer Platz in Kachelgröße (Vorschau der Symbolgröße)
+/// Beispiel beim Verstellen der Symbolgröße: sieht aus wie eine Datei in der Ablage (echtes
+/// Symbol des Dateityps und Name), damit man Größe, Namen und Abstände wirklich beurteilen
+/// kann. Etwas zurückgenommen, damit es nicht mit eigenen Objekten verwechselt wird.
 private struct SizeGuideTile: View {
+    let index: Int
     let iconSize: CGFloat
 
+    /// Typische Dateien, reihum
+    private static let examples: [(name: () -> String, type: UTType)] = [
+        ({ L("Document.pdf", "Dokument.pdf") }, .pdf),
+        ({ L("Photo.jpg", "Foto.jpg") }, .jpeg),
+        ({ L("Notes.txt", "Notizen.txt") }, .plainText),
+        ({ L("Project", "Projekt") }, .folder),
+        ({ L("Video.mov", "Video.mov") }, .quickTimeMovie),
+        ({ L("Archive.zip", "Archiv.zip") }, .zip)
+    ]
+
+    private static var icons: [String: NSImage] = [:]
+
+    private static func icon(_ type: UTType) -> NSImage {
+        if let cached = icons[type.identifier] { return cached }
+        let image = NSWorkspace.shared.icon(for: type)
+        icons[type.identifier] = image
+        return image
+    }
+
     var body: some View {
-        TileLabel(title: " ", isSelected: false, isKey: false, iconSize: iconSize) {
-            RoundedRectangle(cornerRadius: iconSize * 0.22, style: .continuous)
-                .fill(.white.opacity(0.07))
-                .overlay(
-                    RoundedRectangle(cornerRadius: iconSize * 0.22, style: .continuous)
-                        .strokeBorder(.white.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                )
-                .frame(width: iconSize * 0.84, height: iconSize * 0.84)
+        let example = Self.examples[index % Self.examples.count]
+        TileLabel(title: example.name(), isSelected: false, isKey: false, iconSize: iconSize) {
+            Image(nsImage: Self.icon(example.type))
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: iconSize, height: iconSize)
+                .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
         }
+        .opacity(0.75)
         .allowsHitTesting(false)
         .transaction { $0.animation = nil }
     }
