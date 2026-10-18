@@ -193,6 +193,60 @@ final class ViewSmokeTests: XCTestCase {
         }
     }
 
+    /// Bilder für die Produktseite auf GitHub: die echte Ablage und die echten Einstellungen,
+    /// in doppelter Auflösung und mit durchsichtigem Hintergrund. Nur mit BARDROP_PREVIEW_DIR.
+    func testProductShots() throws {
+        guard let dir = ProcessInfo.processInfo.environment["BARDROP_PREVIEW_DIR"], !dir.isEmpty else {
+            throw XCTSkip("Nur in CI")
+        }
+        let settings = AppSettings.shared
+        let store = ShelfStore(baseDirectory: base)
+        let ui = ShelfUIModel()
+        let actions = ShelfActions(store: store, ui: ui, settings: settings)
+        let saved = (settings.tileIconSize, settings.shelfHeight, settings.language, settings.showOutline)
+        defer {
+            settings.tileIconSize = saved.0; settings.shelfHeight = saved.1
+            settings.language = saved.2; settings.showOutline = saved.3
+        }
+        settings.tileIconSize = 64
+        settings.shelfHeight = 340
+        settings.showOutline = true
+        ui.level = .expanded
+        ui.showSampleTile = true
+        ui.expandedBody = CGRect(x: 0, y: 0, width: settings.shelfWidth, height: settings.shelfHeight)
+        for language in [AppLanguage.english, .german] {
+            settings.language = language
+            shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
+                 size: CGSize(width: 380, height: 520), "Produkt Ablage \(language.rawValue)", dir: dir)
+            for (pane, name) in [(AnyView(ItemSettings(settings: settings, store: store)), "Objekte"),
+                                 (AnyView(OpeningSettings(settings: settings)), "Oeffnen"),
+                                 (AnyView(ActionSettings(settings: settings)), "Aktionen")] {
+                for (appearance, look) in [(NSAppearance.Name.darkAqua, "dunkel"), (.aqua, "hell")] {
+                    shot(pane.background(SettingsTheme.contentBackdrop), size: CGSize(width: 436, height: 640),
+                         "Produkt \(name) \(language.rawValue) \(look)", dir: dir, appearance: appearance)
+                }
+            }
+        }
+    }
+
+    /// Wie `render`, aber in doppelter Auflösung
+    private func shot<V: View>(_ view: V, size: CGSize, _ name: String, dir: String,
+                               appearance: NSAppearance.Name? = nil) {
+        let host = NSHostingView(rootView: view)
+        if let appearance { host.appearance = NSAppearance(named: appearance) }
+        host.frame = CGRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2),
+                                         pixelsHigh: Int(size.height * 2), bitsPerSample: 8, samplesPerPixel: 4,
+                                         hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0) else { return XCTFail(name) }
+        rep.size = size
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else { return XCTFail(name) }
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name.replacingOccurrences(of: " ", with: "_") + ".png"))
+    }
+
     /// Beim Verstellen der Symbolgröße: Beispieldateien in der neuen Größe, auch in einer
     /// leeren Ablage
     func testSizeGuidesRender() {
