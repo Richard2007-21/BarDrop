@@ -84,6 +84,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             ui.selection = [id]
         }
         ui.selectionAnchor = id
+        ui.requestScroll(to: id)
     }
 
     /// Spalten des Rasters, wie es `ShelfContent` anlegt (Kachel mindestens Symbol + 22 pt, 8 pt Abstand)

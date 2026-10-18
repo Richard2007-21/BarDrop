@@ -100,6 +100,7 @@ extension ShelfActions {
         let id = ids[min(max(current + step, 0), ids.count - 1)]
         if extend { ui.memberSelection.insert(id) } else { ui.memberSelection = [id] }
         ui.memberAnchor = id
+        ui.requestScroll(to: id)
     }
 
     /// Entfernen per Taste: Danach ist das Objekt dahinter ausgewählt (am Ende das davor),

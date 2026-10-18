@@ -100,6 +100,24 @@ struct ShelfRootView: View {
 
 // MARK: Inhalt der offenen Ablage
 
+/// Scrollstand der Ablage. `offset` ändert sich bei jedem Bild des Scrollens und löst
+/// darum nichts aus; nur ob überhaupt gescrollt ist, zeichnet neu (weicher Übergang oben).
+final class ScrollTracker: ObservableObject {
+    /// Oberkante des Rasters im sichtbaren Bereich (0 oben, negativ beim Scrollen)
+    var offset: CGFloat = 0 {
+        didSet {
+            let now = offset < -0.5
+            if now != scrolled { scrolled = now }
+        }
+    }
+    @Published private(set) var scrolled = false
+}
+
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 private struct BarHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
@@ -114,6 +132,8 @@ struct ShelfContent: View {
     let actions: ShelfActions
 
     @State private var tileFrames: [UUID: CGRect] = [:]
+    /// Wie weit gescrollt ist; ändert die Ansicht nur, wenn sich `scrolled` ändert
+    @StateObject private var scroll = ScrollTracker()
     @State private var band: CGRect?
     @State private var selectionBeforeBand: Set<UUID> = []
     /// Höhe der Aktionsleiste: so viel Platz bleibt unter den Kacheln frei
@@ -173,6 +193,7 @@ struct ShelfContent: View {
             // zu werden; hinter der Leiste liegt ein weicher Verlauf ins Schwarz
             ZStack(alignment: .bottom) {
                 GeometryReader { geo in
+                    ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         Group {
                             if let stack {
@@ -190,6 +211,11 @@ struct ShelfContent: View {
                         // Kacheln dann sofort zeigen statt unsichtbar am Anfang der Animation
                         .transaction { if !ui.isKey { $0.animation = nil } }
                         .coordinateSpace(name: "grid")
+                        // Wie weit gescrollt ist (Oberkante des Rasters im sichtbaren Bereich)
+                        .background(GeometryReader { g in
+                            Color.clear.preference(key: ScrollOffsetKey.self,
+                                                   value: g.frame(in: .named("viewport")).minY)
+                        })
                         .background(Group { if !shelfDemo {
                             SelectionBackground(
                                 ui: ui,
@@ -200,6 +226,13 @@ struct ShelfContent: View {
                         } })
                         .overlay(alignment: .topLeading) { bandOverlay }
                         .onPreferenceChange(TileFramesKey.self) { tileFrames = $0 }
+                    }
+                    .coordinateSpace(name: "viewport")
+                    .onPreferenceChange(ScrollOffsetKey.self) { scroll.offset = $0 }
+                    // Pfeiltasten: Die ausgewählte Kachel bleibt ganz zu sehen, wie im Finder
+                    .onChange(of: ui.scrollRequest) { _, request in
+                        reveal(request, proxy: proxy, viewport: geo.size.height)
+                    }
                     }
                 }
 
@@ -404,6 +437,40 @@ struct ShelfContent: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+
+    // MARK: Mitscrollen
+
+    /// Macht die Kachel `request.id` ganz sichtbar: oben unter dem Kopf, unten über der
+    /// Aktionsleiste. Liegt sie schon ganz im sichtbaren Bereich, bleibt alles stehen.
+    private func reveal(_ request: ShelfUIModel.ScrollRequest?, proxy: ScrollViewProxy, viewport: CGFloat) {
+        guard let request else { return }
+        let id = request.id
+        let tileHeight = tileFrames[id]?.height ?? tileFrames.values.first?.height
+            ?? CGFloat(settings.tileIconSize) + 60
+        let top: CGFloat = 8
+        let bottom = viewport - barHeight - 4
+        let span = viewport - tileHeight
+        guard span > 0, bottom - top >= tileHeight else {
+            proxy.scrollTo(id, anchor: .top)
+            return
+        }
+        let alignTop = UnitPoint(x: 0.5, y: min(max(top / span, 0), 1))
+        let alignBottom = UnitPoint(x: 0.5, y: min(max((bottom - tileHeight) / span, 0), 1))
+        if let frame = tileFrames[id] {
+            let y = frame.minY + scroll.offset
+            if y < top {
+                proxy.scrollTo(id, anchor: alignTop)
+            } else if y + frame.height > bottom {
+                proxy.scrollTo(id, anchor: alignBottom)
+            }
+        } else {
+            // Noch nicht angelegt (weit außerhalb): vor oder hinter den sichtbaren Kacheln?
+            let ids = stack.map { $0.files.map(\.id) } ?? actions.orderedEntries.map(\.id)
+            let shown = ids.indices.filter { tileFrames[ids[$0]] != nil }
+            let index = ids.firstIndex(of: id) ?? 0
+            proxy.scrollTo(id, anchor: index < (shown.min() ?? 0) ? alignTop : alignBottom)
+        }
     }
 
     // MARK: Auswahlrahmen

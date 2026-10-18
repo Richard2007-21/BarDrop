@@ -23,6 +23,18 @@ final class ShelfUIModel: ObservableObject {
     @Published var memberSelection: Set<UUID> = []
     var memberAnchor: UUID?
 
+    /// Bitte an die Ablage, eine Kachel ganz sichtbar zu machen (Pfeiltasten). Die laufende
+    /// Nummer macht jede Bitte neu, auch für dieselbe Kachel.
+    struct ScrollRequest: Equatable {
+        let id: UUID
+        let serial: Int
+    }
+    @Published private(set) var scrollRequest: ScrollRequest?
+
+    func requestScroll(to id: UUID) {
+        scrollRequest = ScrollRequest(id: id, serial: (scrollRequest?.serial ?? 0) + 1)
+    }
+
     /// Ein Kontextmenü der Ablage ist geöffnet.
     var menuOpen = false
     /// Ein Teilen-Fenster (Picker) ist geöffnet.
