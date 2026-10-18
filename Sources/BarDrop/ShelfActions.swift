@@ -263,6 +263,28 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         previewURLs.indices.contains(index) ? previewURLs[index] as NSURL : nil
     }
 
+    /// Pfeiltasten in der Übersicht wie im Finder: Die Auswahl in der Ablage wandert weiter
+    /// (auch nach oben und unten im Raster), die Übersicht zeigt das neu ausgewählte Objekt,
+    /// und die Ablage scrollt mit. Zeigt die Übersicht mehrere ausgewählte Objekte, blättert
+    /// sie wie im Finder selbst darin.
+    func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
+        guard let event, event.type == .keyDown, previewURLs.count <= 1 else { return false }
+        let step: Int
+        switch event.keyCode {
+        case 123: step = -1                      // ←
+        case 124: step = 1                       // →
+        case 126: step = -columnCount            // ↑
+        case 125: step = columnCount             // ↓
+        default: return false
+        }
+        moveCurrentSelection(by: step, extend: false)
+        let urls = currentSelectionURLs
+        guard !urls.isEmpty, urls != previewURLs else { return true }
+        previewURLs = urls
+        panel?.reloadData()
+        return true
+    }
+
     // MARK: Teilen (verankert an der Kachel bzw. am Aktionssymbol)
 
     /// Dateien, die nach erfolgreichem Teilen aus der Ablage genommen werden (Aktionsleiste).
