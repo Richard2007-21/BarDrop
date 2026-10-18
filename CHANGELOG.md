@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.30.0-beta.15
+* **Changed:** ⌘⌫ moves the selected items to the Trash, like in the Finder, instead of only removing them from the shelf. ⌫ still only removes. The right-click menu has “Move to Trash” (⌘⌫) under “Remove” (⌫)
+* **Changed:** Folder actions work like dropping onto a folder in the Finder: on the same disk they move, on another disk they copy and the original stays; ⌥ always copies, ⌘ always moves. This applies to clicking, dragging items out of the shelf and dragging files straight from the Finder. Before, folder actions always moved
+* **Changed:** Trash action and ⌘⌫ can be undone with ⌘Z: the file goes back to where it was and into the shelf. Put Back in the Finder still works
+* **Changed:** Remove automatically is “Never” by default (was “After 2 hours”). When it is on, ⌘Z brings items back; copies are only deleted after 15 minutes
+* **Changed:** Items → Storage → “Files from the Finder”: “Use original” (new default) or “Keep a copy”; replaces “Always store a copy”. Every action works on what is in the shelf, the original or BarDrop’s copy. Images from the web, text, links and files from browsers or apps are always stored as before
+* **Changed:** Language follows the system by default (German or English, otherwise English); new choice “System”
+* **Changed:** New defaults for everyone who never changed them: height 340 pt, Open in full screen off. Values you set yourself stay
+* Larger hit area is always on; the setting is gone
+* Position along the edge: “Follows pointer, middle third” is gone and becomes “middle half”
+* Items → Order → “Open where you left off”: the shelf opens at the same scroll position and in the same stack (off by default)
+* Trash sound: the short sound macOS plays when dragging to the Trash or pressing ⌘⌫ (before, the longer Finder sound)
+* Selection rectangle: its end stays in the visible part of the shelf above the action bar, and the shelf scrolls along when the pointer goes further
+* Action bar a little flatter; icon sizes unchanged
+* Share action in the colors of the AirDrop icon
+* Settings: light mode has a light background (was dark); sidebar with all panes in one group, About BarDrop at the bottom without a heading
+* Width can be set from 220 pt (was 240)
+* Slider marks evenly spaced (Length had two marks close together at the end)
+
 ## 1.30.0-beta.14
 * Removing items (⌫, menu, Remove All) and the Trash action play the Finder’s trash sound, if interface sound effects are on in System Settings
 * Quick Look: ← → ↑ ↓ move the selection in the shelf and show the newly selected item; with several selected items Quick Look pages through them itself
