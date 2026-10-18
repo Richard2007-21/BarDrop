@@ -236,8 +236,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 
     /// Hinter dem Fenster nicht abdunkeln (wandert mit, wenn man das Fenster verschiebt)
     private func updateCutout() {
-        let rect = window?.isVisible == true ? window?.frame : nil
-        backdrops.forEach { $0.setCutout(rect) }
+        // Keine Aussparung mehr: Beim Verschieben des Fensters hinkte sie sichtbar hinterher
+        backdrops.forEach { $0.setCutout(nil) }
     }
 
     private var windowObservers: [NSObjectProtocol] = []
