@@ -56,11 +56,12 @@ extension ShelfActions {
         store.detach(Set(files.map(\.id)), from: stack.id)
     }
 
-    func removeMembers(_ files: [ShelfFile]) {
+    func removeMembers(_ files: [ShelfFile], sound: Bool = true) {
         guard let stack = openStackEntry, !files.isEmpty else { return }
         ui.memberSelection.subtract(files.map(\.id))
         store.removeFiles(Set(files.map(\.id)), from: stack.id)
         announceRemoval(files.count)
+        if sound { Sounds.trash() }
     }
 
     // MARK: Befehle für die aktuelle Ansicht (Ablage oder Stapel)
@@ -105,11 +106,11 @@ extension ShelfActions {
 
     /// Entfernen per Taste: Danach ist das Objekt dahinter ausgewählt (am Ende das davor),
     /// sodass man mit ⌫ gleich weitermachen kann, wie in Mail.
-    func removeCurrentSelection() {
+    func removeCurrentSelection(sound: Bool = true) {
         if isInStack {
             let removed = selectedMembers
             let next = Self.neighbor(of: Set(removed.map(\.id)), in: stackFiles.map(\.id))
-            removeMembers(removed)
+            removeMembers(removed, sound: sound)
             // Der Stapel kann sich dabei aufgelöst haben
             if let next, stackFiles.contains(where: { $0.id == next }) {
                 ui.memberSelection = [next]
@@ -118,7 +119,7 @@ extension ShelfActions {
         } else {
             let removed = selectedEntries
             let next = Self.neighbor(of: Set(removed.map(\.id)), in: orderedEntries.map(\.id))
-            remove(removed)
+            remove(removed, sound: sound)
             if let next, orderedEntries.contains(where: { $0.id == next }) {
                 ui.selection = [next]
                 ui.selectionAnchor = next
@@ -133,7 +134,7 @@ extension ShelfActions {
         let urls = currentSelectionURLs
         guard !urls.isEmpty else { return NSSound.beep() }
         Self.copyFiles(urls)
-        removeCurrentSelection()
+        removeCurrentSelection(sound: false)
         announce(urls.count == 1 ? L("1 item cut", "1 Objekt ausgeschnitten")
                                  : L("\(urls.count) items cut", "\(urls.count) Objekte ausgeschnitten"),
                  canUndo: true)

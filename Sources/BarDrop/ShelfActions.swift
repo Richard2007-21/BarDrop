@@ -124,7 +124,8 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         pb.setString(urls.map(\.path).joined(separator: "\n"), forType: .string)
     }
 
-    func remove(_ entries: [ShelfEntry]) {
+    /// `sound`: Klang des Papierkorbs wie im Finder (nicht beim Ausschneiden)
+    func remove(_ entries: [ShelfEntry], sound: Bool = true) {
         guard !entries.isEmpty else { return }
         let ids = Set(entries.map(\.id))
         let count = entries.reduce(0) { $0 + $1.files.count }
@@ -133,6 +134,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         ui.selection.subtract(ids)
         store.remove(ids)
         announceRemoval(count)
+        if sound { Sounds.trash() }
     }
 
     // MARK: Rückmeldung und Widerrufen
@@ -344,6 +346,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 DispatchQueue.main.async {
                     guard let self else { return }
                     if error != nil { NSSound.beep() }
+                    if !trashed.isEmpty { Sounds.trash() }
                     self.ui.selection = []
                     self.store.forgetFiles(at: Array(trashed.keys))
                     self.store.pruneMissingFiles()

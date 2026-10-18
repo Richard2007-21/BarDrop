@@ -435,7 +435,10 @@ struct ItemSettings: View {
                 SettingsRow(L("Remove all items", "Alle Objekte entfernen")) {
                     Button(L("Remove", "Entfernen")) {
                         let count = store.entries.reduce(0) { $0 + $1.files.count }
-                        if ShelfActions.confirmRemovingAll(count) { store.removeAll() }
+                        if ShelfActions.confirmRemovingAll(count) {
+                            store.removeAll()
+                            Sounds.trash()
+                        }
                     }
                     .buttonStyle(KlackButtonStyle(destructive: true))
                     .disabled(store.entries.isEmpty)
