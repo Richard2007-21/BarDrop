@@ -61,6 +61,8 @@ final class DemoShelf: ObservableObject {
             .appendingPathComponent("Ablage", isDirectory: true)
         store = ShelfStore(baseDirectory: base)
         actions = ShelfActions(store: store, ui: ui, settings: settings)
+        // Heller Rahmen: Die schwarze Ablage hebt sich so auch vom dunklen Hintergrund ab
+        ui.forcesOutline = true
         for url in [sampleURL].compactMap({ $0 }) + otherURLs {
             // Ohne die kurze Wartezeit auf das Vorschaubild zeigen
             Thumbnails.shownOnce.insert(url.path)
@@ -536,57 +538,19 @@ struct ShelfStage: View {
     }
 }
 
-/// Schreibtischhintergrund: das Bild des Schreibtischs, wenn es von macOS stammt, sonst
-/// ein ruhiger Verlauf. Bilder aus eigenen Ordnern werden nicht gelesen, damit macOS nicht
-/// nach dem Zugriff auf „Bilder“ oder „Schreibtisch“ fragt.
+/// Schreibtisch der Vorführungen: das Schiefergrau des App-Symbols, oben etwas heller, wie
+/// auf den Bildern im README. Immer gleich, damit die Einführung zu BarDrop passt.
 private struct DesktopBackground: View {
     let edge: ScreenEdge
 
-    private static let wallpaper: NSImage? = {
-        guard let screen = NSScreen.main,
-              let url = NSWorkspace.shared.desktopImageURL(for: screen),
-              url.path.hasPrefix("/System/") || url.path.hasPrefix("/Library/"),
-              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                  kCGImageSourceCreateThumbnailFromImageAlways: true,
-                  kCGImageSourceCreateThumbnailWithTransform: true,
-                  kCGImageSourceThumbnailMaxPixelSize: 1600
-              ] as CFDictionary),
-              brightness(of: image) > 0.1 else { return nil }
-        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-    }()
-
-    /// Mittlere Helligkeit 0 … 1. Auf einem fast schwarzen Bild wäre die schwarze Ablage
-    /// nicht zu erkennen; dann lieber der Verlauf.
-    private static func brightness(of image: CGImage) -> CGFloat {
-        var pixel = [UInt8](repeating: 0, count: 4)
-        let drawn = pixel.withUnsafeMutableBytes { buffer -> Bool in
-            guard let context = CGContext(data: buffer.baseAddress, width: 1, height: 1, bitsPerComponent: 8,
-                                          bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
-                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
-            context.interpolationQuality = .medium
-            context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-            return true
-        }
-        guard drawn else { return 1 }
-        return (0.3 * CGFloat(pixel[0]) + 0.59 * CGFloat(pixel[1]) + 0.11 * CGFloat(pixel[2])) / 255
-    }
-
     var body: some View {
-        GeometryReader { geo in
-            if let image = Self.wallpaper {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: geo.size.width, height: geo.size.height,
-                           alignment: edge == .right ? .trailing : .leading)
-                    .clipped()
-            } else {
-                LinearGradient(colors: [Color(red: 0.16, green: 0.3, blue: 0.62),
-                                        Color(red: 0.42, green: 0.36, blue: 0.72),
-                                        Color(red: 0.86, green: 0.55, blue: 0.6)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-            }
+        ZStack {
+            LinearGradient(colors: [Color(red: 0.275, green: 0.314, blue: 0.388),
+                                    Color(red: 0.196, green: 0.227, blue: 0.286),
+                                    Color(red: 0.110, green: 0.125, blue: 0.161)],
+                           startPoint: .top, endPoint: .bottom)
+            RadialGradient(colors: [Color(red: 0.51, green: 0.57, blue: 0.69).opacity(0.36), .clear],
+                           center: UnitPoint(x: 0.5, y: -0.06), startRadius: 0, endRadius: 420)
         }
     }
 }

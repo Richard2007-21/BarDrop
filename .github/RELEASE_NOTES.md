@@ -1,13 +1,15 @@
-### Changes
-* Introduction: no cut-out behind the window anymore, it lagged behind when moving the window
-* “Remove from Shelf” is quieter
-* Slight shadow on the icons in Settings and the introduction
-* Beta only: the diagnostic log records every error with its code, message and place in the code, plus crash reports
+### Fixed
+* After unplugging an external display, the shelf works at the edge again and Settings open fully on screen
+
+### Also new
+* Introduction: calm slate background like the app icon
+* Beta only: the diagnostic log records display changes
 
 <!-- de -->
 
-### Änderungen
-* Einführung: keine Aussparung mehr hinter dem Fenster, sie hinkte beim Verschieben hinterher
-* „Aus der Ablage entfernen“ ist leiser
-* Leichter Schatten unter den Symbolen in Einstellungen und Einführung
-* Nur Beta: Das Diagnoseprotokoll hält jeden Fehler mit Code, Meldung und Stelle im Code fest, dazu Absturzberichte
+### Behoben
+* Nach dem Abstecken eines externen Monitors reagiert die Ablage wieder am Rand, und die Einstellungen öffnen ganz auf dem Bildschirm
+
+### Außerdem
+* Einführung: ruhiger, schiefergrauer Hintergrund wie beim App-Symbol
+* Nur Beta: Das Diagnoseprotokoll hält Änderungen der Bildschirme fest

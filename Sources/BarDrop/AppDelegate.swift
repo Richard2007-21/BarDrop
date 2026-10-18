@@ -180,8 +180,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsWindow = window
         }
         // Auf dem Bildschirm der Ablage öffnen, mittig in dessen sichtbarem Bereich
+        // Liegt das Fenster nicht mehr ganz auf einem Bildschirm (z. B. Monitor abgesteckt),
+        // wird es ebenfalls neu mittig gesetzt
+        let fullyVisible = settingsWindow.map { w in NSScreen.screens.contains { $0.visibleFrame.contains(w.frame) } } ?? false
         if let window = settingsWindow, let target = controller.currentScreen ?? NSScreen.main,
-           !window.isVisible || window.screen?.frame != target.frame {
+           !window.isVisible || !fullyVisible || window.screen?.frame != target.frame {
             let area = target.visibleFrame
             let size = window.frame.size
             window.setFrameOrigin(NSPoint(x: (area.midX - size.width / 2).rounded(),

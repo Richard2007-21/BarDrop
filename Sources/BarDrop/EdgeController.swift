@@ -27,9 +27,11 @@ final class EdgeController: NSObject {
 
     private var screen: NSScreen?
     /// Bildschirm, an dessen Rand die Ablage gerade erscheint (für die Einführung)
-    var shelfScreen: NSScreen? { screen ?? allowedScreens().first }
+    var shelfScreen: NSScreen? { Self.fresh(screen) ?? allowedScreens().first }
     /// Bildschirm, an dem die Ablage gerade sitzt (dort öffnen auch die Einstellungen)
-    var currentScreen: NSScreen? { screen }
+    var currentScreen: NSScreen? { Self.fresh(screen) }
+    /// Zuletzt geprüft, ob das gemerkte Bildschirm-Objekt noch aktuell ist
+    private var screenCheckedAt = Date.distantPast
     private var logic = EdgeLogic.State()
     private var previewUntil: Date?
     /// Welche Stufe die Vorschau beim Ändern der Einstellungen zeigt
@@ -181,6 +183,13 @@ final class EdgeController: NSObject {
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
                                                name: NSApplication.didChangeScreenParametersNotification,
                                                object: nil)
+        // Nach dem Entsperren, Aufwachen oder Benutzerwechsel ordnet macOS die Bildschirme teils
+        // neu an, ohne dass die Ablage es sonst mitbekommt
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification,
+                     NSWorkspace.sessionDidBecomeActiveNotification] {
+            NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(screensChanged),
+                                                              name: name, object: nil)
+        }
     }
 
     // MARK: Ereignisse des Systems
@@ -315,12 +324,27 @@ final class EdgeController: NSObject {
         return a.displayID == b.displayID
     }
 
+    /// Das aktuelle Objekt desselben Bildschirms. Ändert sich die Anordnung (Monitor ab- oder
+    /// angesteckt, Mac entsperrt, Auflösung geändert), legt macOS neue NSScreen-Objekte an; ein
+    /// gemerktes altes kann dann noch die frühere Lage melden. Dann lag die Ablage außerhalb,
+    /// der Rand reagierte nicht mehr und die Einstellungen öffneten halb neben dem Bildschirm.
+    static func fresh(_ screen: NSScreen?) -> NSScreen? {
+        guard let screen else { return nil }
+        return NSScreen.screens.first { same($0, screen) }
+    }
+
     @objc private func screensChanged() {
-        // Bildschirm abgesteckt oder Auflösung geändert: neu ausrichten
-        if let s = screen, !allowedScreens().contains(where: { Self.same($0, s) }) {
+        // Bildschirm abgesteckt, Mac entsperrt oder Auflösung geändert: neu ausrichten
+        let before = screen
+        if let s = screen, let current = Self.fresh(s), allowedScreens().contains(where: { Self.same($0, current) }) {
+            screen = current
+        } else {
             screen = screenUnderMouse() ?? allowedScreens().first
             Log.edge.info("Bildschirme geändert, Ablage neu ausgerichtet")
         }
+        Diagnostics.shared.record("screen", "changed screens=[\(NSScreen.screens.map { "\($0.displayID ?? 0):\(Int($0.frame.minX)),\(Int($0.frame.minY)) \(Int($0.frame.width))×\(Int($0.frame.height))" }.joined(separator: " | "))] shelf \(before?.displayID ?? 0)@\(before.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY))" } ?? "–") → \(screen?.displayID ?? 0)@\(screen.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY))" } ?? "–")")
+        adaptiveY = nil
+        updateFullScreen()
         layoutPanel()
         wake()
     }
@@ -694,6 +718,15 @@ final class EdgeController: NSObject {
             screen = s
             layoutPanel()
             Log.edge.info("Ablage wechselt den Bildschirm")
+        }
+        // Sicherheitsnetz, falls eine Änderung der Bildschirme ohne Mitteilung kam: höchstens
+        // einmal pro Sekunde prüfen, ob das gemerkte Bildschirm-Objekt noch die aktuelle Lage hat
+        if now.timeIntervalSince(screenCheckedAt) > 1 {
+            screenCheckedAt = now
+            if let s = screen, Self.fresh(s).map({ $0 !== s && $0.frame != s.frame }) ?? true {
+                Diagnostics.shared.record("screen", "stale screen object \(s.displayID ?? 0)@\(Int(s.frame.minX)),\(Int(s.frame.minY)), refreshing")
+                screensChanged()
+            }
         }
         guard let screen else { pauseTicking(); return }
 

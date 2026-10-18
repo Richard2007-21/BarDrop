@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.30.0-beta.23
+* **Fixed:** After unplugging an external display (or unlocking the Mac with a changed arrangement), the shelf no longer reacted at the edge and Settings opened half off screen. BarDrop now always works with the current position of each display and checks it again after waking, unlocking and switching users
+* Settings open centered again whenever their window no longer fits completely on a display
+* Introduction: the scenes show a calm slate background like the app icon instead of the colorful gradient or the desktop picture; the shelf in the scenes always has its light outline
+* Diagnostic log (beta only): changes of the displays are recorded with their arrangement
+* README: colored badges
+
 ## 1.30.0-beta.22
 * Introduction: no more cut-out in the dimmed background behind the window (it lagged behind when you moved the window)
 * “Remove from Shelf” plays its sound at half the volume

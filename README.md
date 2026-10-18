@@ -24,10 +24,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zzuuuiii/BarDrop/releases/latest"><img src="https://img.shields.io/github/v/release/zzuuuiii/BarDrop?label=Version&color=111111" alt="Version"></a>
-  <img src="https://img.shields.io/badge/macOS-14%2B-111111" alt="macOS 14 or later">
-  <img src="https://img.shields.io/badge/Apple%20Silicon%20%26%20Intel-111111" alt="Apple Silicon and Intel">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-111111" alt="License GPL-3.0"></a>
+  <a href="https://github.com/zzuuuiii/BarDrop/releases/latest"><img src="https://img.shields.io/github/v/release/zzuuuiii/BarDrop?label=Version&labelColor=0A84FF&color=2E3543" alt="Version"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-2E3543?labelColor=5E5CE6" alt="macOS 14 or later">
+  <img src="https://img.shields.io/badge/Apple%20Silicon%20%26%20Intel-D97706" alt="Apple Silicon and Intel">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-2E3543?labelColor=30A14E" alt="License GPL-3.0"></a>
 </p>
 
 <p align="center">
