@@ -227,8 +227,8 @@ final class AirDropColors {
                                    Color(red: 0.04, green: 0.46, blue: 0.98)]
 
     private init() {
-        gradient = NSSharingService(named: .sendViaAirDrop)?.image
-            .flatMap(Self.measure) ?? Self.fallback
+        let icon: NSImage? = NSSharingService(named: .sendViaAirDrop)?.image
+        gradient = icon.flatMap(Self.measure) ?? Self.fallback
     }
 
     /// Mittlere Farbe der deckenden, farbigen Bildpunkte im oberen und unteren Viertel
