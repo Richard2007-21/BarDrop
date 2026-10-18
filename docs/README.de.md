@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <img src="preview.gif" width="640" alt="Eine Datei wird an den Bildschirmrand gezogen, die Ablage öffnet sich und nimmt sie auf; später wird sie in einen Ordner herausgezogen">
+  <img src="preview.gif" width="640" alt="Drei Fotos landen am Bildschirmrand als Stapel, eines wird auf eine Folie gezogen, eine Notiz kommt in den Papierkorb und mit ⌘Z zurück">
 </p>
 
 ---

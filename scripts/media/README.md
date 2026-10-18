@@ -17,3 +17,13 @@ python3 gifshot.py
 ffmpeg -framerate 25 -i frames/f%04d.png -vf palettegen=max_colors=192 pal.png
 ffmpeg -framerate 25 -i frames/f%04d.png -i pal.png -lavfi paletteuse=dither=sierra2_4a -loop 0 preview.gif
 ```
+
+The preview GIF (`docs/preview.gif`) is built from `gif2.html` and `gif2.js`. Put the `GIF2_*.png` files
+from `previews.zip` next to them, cut the photos and the note icon out of the shelf shots, then:
+
+```bash
+python3 -c "from PIL import Image; im=Image.open('GIF2_2.png').convert('RGB'); [im.crop((x-61,349,x+61,439)).save(f'GIF2_Sunset_{n}.jpg',quality=95) for n,x in [(1,390),(2,580),(3,770)]]; Image.open('GIF2_4.png').crop((516,596,644,724)).save('GIF2_notes_icon.png')"
+python3 gif2shot.py 25
+ffmpeg -framerate 25 -i frames2/f%04d.png -vf palettegen=max_colors=192:stats_mode=full pal.png
+ffmpeg -framerate 25 -i frames2/f%04d.png -i pal.png -lavfi paletteuse=dither=sierra2_4a -loop 0 preview.gif
+```

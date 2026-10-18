@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/preview.gif" width="640" alt="A file is dragged to the screen edge, the shelf opens and takes it; later it is dragged back out into a folder">
+  <img src="docs/preview.gif" width="640" alt="Three photos are dropped at the screen edge as a stack, one is dragged onto a slide, a note goes to the Trash and comes back with ⌘Z">
 </p>
 
 ---

@@ -1,10 +1,8 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:1600px;height:1000px;overflow:hidden;font-family:Inter,sans-serif;-webkit-font-smoothing:antialiased}
 .wall{position:absolute;inset:0;background:
- radial-gradient(1200px 800px at 15% 110%, #ff8a6b 0%, rgba(255,138,107,0) 55%),
- radial-gradient(1000px 700px at 85% -10%, #3a5bff 0%, rgba(58,91,255,0) 60%),
- radial-gradient(900px 900px at 60% 60%, #8a3ffc 0%, rgba(138,63,252,0) 65%),
- linear-gradient(135deg,#1a1f6b 0%,#5b2ca8 45%,#c2477d 80%,#f08a5d 100%)}
+ radial-gradient(1100px 640px at 50% -8%, rgba(120,135,165,.38) 0%, rgba(120,135,165,0) 70%),
+ linear-gradient(180deg,#434c5e 0%,#2e3543 55%,#1d212b 100%)}
 .menubar{position:absolute;top:0;left:0;right:0;height:34px;background:rgba(20,10,40,.28);backdrop-filter:blur(20px);color:#fff;font-size:14px;font-weight:600;display:flex;align-items:center;padding:0 22px;gap:22px}
 .menubar span{font-weight:500;opacity:.92}
 .menubar .r{margin-left:auto;display:flex;gap:18px;font-weight:500}

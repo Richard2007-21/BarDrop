@@ -24,13 +24,13 @@ for lang,t in T.items():
     # Aktion im Einsatz: eine Datei wird auf die Ordner-Aktion gezogen
     ghost='<div style="position:absolute;left:1334px;top:730px;width:80px;height:60px;opacity:.82;filter:drop-shadow(0 10px 18px rgba(0,0,0,.45))"><div style="width:80px;height:60px;background:url(Produkt_Aktion_'+lang+'.png) -441.25px -217.5px/550px 750px;border-radius:6px"></div></div>'
     cursor='<svg width="22" height="28" viewBox="0 0 18 22" style="position:absolute;left:1372px;top:758px"><path d="M2 2 L2 18 L6.5 14 L9.5 20.5 L12.5 19 L9.5 12.8 L15.5 12.8 Z" fill="#000" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/></svg>'
-    pages["actions"]=HEAD+'<div class="wall" style="filter:hue-rotate(-25deg)"></div>'+title(t["actions"],310)+f'<img class="shot" src="Produkt_Aktion_{lang}.png" style="right:0;top:100px;width:660px;height:900px">'+ghost+cursor+'</body></html>'
-    pages["stacks"]=HEAD+'<div class="wall" style="filter:hue-rotate(30deg)"></div>'+title(t["stacks"],330)+f'<img class="shot" src="Produkt_Stapel_{lang}.png" style="right:0;top:100px;width:660px;height:900px">'+'</body></html>'
+    pages["actions"]=HEAD+'<div class="wall"></div>'+title(t["actions"],310)+f'<img class="shot" src="Produkt_Aktion_{lang}.png" style="right:0;top:100px;width:660px;height:900px">'+ghost+cursor+'</body></html>'
+    pages["stacks"]=HEAD+'<div class="wall"></div>'+title(t["stacks"],330)+f'<img class="shot" src="Produkt_Stapel_{lang}.png" style="right:0;top:100px;width:660px;height:900px">'+'</body></html>'
     # Ganzes Einstellungsfenster im Dunkelmodus, mit Ampel wie in macOS
     lights='<div style="position:absolute;left:20px;top:20px;display:flex;gap:8px">'+''.join(f'<span style="width:12px;height:12px;border-radius:50%;background:{c};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25)"></span>' for c in ("#ff5f57","#febc2e","#28c840"))+'</div>'
     def window(img,left,top,border):
         return f'<div style="position:absolute;left:{left}px;top:{top}px;width:680px;height:700px;transform:scale(.78);transform-origin:top left;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);border:1px solid {border}"><img src="{img}" style="width:680px;height:700px;display:block">{lights}</div>'
     # Dunkel hinten, hell davor und leicht versetzt: beide Erscheinungsbilder
-    pages["settings"]=HEAD+'<div class="wall" style="filter:hue-rotate(-50deg)"></div>'+title(t["settings"],330)+window(f"Produkt_Fenster_Aktionen_{lang}.png",760,120,"rgba(255,255,255,.16)")+window(f"Produkt_Fenster_Objekte_{lang}_hell.png",990,300,"rgba(0,0,0,.18)")+'</body></html>'
+    pages["settings"]=HEAD+'<div class="wall"></div>'+title(t["settings"],330)+window(f"Produkt_Fenster_Aktionen_{lang}.png",760,120,"rgba(255,255,255,.16)")+window(f"Produkt_Fenster_Objekte_{lang}_hell.png",990,300,"rgba(0,0,0,.18)")+'</body></html>'
     for k,v in pages.items():
         open(f"p_{k}_{lang}.html","w").write(v)
