@@ -13,14 +13,14 @@ function path(t,keys){
   return keys[keys.length-1].slice(1,3)}
 
 const S=window.SLOTS, BODY_LEFT=506+280*374/880;
-const LAKE=[334.5,183], DUSK=[545.5,325], PH1=[361,318], PH2=[639,318];
+const LAKE=[334.5,183], DUSK=[545.5,325], PH1=[275,289], PH2=[505,289];
 const inRect=(x,y,cx,cy,w,h)=>Math.abs(x-cx)<=w/2&&Math.abs(y-cy)<=h/2;
 const DUR=20.3;
 const P=[[0,430,470],[0.6,430,470],[1.25,LAKE[0],LAKE[1],10],[1.35,LAKE[0],LAKE[1]],[2.5,858,290,40],[2.7,858,290],
   [3.5,DUSK[0],DUSK[1],25],[3.6,DUSK[0],DUSK[1]],[4.8,858,290,40],[5.0,858,290],[5.6,640,420,10],[6.6,640,420],
   [7.1,872,285,20],[7.9,S.r1c2[0],S.r1c2[1]+2,15],[8.35,S.r1c2[0],S.r1c2[1]+2],[9.5,PH1[0],PH1[1],30],[9.75,PH1[0],PH1[1]],
   [10.3,872,285,25],[10.95,S.r1c1[0],S.r1c1[1]+2,15],[11.35,S.r1c1[0],S.r1c1[1]+2],[12.4,PH2[0],PH2[1],25],[12.65,PH2[0],PH2[1]],
-  [13.1,872,285,15],[13.85,S.r2c1[0],S.r2c1[1]+2,15],[14.25,S.r2c1[0],S.r2c1[1]+2],[15.05,S.trash[0],S.trash[1],15],[15.3,S.trash[0],S.trash[1]],
+  [13.1,872,285,15],[13.85,S.r1c2[0],S.r1c2[1]+2,15],[14.25,S.r1c2[0],S.r1c2[1]+2],[15.05,S.trash[0],S.trash[1],15],[15.3,S.trash[0],S.trash[1]],
   [16.0,720,400,10],[16.6,450,420,15],[18.6,450,420],[20.0,430,470,15],[20.3,430,470]];
 // Wann der Zeiger die offene Ablage verlässt
 function leaveAfter(t0){for(let t=t0;t<DUR;t+=1/120){if(path(t,P)[0]<BODY_LEFT)return t}return DUR}
@@ -93,7 +93,7 @@ window.render=function(real){
   };
   const tile=(src,a,b,target,label)=>{ // Kachel aus der Ablage auf die Folie
     let u=0; if(t>=b) u=out(seg(t,b,b+0.15)); go=.85*(1-seg(t,b+0.05,b+0.15));
-    const sc=lerp(1,3,u); gx=lerp(px,target[0],u); gy=lerp(py,target[1],u);
+    const sc=lerp(1,2.6,u); gx=lerp(px,target[0],u); gy=lerp(py,target[1],u);
     html=`<div style="position:absolute;left:${-27*sc}px;top:${-20*sc}px;width:${54*sc}px;height:${40*sc}px;border-radius:3px;background:url(${src}) center/cover;box-shadow:0 3px 8px rgba(0,0,0,.45)"></div>`+
       (u<0.01?`<div style="position:absolute;left:-60px;top:24px;width:120px;text-align:center"><span style="font-size:10.5px;font-weight:600;color:#fff;background:#2f6ff5;padding:1px 5px;border-radius:4px;white-space:nowrap">${label}</span></div>`:'');
   };
@@ -122,8 +122,8 @@ window.render=function(real){
   $('p1').style.opacity=p1; $('th1').style.opacity=p1; $('ph1').style.opacity=1-p1;
   $('p2').style.opacity=p2; $('th2').style.opacity=p2; $('ph2').style.opacity=1-p2;
   const dragTile=(t>=8.4&&t<9.5)||(t>=11.4&&t<12.4);
-  $('ph1').classList.toggle('hot', dragTile&&inRect(px,py,PH1[0],PH1[1],250,188));
-  $('ph2').classList.toggle('hot', dragTile&&inRect(px,py,PH2[0],PH2[1],250,188));
+  $('ph1').classList.toggle('hot', dragTile&&inRect(px,py,PH1[0],PH1[1],210,158));
+  $('ph2').classList.toggle('hot', dragTile&&inRect(px,py,PH2[0],PH2[1],210,158));
 
   const [kv,ko]=keys(t); const ks=$('keys'); const kk=kv.join('|');
   if(kk!==lastKeys){ks.innerHTML=kv.map(k=>`<span>${k}</span>`).join(''); lastKeys=kk;}
