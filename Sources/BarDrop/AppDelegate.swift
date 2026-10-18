@@ -131,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             onboarding.onClose = { [weak self] in
                 self?.onboarding = nil
                 self?.ui.forcesOutline = false
+                ShelfMenu.disabled = false
             }
             onboarding.wakeShelf = { [weak self] in self?.controller.wake() }
             onboarding.showGuide = { [weak self] level in self?.controller.showGuide(level) }
@@ -142,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         // Auf dem abgedunkelten Bildschirm mit hellem Rahmen, damit man die Ablage sieht
         ui.forcesOutline = true
+        ShelfMenu.disabled = true
         onboarding?.show()
     }
 

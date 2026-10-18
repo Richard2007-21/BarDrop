@@ -319,7 +319,11 @@ enum ShelfMenu {
     /// BarDrop zu aktivieren, und das Aktivieren läuft verzögert ab. Ging das Menü vorher
     /// auf, folgte seine Markierung dem Zeiger nur teilweise, und ein Untermenü (Umwandeln),
     /// das erst danach erschien, sah anders durchscheinend aus als das Menü selbst.
+    /// Während der Einführung keine Rechtsklickmenüs: Sie würden die Übungen stören
+    static var disabled = false
+
     static func popUp(_ menu: NSMenu, with event: NSEvent, for view: NSView) {
+        guard !disabled else { return }
         activate()
         view.window?.makeKey()
         NSMenu.popUpContextMenu(menu, with: event, for: view)

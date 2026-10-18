@@ -7,6 +7,7 @@
 * The Trash in the introduction looks full or empty like yours
 * The practice photo no longer disappears
 * Clearer texts in the introduction and the option “Small hit area for the pointer”
+* No right-click menus in the shelf during the introduction
 
 <!-- de -->
 
@@ -19,3 +20,4 @@
 * Der Papierkorb in der Einführung sieht voll oder leer aus wie deiner
 * Das Übungsfoto verschwindet nicht mehr
 * Klarere Texte in der Einführung und die Option „Kleiner Trefferbereich für den Zeiger“
+* Während der Einführung keine Rechtsklickmenüs in der Ablage

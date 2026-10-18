@@ -8,6 +8,7 @@
 * Introduction: the photo to drag no longer disappears (it stays in memory, and it is created again if it was dragged somewhere else)
 * Introduction: texts reworded to match what happens now; And There’s More shows Pin instead of repeating Actions
 * Opening → When: the option is now called “Small hit area for the pointer”
+* Right-click menus of the shelf are off while the introduction is open
 
 ## 1.30.0-beta.19
 * **Changed:** Introduction: on the first page the shelf opens at the edge, so you see where it is. On the next page it closes, the strip stays, and you drag the photo in
