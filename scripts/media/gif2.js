@@ -120,7 +120,7 @@ window.render=function(t){
   for(const el of sh.querySelectorAll('img')) el.style.opacity = el.id===img ? 1 : 0;
   // Herausgezogenes bleibt an seinem Platz blass, solange die Ablage es zeigt
   const dim=$('dim'); let dimAt=null;
-  if(t>=4.9&&t<LEAVE+0.3) dimAt=SLOT.s2; if(t>=8.5&&t<9.3) dimAt=SLOT.notes;
+  // Die gezogene Kachel bleibt in der Ablage sichtbar, bis das Ziel sie übernimmt
   if(dimAt){dim.style.opacity=o; dim.style.left=(dimAt[0]-29)+'px'; dim.style.top=(dimAt[1]-23)+'px'} else dim.style.opacity=0;
   const s=$('strip'), st=strip(t); s.style.opacity=st; s.style.width=(6*st)+'px';
 
