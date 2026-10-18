@@ -20,9 +20,9 @@ const inRect=(x,y,cx,cy,w,h)=>Math.abs(x-cx)<=w/2&&Math.abs(y-cy)<=h/2;
 const DUR=19.3;
 const P=[[0,430,470],[0.6,430,470],[1.25,LAKE[0],LAKE[1],10],[1.35,LAKE[0],LAKE[1]],[2.5,858,290,40],[2.85,858,290],
   [3.5,DUSK[0],DUSK[1],25],[3.6,DUSK[0],DUSK[1]],[4.8,858,290,40],[5.1,858,290],[5.7,520,430,10],[6.75,520,430],
-  [7.25,872,285,20],[7.9,S.r1c2[0],S.r1c2[1]+2,15],[8.35,S.r1c2[0],S.r1c2[1]+2],[9.5,PH1[0],PH1[1],30],[9.75,PH1[0],PH1[1]],
-  [10.3,872,285,25],[10.95,S.r1c1[0],S.r1c1[1]+2,15],[11.35,S.r1c1[0],S.r1c1[1]+2],[12.4,PH2[0],PH2[1],25],[12.65,PH2[0],PH2[1]],
-  [13.1,872,285,15],[13.85,S.r1c2[0],S.r1c2[1]+2,15],[14.25,S.r1c2[0],S.r1c2[1]+2],[15.05,S.trash[0],S.trash[1],15],[16.15,S.trash[0],S.trash[1]],
+  [7.25,872,285,20],[7.7,872,285],[8.2,S.r1c2[0],S.r1c2[1]+2,15],[8.35,S.r1c2[0],S.r1c2[1]+2],[9.5,PH1[0],PH1[1],30],[9.75,PH1[0],PH1[1]],
+  [10.3,872,285,25],[10.75,872,285],[11.2,S.r1c1[0],S.r1c1[1]+2,15],[11.35,S.r1c1[0],S.r1c1[1]+2],[12.4,PH2[0],PH2[1],25],[12.65,PH2[0],PH2[1]],
+  [13.1,872,285,15],[13.55,872,285],[14.05,S.r1c2[0],S.r1c2[1]+2,15],[14.25,S.r1c2[0],S.r1c2[1]+2],[15.05,S.trash[0],S.trash[1],15],[16.15,S.trash[0],S.trash[1]],
   [16.9,450,420,15],[18.3,450,420],[19.0,430,470,15],[19.3,430,470]];
 // Wann der Zeiger die offene Ablage verlässt
 function leaveAfter(t0){for(let t=t0;t<DUR;t+=1/120){if(path(t,P)[0]<BODY_LEFT)return t}return DUR}
@@ -63,7 +63,8 @@ function keys(t){
 // Ruhiger ablaufen lassen: etwas langsamer, nach wichtigen Schritten kurz innehalten
 const SLOW=1.25;
 // Pausen nur, wenn der Zeiger ohnehin ruht, damit nichts mitten in der Bewegung stehen bleibt
-const HOLDS=[[2.8,0.5],[5.05,0.7],[6.7,0.4],[9.7,0.6],[12.6,0.7],[15.35,0.6],[16.12,0.5],[17.9,0.3]];
+// Am Rand: Der Streifen steht einen Moment, bevor die Ablage aufgeht (wie mit der Verzögerung der App)
+const HOLDS=[[2.8,0.5],[5.05,0.7],[6.7,0.4],[7.5,0.4],[10.55,0.4],[13.35,0.4],[9.7,0.6],[12.6,0.7],[15.35,0.6],[16.12,0.5],[17.9,0.3]].sort((a,b)=>a[0]-b[0]);
 function sceneTime(real){
   let r=real,last=0;
   for(const [at,hold] of HOLDS){
