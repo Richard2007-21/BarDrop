@@ -324,17 +324,19 @@ struct QuickActionButton: View {
     }
 
     var body: some View {
-        VStack(spacing: 4) {
+        // Produktbilder zeigen eine Aktion mit einer Datei darüber
+        let highlighted = targeted || ui.previewTargetedAction == action.id
+        return VStack(spacing: 4) {
             // Ohne Namen größer, damit die Leiste nicht leer wirkt
             QuickActionIcon(action: action, size: iconSize)
-                .scaleEffect(targeted ? 1.1 : 1)
+                .scaleEffect(highlighted ? 1.1 : 1)
                 .opacity(draggingOut ? 0.3 : 1)
             if AppSettings.shared.showActionLabels {
                 // „Nur Ordner“: die übrigen Aktionen halten den Platz frei, damit alle
                 // Symbole auf einer Höhe stehen
                 let named = !AppSettings.shared.labelsOnlyFolders || action.kind == .folder
                 Text(action.title)
-                    .font(.system(size: 10, weight: targeted ? .semibold : .medium))
+                    .font(.system(size: 10, weight: highlighted ? .semibold : .medium))
                     .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -346,9 +348,9 @@ struct QuickActionButton: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(targeted ? 0.12 : 0))
+                .fill(Color.white.opacity(highlighted ? 0.12 : 0))
         )
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: targeted)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: highlighted)
         .overlay(Group { if !shelfDemo {
             ActionDropTarget(
                 ui: ui,

@@ -93,8 +93,10 @@ struct PaneIcon: View {
                 Image(systemName: pane.symbol)
                     .font(.system(size: size * 0.52, weight: .semibold))
                     .foregroundStyle(.white)
+                    .iconGlyphShadow(size: size)
             )
             .frame(width: size, height: size)
+            .iconTileShadow(size: size)
     }
 }
 
@@ -102,7 +104,14 @@ struct SettingsRoot: View {
     @ObservedObject var settings: AppSettings
     let store: ShelfStore
     let showOnboarding: () -> Void
-    @State private var pane: SettingsPane = .general
+    @State private var pane: SettingsPane
+
+    init(settings: AppSettings, store: ShelfStore, showOnboarding: @escaping () -> Void, pane: SettingsPane = .general) {
+        self.settings = settings
+        self.store = store
+        self.showOnboarding = showOnboarding
+        _pane = State(initialValue: pane)
+    }
 
     var body: some View {
         HStack(spacing: 0) {

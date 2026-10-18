@@ -746,3 +746,18 @@ extension SettingsTheme {
         return LinearGradient(colors: [Color(nsColor: top), tint], startPoint: .top, endPoint: .bottom)
     }
 }
+
+extension View {
+    /// Leichter Schatten unter einer farbigen Symbolkachel wie in den Systemeinstellungen.
+    /// `size`: Kantenlänge der Kachel, der Schatten wächst mit.
+    func iconTileShadow(size: CGFloat) -> some View {
+        let k = size / 22
+        return shadow(color: .black.opacity(0.28), radius: 1.1 * k, y: 0.7 * k)
+    }
+
+    /// Hauch von Schatten unter dem weißen Zeichen auf der Kachel
+    func iconGlyphShadow(size: CGFloat) -> some View {
+        let k = size / 22
+        return shadow(color: .black.opacity(0.22), radius: 0.6 * k, y: 0.5 * k)
+    }
+}

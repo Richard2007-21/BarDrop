@@ -62,6 +62,8 @@ final class ShelfUIModel: ObservableObject {
     @Published var forcesOutline = false
     /// Beim Verstellen der Symbolgröße: Beispieldatei in der Ablage zeigen
     @Published var showSampleTile = false
+    /// Nur für die Produktbilder: diese Aktion so zeigen, als läge eine Datei darüber
+    @Published var previewTargetedAction: UUID?
     /// Lage der offenen Ablage (schwarze Form) auf dem Bildschirm, ohne Schattenrand
     var expandedBody: CGRect = .zero
 

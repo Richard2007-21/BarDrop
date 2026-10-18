@@ -1191,8 +1191,10 @@ private struct FeaturesPage: View {
                                 Image(systemName: feature.symbol)
                                     .font(.system(size: 18, weight: .semibold))
                                     .foregroundStyle(.white)
+                                    .iconGlyphShadow(size: 40)
                             )
                             .frame(width: 40, height: 40)
+                            .iconTileShadow(size: 40)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(feature.title)
                                 .font(.system(size: 13.5, weight: .semibold))

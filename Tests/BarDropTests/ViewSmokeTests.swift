@@ -239,6 +239,14 @@ final class ViewSmokeTests: XCTestCase {
             shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
                  size: CGSize(width: 440, height: 600), "Produkt Ablage \(lang)", dir: dir)
 
+            // Aktion im Einsatz: eine Datei liegt über der Ordner-Aktion
+            ui.selection = []
+            ui.previewTargetedAction = settings.quickActions.first { $0.kind == .folder }?.id
+            shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
+                 size: CGSize(width: 440, height: 600), "Produkt Aktion \(lang)", dir: dir)
+            ui.previewTargetedAction = nil
+            ui.selection = Set(store.entries.dropFirst(1).prefix(1).map(\.id))
+
             // Für das Vorschau-GIF: ohne Auswahl, mit und ohne den See, und leer
             if language == .english {
                 ui.selection = []
@@ -291,6 +299,14 @@ final class ViewSmokeTests: XCTestCase {
                     shot(pane.background(SettingsTheme.contentBackdrop), size: CGSize(width: 436, height: 640),
                          "Produkt \(name) \(lang) \(look)", dir: dir, appearance: appearance)
                 }
+            }
+
+            // Ganzes Einstellungsfenster im Dunkelmodus (Seitenleiste und Inhalt)
+            for (pane, name) in [(SettingsPane.general, "Allgemein"), (.actions, "Aktionen"), (.items, "Objekte")] {
+                shot(SettingsRoot(settings: settings, store: store, showOnboarding: {}, pane: pane)
+                        .background(Color(nsColor: NSColor(white: 0.17, alpha: 1))),
+                     size: CGSize(width: SettingsWindowFactory.size.width, height: SettingsWindowFactory.size.height),
+                     "Produkt Fenster \(name) \(lang)", dir: dir, appearance: .darkAqua)
             }
 
             // 4. Einführung
