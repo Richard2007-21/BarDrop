@@ -60,7 +60,7 @@ struct QuickAction: Codable, Identifiable, Hashable {
         case .trash:
             // Das Papierkorb-Symbol des Systems, wie im Dock. Der Papierkorb-Ordner selbst
             // ist ohne Festplattenvollzugriff nicht lesbar und liefert nur ein Blatt.
-            return NSImage(named: NSImage.trashEmptyName)
+            return NSImage(named: TrashState.shared.isFull ? NSImage.trashFullName : NSImage.trashEmptyName)
         case .folder, .app:
             guard let path, FileManager.default.fileExists(atPath: path) else { return nil }
             return NSWorkspace.shared.icon(forFile: path)
@@ -107,4 +107,33 @@ struct QuickAction: Codable, Identifiable, Hashable {
     static func limit(twoRows: Bool) -> Int { twoRows ? 2 * perRow : 6 }
     /// Aktionen pro Reihe bei zwei Reihen
     static let perRow = 5
+}
+
+
+/// Ob der Papierkorb des Mac etwas enthält, damit die Aktion „Papierkorb“ wie im Dock voll
+/// oder leer aussieht. Das Dock merkt sich das selbst („trash-full“); den Papierkorb-Ordner
+/// direkt lesen geht nur mit Festplattenvollzugriff und ist darum nur der zweite Weg.
+final class TrashState: ObservableObject {
+    static let shared = TrashState()
+    @Published private(set) var isFull = false
+
+    private init() { refresh() }
+
+    /// Beim Öffnen der Ablage und nach dem Papierkorb neu nachsehen
+    func refresh() {
+        let full = Self.dockSaysFull() ?? Self.folderHasItems() ?? false
+        if full != isFull { isFull = full }
+    }
+
+    private static func dockSaysFull() -> Bool? {
+        guard let dock = UserDefaults(suiteName: "com.apple.dock"),
+              dock.object(forKey: "trash-full") != nil else { return nil }
+        return dock.bool(forKey: "trash-full")
+    }
+
+    private static func folderHasItems() -> Bool? {
+        guard let trash = FileManager.default.urls(for: .trashDirectory, in: .userDomainMask).first,
+              let items = try? FileManager.default.contentsOfDirectory(atPath: trash.path) else { return nil }
+        return items.contains { !$0.hasPrefix(".") }
+    }
 }

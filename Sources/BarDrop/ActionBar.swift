@@ -86,8 +86,10 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         ui?.ownDragActive = false
         onDraggingOut(false)
         guard operation == [], !dragStartFrame.contains(screenPoint), let remove = dragOut?.remove else { return }
-        // Ohne Staubwolke: Die Aktion verschwindet einfach, ihr Platz schließt sich
+        // Ohne Staubwolke: Die Aktion verschwindet einfach, ihr Platz schließt sich. Klang wie
+        // beim Herausziehen eines Symbols aus dem Dock
         Haptics.drop()
+        Sounds.poof()
         DispatchQueue.main.async { remove() }
     }
 
@@ -175,6 +177,8 @@ struct ActionDropTarget: NSViewRepresentable {
 struct QuickActionIcon: View {
     let action: QuickAction
     var size: CGFloat = 34
+    /// Zeichnet neu, wenn sich der Papierkorb füllt oder leert
+    @ObservedObject private var trash = TrashState.shared
 
     var body: some View {
         if let icon = action.icon {

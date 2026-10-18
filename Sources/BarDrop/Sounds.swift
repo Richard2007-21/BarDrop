@@ -10,9 +10,18 @@ enum Sounds {
         NSSound(contentsOf: URL(fileURLWithPath: systemSounds + "dock/drag to trash.aif"), byReference: true)
 
     /// Aus der Ablage entfernen (⌫, Entfernen, Alle entfernen): der Klang des Finders
-    /// „move to trash“, den BarDrop bis 1.30.0 Beta 14 für alles verwendet hat
+    /// „move to trash“, den BarDrop bis 1.30.0 Beta 14 für alles verwendet hat. Nur sein
+    /// erster Schlag: Die Datei blendet 80 ms leise ein und klingt danach noch über eine
+    /// Sekunde nach, das wirkte verzögert und zu lang.
     private static let removeSound: NSSound? =
-        NSSound(contentsOf: URL(fileURLWithPath: systemSounds + "finder/move to trash.aif"), byReference: true)
+        NSSound(contentsOf: URL(fileURLWithPath: systemSounds + "finder/move to trash.aif"), byReference: false)
+    private static let removeStart: TimeInterval = 0.08
+    private static let removeLength: TimeInterval = 0.17
+    private static var removeStop: DispatchWorkItem?
+
+    /// Aktion aus der Leiste gezogen: wie ein Symbol, das man aus dem Dock zieht
+    private static let poofSound: NSSound? =
+        NSSound(contentsOf: URL(fileURLWithPath: systemSounds + "dock/poof item off dock.aif"), byReference: false)
 
     /// Klang beim Ablegen in einen Ordner der Aktionsleiste (macOS: „Volume Mount“)
     private static let folderSound: NSSound? =
@@ -26,7 +35,19 @@ enum Sounds {
     static func trash() { play(trashSound) }
 
     /// Aus der Ablage entfernt (die Datei bleibt, wo sie ist)
-    static func remove() { play(removeSound) }
+    static func remove() {
+        guard interfaceSoundsEnabled, let sound = removeSound else { return }
+        removeStop?.cancel()
+        if sound.isPlaying { sound.stop() }
+        sound.currentTime = removeStart
+        sound.play()
+        let stop = DispatchWorkItem { sound.stop() }
+        removeStop = stop
+        DispatchQueue.main.asyncAfter(deadline: .now() + removeLength, execute: stop)
+    }
+
+    /// Eine Aktion wurde aus der Leiste gezogen und entfernt
+    static func poof() { play(poofSound) }
 
     private static func play(_ sound: NSSound?) {
         guard interfaceSoundsEnabled, let sound else { return }

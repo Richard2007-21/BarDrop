@@ -99,7 +99,8 @@ struct KeyboardSettings: View {
                 if showShortcuts {
                     ShortcutRow(L("Quick Look", "Übersicht"), [L("Space", "Leertaste")])
                     ShortcutRow(L("Open", "Öffnen"), ["↩"])
-                    ShortcutRow(L("Remove selection", "Auswahl entfernen"), ["⌫"])
+                    ShortcutRow(L("Remove from shelf", "Aus der Ablage entfernen"), ["⌫"])
+                    ShortcutRow(L("Move to Trash", "In den Papierkorb legen"), ["⌘", "⌫"])
                     ShortcutRow(L("Undo", "Widerrufen"), ["⌘", "Z"])
                     ShortcutRow(L("Redo", "Wiederholen"), ["⇧", "⌘", "Z"])
                     ShortcutRow(L("Copy", "Kopieren"), ["⌘", "C"])
@@ -209,6 +210,10 @@ struct OpeningSettings: View {
                                   "Mit Wartezeit öffnet ein Klick auf den Streifen die Ablage sofort."),
                           selection: $settings.openChoice,
                           options: OpenChoice.all.map { ($0, $0.title) })
+                ToggleRow(L("Hit the strip exactly with the pointer", "Streifen mit dem Zeiger genau treffen"),
+                          info: L("Without a file, the shelf only opens when the pointer touches the strip itself. While dragging files, the area at the edge stays generous.",
+                                  "Ohne Datei öffnet die Ablage nur, wenn der Zeiger den Streifen selbst berührt. Beim Ziehen von Dateien bleibt der Bereich am Rand großzügig."),
+                          isOn: $settings.exactPointer)
                 PickerRow(L("While dragging files", "Beim Ziehen von Dateien"), selection: $settings.dragReveal,
                           options: DragReveal.allCases.map { ($0, $0.title) })
                 ToggleRow(L("Open in full screen", "Im Vollbild öffnen"),

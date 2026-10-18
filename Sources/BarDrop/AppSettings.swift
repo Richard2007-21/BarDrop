@@ -275,6 +275,7 @@ final class AppSettings: ObservableObject {
         static let language = "language"
         static let generousHitArea = "generousHitArea"
         static let reopenWhereLeft = "reopenWhereLeft"
+        static let exactPointer = "exactPointer"
         static let twoActionRows = "twoActionRows"
         static let actionRowSplit = "actionRowSplit"
         static let pinFromShelf = "pinFromShelf"
@@ -384,6 +385,9 @@ final class AppSettings: ObservableObject {
     /// Etwas größerer Bereich um Streifen und Griff, in dem der Zeiger noch zählt.
     /// Seit 1.30.0 Beta 15 immer an, nicht mehr einstellbar.
     var generousHitArea: Bool { true }
+    /// Mit dem Zeiger allein öffnet nur der Streifen selbst (beim Ziehen von Dateien bleibt
+    /// der Bereich großzügig)
+    @Published var exactPointer: Bool { didSet { defaults.set(exactPointer, forKey: Key.exactPointer) } }
     /// Beim Öffnen dort weitermachen, wo man aufgehört hat: offener Stapel und Scrollstand bleiben
     @Published var reopenWhereLeft: Bool { didSet { defaults.set(reopenWhereLeft, forKey: Key.reopenWhereLeft) } }
     /// Aktionsleiste in zwei Reihen mit je bis zu fünf Aktionen
@@ -515,6 +519,7 @@ final class AppSettings: ObservableObject {
             Key.openDelay: OpenDelay.instant,
             Key.language: AppLanguage.system.rawValue,
             Key.reopenWhereLeft: false,
+            Key.exactPointer: false,
             Key.twoActionRows: false,
             Key.pinFromShelf: true,
             Key.addScreenshots: false,
@@ -593,6 +598,7 @@ final class AppSettings: ObservableObject {
         // „Größerer Trefferbereich“ ist immer an: alten Wert aufräumen
         defaults.removeObject(forKey: Key.generousHitArea)
         reopenWhereLeft = defaults.bool(forKey: Key.reopenWhereLeft)
+        exactPointer = defaults.bool(forKey: Key.exactPointer)
         // Zwei Reihen gibt es immer: Eine leere untere Reihe ist einfach nicht zu sehen
         twoActionRows = true
         actionRowSplit = defaults.integer(forKey: Key.actionRowSplit)
@@ -674,6 +680,7 @@ final class AppSettings: ObservableObject {
         openMode = .automatic
         openDelay = OpenDelay.instant
         reopenWhereLeft = false
+        exactPointer = false
         twoActionRows = true
         actionRowSplit = QuickAction.perRow
         pinFromShelf = true

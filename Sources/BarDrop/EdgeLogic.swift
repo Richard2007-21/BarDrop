@@ -61,9 +61,11 @@ enum EdgeLogic {
         var openDelay: TimeInterval = 0.3
         /// Etwas größerer Bereich um Streifen und Griff, in dem der Zeiger noch zählt
         var generousHitArea = false
+        /// Mit dem Zeiger allein nur der Streifen selbst; beim Ziehen bleibt der Bereich großzügig
+        var exactPointer = false
 
         /// Zusätzlicher Spielraum quer zum Rand und entlang des Rands
-        var hitSlack: (x: CGFloat, y: CGFloat) { generousHitArea ? (8, 24) : (0, 0) }
+        var hitSlack: (x: CGFloat, y: CGFloat) { generousHitArea && !exactPointer ? (8, 24) : (0, 0) }
         /// Beim Ziehen einer Datei: ab hier öffnet die Ablage ganz. Mit größerem
         /// Trefferbereich etwas weiter vom Rand und höher, nicht übertrieben.
         var dragExpand: (distance: CGFloat, span: CGFloat) {

@@ -423,6 +423,7 @@ final class EdgeController: NSObject {
 
         if new == .expanded {
             Thumbnails.forgetIcons()
+            TrashState.shared.refresh()
             store.pruneMissingFiles()
             // Vorschau beim Verstellen in den Einstellungen: den Fokus dort lassen
             if previewUntil == nil { takeFocus() }
@@ -739,7 +740,8 @@ final class EdgeController: NSObject {
                                           && !fullScreenFrames.contains(screen.frame),
                                       openMode: settings.openMode,
                                       openDelay: settings.openDelay,
-                                      generousHitArea: settings.generousHitArea)
+                                      generousHitArea: settings.generousHitArea,
+                                      exactPointer: settings.exactPointer)
         logic.level = ui.level
         let result = EdgeLogic.decide(&logic, sample, config)
         if result.haptic { Haptics.tap() }   // erster Streifen oder Datei erreicht die Ablage

@@ -359,6 +359,9 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             if count < urls.count { NSSound.beep() }
             guard count > 0 else { return }
             Sounds.trash()
+            TrashState.shared.refresh()
+            // Das Dock trägt den vollen Papierkorb manchmal erst einen Moment später ein
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { TrashState.shared.refresh() }
             self.ui.selection.formIntersection(Set(self.store.entries.map(\.id)))
             self.ui.memberSelection.formIntersection(Set(self.store.entries.flatMap(\.files).map(\.id)))
             if let open = self.ui.openStack, !self.store.entries.contains(where: { $0.id == open }) {

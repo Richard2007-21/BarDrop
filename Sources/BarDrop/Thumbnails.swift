@@ -14,6 +14,13 @@ enum Thumbnails {
     }()
     /// Laufende Anfragen und wer auf sie wartet (nur auf dem Hauptthread)
     private static var pending: [String: [(NSImage?) -> Void]] = [:]
+    /// Schlüssel, für die schon das scharfe Vorschaubild im Speicher liegt (Hauptthread)
+    private static var sharp = Set<String>()
+
+    /// Liegt das scharfe Vorschaubild schon vor (nicht nur das schnelle)?
+    static func isSharp(_ url: URL, size: CGFloat) -> Bool {
+        sharp.contains(key(url, size: size))
+    }
 
     private static func key(_ url: URL, size: CGFloat) -> String {
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)?
@@ -81,19 +88,33 @@ enum Thumbnails {
             return
         }
         pending[k] = [completion]
+        // Sicherheitsnetz: Meldet Quick Look sich nicht mehr, warten Anfragen nicht ewig
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            pending.removeValue(forKey: k)?.forEach { $0(cache.object(forKey: k as NSString)) }
+        }
         let request = QLThumbnailGenerator.Request(fileAt: url,
                                                    size: CGSize(width: size, height: size),
                                                    scale: scale,
                                                    representationTypes: .all)
-        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { rep, _ in
+        // Wie der Finder in Stufen: erst ein schnelles Vorschaubild in niedriger Auflösung
+        // (kommt oft sofort), dann das scharfe. So erscheint gleich das Bild der Datei statt
+        // zuerst das allgemeine Symbol ihres Typs.
+        QLThumbnailGenerator.shared.generateRepresentations(for: request) { rep, type, _ in
             let image = rep?.nsImage
-            // Nur echte Vorschaubilder merken. Ein bloßes Symbol kommt z. B., solange
-            // eine frisch abgelegte Datei noch geschrieben wird; dann später erneut versuchen.
-            let final = rep?.type == .thumbnail
             DispatchQueue.main.async {
-                if let image, final { cache.setObject(image, forKey: k as NSString) }
-                let waiting = pending.removeValue(forKey: k) ?? []
-                waiting.forEach { $0(image) }
+                // Nur echte Vorschaubilder merken. Ein bloßes Symbol kommt z. B., solange
+                // eine frisch abgelegte Datei noch geschrieben wird; dann später erneut versuchen.
+                if let image, type != .icon {
+                    // Das scharfe Bild ersetzt das schnelle; umgekehrt nie
+                    if type == .thumbnail || cache.object(forKey: k as NSString) == nil {
+                        cache.setObject(image, forKey: k as NSString)
+                    }
+                    if type == .thumbnail { sharp.insert(k) }
+                }
+                // Wartende bekommen das erste echte Bild, spätestens die letzte Stufe
+                guard (image != nil && type != .icon) || type == .thumbnail,
+                      let waiting = pending.removeValue(forKey: k) else { return }
+                waiting.forEach { $0(type == .icon ? nil : image) }
             }
         }
     }
@@ -142,7 +163,7 @@ struct ThumbnailView: View {
             // darauf warten, statt erst das Symbol und dann das Bild zu zeigen (das flackerte)
             .task(id: url) {
                 guard !ready else { return }
-                try? await Task.sleep(nanoseconds: Self.expectsPreview(url) ? 900_000_000 : 350_000_000)
+                try? await Task.sleep(nanoseconds: Self.expectsPreview(url) ? 1_200_000_000 : 350_000_000)
                 reveal()
             }
             // Neu laden, wenn sich die Datei ändert (z. B. nach dem Verschieben)
@@ -158,13 +179,22 @@ struct ThumbnailView: View {
                     // Nur echte Vorschaubilder übernehmen; ein bloßes Symbol von Quick Look ist
                     // bei frischen Dateien oft das weiße Standardblatt
                     _ = await Thumbnails.load(url, size: size)
-                    if let final = Thumbnails.cached(url, size: size) {
+                    if let found = Thumbnails.cached(url, size: size) {
                         let wasShown = ready
-                        image = final
+                        image = found
                         isPreview = true
                         reveal()
                         // War die Kachel schon zu sehen, kam nur das Bild dazu
                         if wasShown { NotificationCenter.default.post(name: Thumbnails.didChange, object: nil) }
+                        // Erst das schnelle Bild: kurz darauf das scharfe übernehmen
+                        for _ in 0..<12 where !Thumbnails.isSharp(url, size: size) {
+                            try? await Task.sleep(nanoseconds: 250_000_000)
+                            if Task.isCancelled { return }
+                        }
+                        if let sharp = Thumbnails.cached(url, size: size), sharp !== found {
+                            image = sharp
+                            NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
+                        }
                         return
                     }
                     // Erster Versuch ohne echtes Vorschaubild: Symbol zeigen, außer bei Dateien,

@@ -16,9 +16,11 @@ final class ShelfPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        level = Self.shelfLevel
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         isFloatingPanel = true
+        // Erst nach isFloatingPanel: Das setzt die Ebene sonst auf „schwebend“ zurück, und die
+        // Ablage lag unter dem abgedunkelten Hintergrund der Einführung
+        level = Self.shelfLevel
         hidesOnDeactivate = false
         isMovable = false
         isReleasedWhenClosed = false
