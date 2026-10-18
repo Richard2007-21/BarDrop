@@ -55,6 +55,11 @@ final class ViewSmokeTests: XCTestCase {
         }
     }
 
+    /// Einstellungsseite auf der Fläche des Fensters wie in der App
+    private func page<V: View>(_ view: V) -> some View {
+        view.background(SettingsTheme.contentBackdrop)
+    }
+
     func testSettingsPagesRender() {
         let settings = AppSettings.shared
         let store = ShelfStore(baseDirectory: base)
@@ -67,14 +72,17 @@ final class ViewSmokeTests: XCTestCase {
                 settings.titleStyle = variant ? .shelf : .bardrop
                 settings.openMode = variant ? .click : .automatic
                 settings.excludedApps = variant ? ["com.apple.finder", "example.missing.app"] : []
-                let tag = "\(language.rawValue) \(variant)"
-                render(GeneralSettings(settings: settings), size: size, "Allgemein \(tag)")
-                render(OpeningSettings(settings: settings), size: size, "Öffnen \(tag)")
-                render(AppearanceSettings(settings: settings), size: size, "Aussehen \(tag)")
-                render(ItemSettings(settings: settings, store: store), size: size, "Objekte \(tag)")
-                render(ActionSettings(settings: settings), size: size, "Aktionen \(tag)")
-                render(KeyboardSettings(settings: settings), size: size, "Tastatur \(tag)")
-                render(AboutSettings(settings: settings, showOnboarding: {}), size: size, "Über \(tag)")
+                // Hell und dunkel, auf der Fläche des Fensters wie in der App
+                for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+                    let tag = "\(language.rawValue) \(variant) \(appearance == .aqua ? "hell" : "dunkel")"
+                    render(page(GeneralSettings(settings: settings)), size: size, "Allgemein \(tag)", appearance: appearance)
+                    render(page(OpeningSettings(settings: settings)), size: size, "Öffnen \(tag)", appearance: appearance)
+                    render(page(AppearanceSettings(settings: settings)), size: size, "Aussehen \(tag)", appearance: appearance)
+                    render(page(ItemSettings(settings: settings, store: store)), size: size, "Objekte \(tag)", appearance: appearance)
+                    render(page(ActionSettings(settings: settings)), size: size, "Aktionen \(tag)", appearance: appearance)
+                    render(page(KeyboardSettings(settings: settings)), size: size, "Tastatur \(tag)", appearance: appearance)
+                    render(page(AboutSettings(settings: settings, showOnboarding: {})), size: size, "Über \(tag)", appearance: appearance)
+                }
             }
         }
     }
@@ -85,7 +93,7 @@ final class ViewSmokeTests: XCTestCase {
         let sample = OnboardingController.makeSample()
         defer { if let sample { try? FileManager.default.removeItem(at: sample.deletingLastPathComponent()) } }
         for (language, appearance) in [(AppLanguage.german, NSAppearance.Name.darkAqua),
-                                       (.english, .darkAqua), (.german, .aqua)] {
+                                       (.english, .darkAqua), (.german, .aqua), (.english, .aqua)] {
             settings.language = language
             let model = OnboardingModel(settings: settings, sampleURL: sample)
             model.onFinish = { _ in }
