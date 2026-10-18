@@ -321,10 +321,11 @@ final class ViewSmokeTests: XCTestCase {
                     gif("4")
                     ui.selection = Set(gifStore.entries.filter { $0.urls.first?.lastPathComponent == "Notes.txt" }.map(\.id))
                     gif("4 notes")
-                    ui.selection = []
+                    // Beim Ziehen bleibt die Notiz ausgewählt, der Papierkorb leuchtet auf
                     ui.previewTargetedAction = settings.quickActions.first { $0.kind == .trash }?.id
                     gif("4 trash")
                     ui.previewTargetedAction = nil
+                    ui.selection = []
                     let withoutNotes = ShelfStore(baseDirectory: base.appendingPathComponent("GIF2b"))
                     // Gleiche Reihenfolge wie vorher, nur ohne die Notiz: vom ältesten zum neuesten einfügen
                     for entry in gifStore.entries.reversed() where entry.urls.first?.lastPathComponent != "Notes.txt" {

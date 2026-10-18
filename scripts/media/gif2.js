@@ -110,6 +110,8 @@ window.render=function(real){
     for(const [id,n] of [['d1',1],['d2',2],['d3',3]]){
       const dx=(ICON[id][0]-ICON.d2[0])*(1-u), dy=(ICON[id][1]-ICON.d2[1])*(1-u);
       html+=`<div style="position:absolute;left:${dx-25*sc}px;top:${dy-19*sc}px;width:${50*sc}px;height:${37.5*sc}px;background:url(GIF2_Sunset_${n}.jpg) center/cover;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`;
+      // Wie im Finder: jedes Symbol wandert mit seinem Namen
+      html+=`<div style="position:absolute;left:${dx-40}px;top:${dy+22*sc}px;width:80px;text-align:center;opacity:${1-u}"><span style="font-size:10.5px;font-weight:600;color:#fff;background:#2f6ff5;padding:1px 5px;border-radius:4px;white-space:nowrap">Sunset ${n}.jpg</span></div>`;
     }
     html+=`<div style="position:absolute;left:${20*sc}px;top:${-28*sc}px;min-width:18px;height:18px;border-radius:9px;background:#ff3b30;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px;opacity:${1-u}">3</div>`;
     gx=tx; gy=ty;
