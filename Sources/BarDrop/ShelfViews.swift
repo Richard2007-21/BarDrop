@@ -232,7 +232,10 @@ struct ShelfContent: View {
                 showPending = false
             } else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    if store.pendingImports > 0 { showPending = true }
+                    guard store.pendingImports > 0, !showPending else { return }
+                    showPending = true
+                    // Platzhalter erscheinen später als die Änderung, die neu zeichnen ließ
+                    NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
                 }
             }
         }

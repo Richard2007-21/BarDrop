@@ -66,6 +66,10 @@ enum Thumbnails {
     /// Dateien, deren Kachel schon einmal gezeigt wurde (nur auf dem Hauptthread)
     static var shownOnce = Set<String>()
 
+    /// Eine Kachel zeigt jetzt ihr Symbol oder Vorschaubild (Hauptthread). Die Ablage
+    /// zeichnet sich daraufhin neu, auch wenn sie gerade keinen Fokus hat.
+    static let didChange = Notification.Name("BarDropThumbnailDidChange")
+
     static func load(_ url: URL, size: CGFloat, completion: @escaping (NSImage?) -> Void) {
         let k = key(url, size: size)
         if let img = cache.object(forKey: k as NSString) {
@@ -153,9 +157,12 @@ struct ThumbnailView: View {
                     // bei frischen Dateien oft das weiße Standardblatt
                     _ = await Thumbnails.load(url, size: size)
                     if let final = Thumbnails.cached(url, size: size) {
+                        let wasShown = ready
                         image = final
                         isPreview = true
                         reveal()
+                        // War die Kachel schon zu sehen, kam nur das Bild dazu
+                        if wasShown { NotificationCenter.default.post(name: Thumbnails.didChange, object: nil) }
                         return
                     }
                     // Erster Versuch ohne echtes Vorschaubild: Symbol zeigen
@@ -173,5 +180,6 @@ struct ThumbnailView: View {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { ready = true }
+        NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
     }
 }

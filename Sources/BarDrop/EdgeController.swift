@@ -52,6 +52,7 @@ final class EdgeController: NSObject {
     private var layoutDirty = false
     private var settingsObserver: AnyCancellable?
     private var contentObserver: AnyCancellable?
+    private var tileObserver: AnyCancellable?
     private var appObserver: NSObjectProtocol?
     private var excludedObserver: AnyCancellable?
     /// Die App vorn ist ausgenommen: Der Rand öffnet die Ablage dann nicht
@@ -154,6 +155,13 @@ final class EdgeController: NSObject {
             .merge(with: store.$pendingImports.map { _ in () })
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.refreshContent() }
+        // Dasselbe für Änderungen innerhalb der Kacheln, die später kommen als der Eintrag
+        // selbst: Eine neue Kachel zeigt ihr Bild erst, wenn das Vorschaubild da ist (bzw.
+        // nach einem kurzen Moment). Ohne Neuzeichnen bliebe sie bis zum nächsten Öffnen leer.
+        // Viele Kacheln auf einmal (Öffnen einer vollen Ablage): höchstens alle 30 ms
+        tileObserver = NotificationCenter.default.publisher(for: Thumbnails.didChange)
+            .throttle(for: .milliseconds(30), scheduler: DispatchQueue.main, latest: true)
+            .sink { [weak self] _ in self?.redrawContent() }
 
         let cleanup = Timer(timeInterval: 60, target: self, selector: #selector(removeExpired), userInfo: nil, repeats: true)
         RunLoop.main.add(cleanup, forMode: .common)
@@ -412,18 +420,28 @@ final class EdgeController: NSObject {
         }
     }
 
-    /// Zeichnet die offene Ablage sofort neu und holt den Fokus zurück, wenn der Zeiger
-    /// darüber ist (so wie direkt nach dem Ablegen).
-    private func refreshContent() {
+    /// Zeichnet die offene Ablage sofort neu und kurz danach noch einmal (die Änderung
+    /// erreicht die Ansicht teils erst im nächsten Durchlauf). Ohne Fokus täte macOS das
+    /// teils erst beim nächsten Öffnen.
+    private func redrawContent() {
         guard ui.level == .expanded, let host = panel.contentView else { return }
         host.needsLayout = true
         host.needsDisplay = true
         panel.displayIfNeeded()
-        // Kurz danach noch einmal: Die Einfüge-Animation beginnt erst im nächsten Durchlauf
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self, self.ui.level == .expanded else { return }
             self.panel.contentView?.needsDisplay = true
             self.panel.displayIfNeeded()
+        }
+    }
+
+    /// Zeichnet die offene Ablage sofort neu und holt den Fokus zurück, wenn der Zeiger
+    /// darüber ist (so wie direkt nach dem Ablegen).
+    private func refreshContent() {
+        guard ui.level == .expanded else { return }
+        redrawContent()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self, self.ui.level == .expanded else { return }
             if !self.panel.isKeyWindow, (NSEvent.pressedMouseButtons & 1) == 0,
                let screen = self.screen,
                self.bodyRect(.expanded, on: screen).contains(NSEvent.mouseLocation) {
