@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 && self.settingsWindow?.isVisible != true && self.onboarding == nil
         }
         Updater.shared.start()
+        Diagnostics.shared.installCrashHandler()
         Diagnostics.shared.record("app", "launch \(Updater.shared.currentVersion) firstLaunch=\(!settings.didLaunchBefore) afterUpdate=\(Updater.launchedAfterUpdate)")
 
         // Erster Start: Einführung. Als erledigt gilt sie erst, wenn sie geschlossen

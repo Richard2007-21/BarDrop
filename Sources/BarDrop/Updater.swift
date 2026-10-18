@@ -123,6 +123,7 @@ final class Updater: ObservableObject {
               let link = asset["browser_download_url"] as? String,
               let dmg = URL(string: link) else {
             Log.edge.error("Update-Suche fehlgeschlagen: \(error?.localizedDescription ?? "keine Antwort", privacy: .public)")
+            Diagnostics.shared.failure("update", "Update-Suche fehlgeschlagen", error)
             // Eine Suche ohne Zutun meldet nichts: kein Fehlerhinweis in den Einstellungen
             state = interactive ? .failed(L("Couldn’t reach GitHub.", "Keine Verbindung zu GitHub.")) : .idle
             if interactive {
@@ -338,6 +339,7 @@ final class Updater: ObservableObject {
             if let error {
                 // Rückfall: kleines Skript wartet auf das Ende und öffnet dann die App
                 Log.edge.error("Neustart über Startdienste fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+                Diagnostics.shared.failure("update", "Neustart über Startdienste fehlgeschlagen", error)
                 let script = """
                 while kill -0 "$1" 2>/dev/null; do sleep 0.2; done
                 sleep 0.5
@@ -398,6 +400,7 @@ final class Updater: ObservableObject {
 
     private func fail(_ message: String, _ release: Release) {
         Log.edge.error("Update fehlgeschlagen: \(message, privacy: .public)")
+        Diagnostics.shared.failure("update", "Update fehlgeschlagen: \(message)")
         DispatchQueue.main.async {
             self.state = .failed(message)
             // Still im Hintergrund: keine Meldung, beim nächsten Suchen neuer Versuch

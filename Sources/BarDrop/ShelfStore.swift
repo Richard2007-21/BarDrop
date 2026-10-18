@@ -209,6 +209,7 @@ final class ShelfStore: ObservableObject {
     private func copyFinished(_ id: UUID, _ copy: URL?) {
         guard let copy else {
             Log.importing.error("Kopie fehlgeschlagen, Datei bleibt als Verweis")
+            Diagnostics.shared.failure("store", "Kopie fehlgeschlagen, Datei bleibt als Verweis")
             return
         }
         var updated = entries
@@ -243,11 +244,13 @@ final class ShelfStore: ObservableObject {
             let backup = baseDir.appendingPathComponent("shelf-unlesbar-\(Int(Date().timeIntervalSince1970)).json")
             try? FileManager.default.moveItem(at: dbURL, to: backup)
             Log.store.error("Liste unlesbar, gesichert: \(error.localizedDescription, privacy: .public)")
+            Diagnostics.shared.failure("store", "Liste unlesbar, gesichert", error)
             return
         }
         let broken = decoded.filter { $0.entry == nil }.count
         if broken > 0 {
             Log.store.error("\(broken, privacy: .public) beschädigte Einträge übersprungen")
+            Diagnostics.shared.failure("store", "\(broken) beschädigte Einträge übersprungen")
             // Rohdaten aufheben, damit das nächste Speichern sie nicht verwirft
             if let raw = try? JSONSerialization.jsonObject(with: data) as? [Any], raw.count == decoded.count {
                 unreadableEntries = zip(raw, decoded).filter { $0.1.entry == nil }.map { $0.0 }
@@ -338,6 +341,7 @@ final class ShelfStore: ObservableObject {
             try data.write(to: dbURL, options: .atomic)
         } catch {
             Log.store.error("Speichern fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+            Diagnostics.shared.failure("store", "Speichern fehlgeschlagen", error)
         }
     }
 
@@ -510,7 +514,8 @@ final class ShelfStore: ObservableObject {
                 if let error {
                     Log.store.error("Papierkorb fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
                 }
-                Diagnostics.shared.record("trash", "\(trashed.count) of \(urls.count) error=\(error.map { ($0 as NSError).code } ?? 0) files=\(Diagnostics.anon(urls))")
+                Diagnostics.shared.record("trash", "\(trashed.count) of \(urls.count) files=\(Diagnostics.anon(urls))")
+                if let error { Diagnostics.shared.failure("trash", "Papierkorb fehlgeschlagen", error) }
                 let mapping = Dictionary(trashed.map { ($0.key.standardizedFileURL, $0.value) },
                                          uniquingKeysWith: { first, _ in first })
                 let shelfFiles = self.entries.flatMap(\.files)
@@ -666,6 +671,7 @@ final class ShelfStore: ObservableObject {
                 try fm.moveItem(at: inTrash, to: original)
             } catch {
                 Log.store.error("Zurücklegen fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+                Diagnostics.shared.failure("store", "Zurücklegen fehlgeschlagen", error)
             }
         }
     }

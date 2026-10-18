@@ -103,7 +103,22 @@ enum Thumbnails {
         QLThumbnailGenerator.shared.generateRepresentations(for: request) { rep, type, error in
             let image = rep?.nsImage
             DispatchQueue.main.async {
-                Diagnostics.shared.record("thumb", "\(Diagnostics.anon(url)) type=\(type.rawValue) image=\(image != nil) ms=\(Int(Date().timeIntervalSince(requested) * 1000)) error=\(error.map { ($0 as NSError).code } ?? 0)")
+                if Diagnostics.shared.isEnabled {
+                    let stage = [0: "icon", 1: "low", 2: "sharp"][type.rawValue] ?? "\(type.rawValue)"
+                    let uti = (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType?.identifier ?? "?"
+                    let base = "\(Diagnostics.anon(url)) stage=\(stage) uti=\(uti) image=\(image != nil) ms=\(Int(Date().timeIntervalSince(requested) * 1000))"
+                    if let error {
+                        // Für die schnelle Stufe hat Quick Look oft nichts zwischengespeichert: normal
+                        let harmless = type == .lowQualityThumbnail && (error as NSError).code == 2
+                        if harmless {
+                            Diagnostics.shared.record("thumb", base + " (normal: keine schnelle Vorschau zwischengespeichert)")
+                        } else {
+                            Diagnostics.shared.failure("thumb", "Vorschau " + base, error)
+                        }
+                    } else {
+                        Diagnostics.shared.record("thumb", base)
+                    }
+                }
                 // Nur echte Vorschaubilder merken. Ein bloßes Symbol kommt z. B., solange
                 // eine frisch abgelegte Datei noch geschrieben wird; dann später erneut versuchen.
                 if let image, type != .icon {

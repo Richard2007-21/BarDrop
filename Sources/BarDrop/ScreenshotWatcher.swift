@@ -60,6 +60,7 @@ final class ScreenshotWatcher {
         self.query = query
         if !query.start() {
             Log.importing.error("Bildschirmfotos: Spotlight-Abfrage ließ sich nicht starten")
+            Diagnostics.shared.failure("screenshots", "Spotlight-Abfrage ließ sich nicht starten")
             stop()
         }
     }
@@ -108,6 +109,7 @@ final class ScreenshotWatcher {
         let fd = open(folder.path, O_EVTONLY)
         guard fd >= 0 else {
             Log.importing.error("Bildschirmfotos: Ordner nicht lesbar (\(folder.path, privacy: .private))")
+            Diagnostics.shared.failure("screenshots", "Ordner nicht lesbar \(Diagnostics.anon(folder)) errno=\(errno) \(String(cString: strerror(errno)))")
             return
         }
         folderDescriptor = fd

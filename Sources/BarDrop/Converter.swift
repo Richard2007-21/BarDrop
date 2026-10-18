@@ -274,6 +274,7 @@ enum Converter {
                     lock.lock(); results.append(out); lock.unlock()
                 } else {
                     Log.importing.error("Video-Umwandlung fehlgeschlagen: \(session.error?.localizedDescription ?? "", privacy: .public)")
+                    Diagnostics.shared.failure("convert", "Video-Umwandlung fehlgeschlagen status=\(session.status.rawValue)", session.error)
                 }
                 group.leave()
             }

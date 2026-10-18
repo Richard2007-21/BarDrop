@@ -495,6 +495,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 } catch {
                     failed = true
                     Log.export.error("Ablegen im Ordner fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+                    Diagnostics.shared.failure("folder", "Ablegen im Ordner fehlgeschlagen", error)
                 }
             }
             DispatchQueue.main.async {

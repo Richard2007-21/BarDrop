@@ -382,12 +382,14 @@ final class OnboardingController: NSObject, NSWindowDelegate {
                 try SMAppService.mainApp.register()
             } catch {
                 Log.edge.error("Anmeldeobjekt nicht möglich: \(error.localizedDescription, privacy: .public)")
+                Diagnostics.shared.failure("login", "Anmeldeobjekt nicht möglich", error)
             }
         case .unregister:
             do {
                 try SMAppService.mainApp.unregister()
             } catch {
                 Log.edge.error("Anmeldeobjekt ließ sich nicht entfernen: \(error.localizedDescription, privacy: .public)")
+                Diagnostics.shared.failure("login", "Anmeldeobjekt ließ sich nicht entfernen", error)
             }
         case nil:
             break

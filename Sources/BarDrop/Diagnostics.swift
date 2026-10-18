@@ -1,6 +1,7 @@
 import AppKit
 import CryptoKit
 import OSLog
+import QuickLookThumbnailing
 
 /// Ausführliches Diagnoseprotokoll für Beta-Versionen. Standardmäßig aus; nur wer es unter
 /// Über BarDrop selbst einschaltet (nach einem Hinweis), bekommt es. Alles bleibt auf diesem
@@ -55,6 +56,108 @@ final class Diagnostics {
                 try? handle.close()
             }
         }
+    }
+
+    // MARK: Fehler
+
+    /// Einen Fehler mit Herkunft festhalten: was schiefging, Fehlerbereich und Code mit
+    /// verständlichem Namen, der Text des Systems (Namen darin verdeckt), die zugrunde
+    /// liegenden Fehler und die Stelle im Code. So lässt sich jeder Fehler zurückverfolgen.
+    func failure(_ category: String, _ what: @autoclosure () -> String, _ error: Error? = nil,
+                 file: String = #fileID, line: Int = #line, function: String = #function) {
+        guard isEnabled else { return }
+        let detail = error.map { " " + Self.describe($0) } ?? ""
+        record(category, "FEHLER \(what())\(detail) @\(Self.shortFile(file)):\(line) \(function)")
+    }
+
+    /// Fehler ausführlich, aber ohne Datei- und Ordnernamen
+    static func describe(_ error: Error, depth: Int = 0) -> String {
+        let ns = error as NSError
+        var text = "\(ns.domain)#\(ns.code)"
+        if let name = knownName(domain: ns.domain, code: ns.code) { text += " (\(name))" }
+        text += " \"\(scrub(ns.localizedDescription))\""
+        if let reason = ns.localizedFailureReason { text += " reason=\"\(scrub(reason))\"" }
+        if depth < 3, let underlying = ns.userInfo[NSUnderlyingErrorKey] as? Error {
+            text += " <- " + describe(underlying, depth: depth + 1)
+        }
+        return text
+    }
+
+    /// Verständliche Namen für häufige Fehlercodes
+    static func knownName(domain: String, code: Int) -> String? {
+        switch domain {
+        case QLThumbnailError.errorDomain:
+            return [0: "generationFailed", 1: "savingToURLFailed", 2: "noCachedThumbnail",
+                    3: "noCloudThumbnail", 4: "requestInvalid", 5: "requestCancelled"][code]
+        case NSCocoaErrorDomain:
+            return [4: "fileNoSuchFile", 255: "fileLocking", 256: "fileReadUnknown", 257: "fileReadNoPermission",
+                    258: "fileReadInvalidFileName", 259: "fileReadCorruptFile", 260: "fileReadNoSuchFile",
+                    263: "fileReadTooLarge", 264: "fileReadUnknownStringEncoding", 512: "fileWriteUnknown",
+                    513: "fileWriteNoPermission", 514: "fileWriteInvalidFileName", 516: "fileWriteFileExists",
+                    517: "fileWriteInapplicableStringEncoding", 640: "fileWriteOutOfSpace",
+                    642: "fileWriteVolumeReadOnly", 3072: "userCancelled", 3840: "propertyListReadCorrupt",
+                    4864: "coderReadCorrupt", 4865: "coderValueNotFound"][code]
+        case NSPOSIXErrorDomain:
+            return String(cString: strerror(Int32(code)))
+        case NSURLErrorDomain:
+            return [-1001: "timedOut", -1003: "cannotFindHost", -1004: "cannotConnectToHost",
+                    -1005: "networkConnectionLost", -1009: "notConnectedToInternet", -1011: "badServerResponse"][code]
+        default:
+            return nil
+        }
+    }
+
+    /// Text ohne Namen und Pfade: Angaben in Anführungszeichen und Pfade werden verdeckt
+    static func scrub(_ text: String) -> String {
+        var out = text
+        for pattern in ["“[^”]*”", "„[^“]*“", "‘[^’]*’", "\"[^\"]*\"", "'[^']*'", "(/Users|/Volumes|/private|/var|/tmp)/[^\\s,;)]*"] {
+            out = out.replacingOccurrences(of: pattern, with: "•", options: .regularExpression)
+        }
+        return out.replacingOccurrences(of: "\n", with: " ")
+    }
+
+    /// Dateiname der Quelle ohne Modul, z. B. "Thumbnails.swift"
+    static func shortFile(_ fileID: String) -> String {
+        fileID.split(separator: "/").last.map(String.init) ?? fileID
+    }
+
+    /// Nicht abgefangene Ausnahmen (Absturzursache) festhalten. Schreibt sofort, ohne
+    /// Warteschlange, weil das Programm danach endet.
+    func installCrashHandler() {
+        NSSetUncaughtExceptionHandler { exception in
+            let d = Diagnostics.shared
+            guard d.isEnabled else { return }
+            let stack = exception.callStackSymbols.prefix(40).joined(separator: "\n    ")
+            let line = "\(d.formatter.string(from: Date()))  [crash]  FEHLER Ausnahme \(exception.name.rawValue) \"\(Diagnostics.scrub(exception.reason ?? ""))\"\n    \(stack)\n"
+            if let handle = try? FileHandle(forWritingTo: d.logURL) {
+                handle.seekToEndOfFile()
+                handle.write(Data(line.utf8))
+                try? handle.close()
+            }
+        }
+    }
+
+    /// Die letzten Absturzberichte von BarDrop, die macOS geschrieben hat (Pfade verdeckt)
+    private func crashReports() -> [String] {
+        let dir = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs/DiagnosticReports", isDirectory: true)
+        let files = ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [])
+            .filter { $0.lastPathComponent.hasPrefix("BarDrop") }
+            .sorted {
+                let a = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let b = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return a > b
+            }
+        guard !files.isEmpty else { return ["–"] }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        var out: [String] = []
+        for url in files.prefix(3) {
+            out.append("### \(url.lastPathComponent.replacingOccurrences(of: NSUserName(), with: "•"))")
+            guard var text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            text = text.replacingOccurrences(of: home, with: "~").replacingOccurrences(of: NSUserName(), with: "•")
+            out.append(String(text.prefix(60_000)))
+        }
+        return out
     }
 
     /// Protokoll löschen (beim Ausschalten)
@@ -130,6 +233,9 @@ final class Diagnostics {
         out.append("")
         out.append("## Systemprotokoll seit dem Start / System log since launch")
         out.append(contentsOf: systemLog())
+        out.append("")
+        out.append("## Absturzberichte / Crash reports")
+        out.append(contentsOf: crashReports())
         return out.joined(separator: "\n")
     }
 
@@ -176,10 +282,21 @@ final class Diagnostics {
         }
         var lines: [String] = []
         for case let entry as OSLogEntryLog in entries {
-            lines.append("\(formatter.string(from: entry.date))  [\(entry.category)] \(entry.level.rawValue)  \(entry.composedMessage)")
+            lines.append("\(formatter.string(from: entry.date))  [\(entry.category)] \(Self.levelName(entry.level))  \(entry.composedMessage)")
             if lines.count > 4000 { lines.append("…"); break }
         }
         return lines.isEmpty ? ["–"] : lines
+    }
+
+    private static func levelName(_ level: OSLogEntryLog.Level) -> String {
+        switch level {
+        case .debug: return "debug"
+        case .info: return "info"
+        case .notice: return "notice"
+        case .error: return "FEHLER"
+        case .fault: return "FEHLER(fault)"
+        default: return "undefined"
+        }
     }
 
     private static func sysctl(_ name: String) -> String {

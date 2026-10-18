@@ -27,6 +27,7 @@ final class HotKey {
         if status != noErr {
             // Meist belegt eine andere App dieselbe Tastenkombination
             Log.edge.error("Kurzbefehl nicht verfügbar (\(status, privacy: .public))")
+            Diagnostics.shared.failure("hotkey", "Kurzbefehl nicht verfügbar OSStatus=\(status)")
         }
     }
 

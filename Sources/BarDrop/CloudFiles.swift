@@ -47,6 +47,7 @@ enum CloudFiles {
                 try FileManager.default.startDownloadingUbiquitousItem(at: url)
             } catch {
                 Log.importing.error("iCloud-Download nicht möglich: \(error.localizedDescription, privacy: .public)")
+                Diagnostics.shared.failure("cloud", "iCloud-Download nicht möglich \(Diagnostics.anon(url))", error)
                 completion(false)
                 return
             }
@@ -58,6 +59,7 @@ enum CloudFiles {
         let values = freshValues(url, [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey])
         if values?.ubiquitousItemDownloadingError != nil {
             Log.importing.error("iCloud meldet einen Fehler beim Laden")
+            Diagnostics.shared.failure("cloud", "iCloud meldet einen Fehler beim Laden \(Diagnostics.anon(url))", values?.ubiquitousItemDownloadingError)
             completion(false)
             return
         }
@@ -68,6 +70,7 @@ enum CloudFiles {
         }
         guard Date() < deadline else {
             Log.importing.error("iCloud-Download nicht rechtzeitig fertig")
+            Diagnostics.shared.failure("cloud", "iCloud-Download nicht rechtzeitig fertig \(Diagnostics.anon(url))")
             completion(false)
             return
         }

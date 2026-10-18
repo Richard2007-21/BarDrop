@@ -196,6 +196,7 @@ final class DragExporter: NSObject, NSFilePromiseProviderDelegate {
                 completionHandler(nil)
             } else {
                 Log.export.error("Versprechen fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+                Diagnostics.shared.failure("export", "Versprechen fehlgeschlagen", error)
                 lock.lock(); failedAt[key] = Date(); lock.unlock()
                 let source = item.source
                 DispatchQueue.main.async { [weak self] in self?.onFailed(source) }
@@ -248,8 +249,10 @@ final class Outbox {
             }
         }
         guard result == 0 else {
+            let code = errno
             try? FileManager.default.removeItem(at: dir)
             Log.export.error("Frische Kopie nicht möglich (\(errno, privacy: .public)), nehme Original")
+            Diagnostics.shared.failure("export", "Frische Kopie nicht möglich, nehme Original errno=\(code) \(String(cString: strerror(code)))")
             return nil
         }
         return target
