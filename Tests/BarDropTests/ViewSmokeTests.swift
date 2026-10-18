@@ -239,6 +239,25 @@ final class ViewSmokeTests: XCTestCase {
             shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
                  size: CGSize(width: 440, height: 600), "Produkt Ablage \(lang)", dir: dir)
 
+            // Für das Vorschau-GIF: ohne Auswahl, mit und ohne den See, und leer
+            if language == .english {
+                ui.selection = []
+                ui.showSampleTile = false
+                let lake = store.entries.first { $0.urls.first?.lastPathComponent == "Lake.jpg" }
+                shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
+                     size: CGSize(width: 440, height: 600), "Produkt GIF mit", dir: dir)
+                if let lake {
+                    let fresh = ShelfStore(baseDirectory: base.appendingPathComponent("GIF"))
+                    fresh.add(store.entries.reversed().filter { $0.id != lake.id }.flatMap(\.files))
+                    let freshActions = ShelfActions(store: fresh, ui: ui, settings: settings)
+                    shot(ShelfRootView(ui: ui, store: fresh, settings: settings, actions: freshActions),
+                         size: CGSize(width: 440, height: 600), "Produkt GIF ohne", dir: dir)
+                    fresh.add(lake.files)
+                    shot(ShelfRootView(ui: ui, store: fresh, settings: settings, actions: freshActions),
+                         size: CGSize(width: 440, height: 600), "Produkt GIF oben", dir: dir)
+                }
+            }
+
             // 2. Mit Stapel
             settings.stackMultiple = true
             settings.stackThreshold = 2
