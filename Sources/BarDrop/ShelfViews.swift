@@ -132,6 +132,8 @@ struct ShelfContent: View {
     let actions: ShelfActions
 
     @State private var tileFrames: [UUID: CGRect] = [:]
+    /// Höhe des sichtbaren Bereichs der Kacheln (bis unter die Aktionsleiste)
+    @State private var viewportHeight: CGFloat = 0
     /// Wie weit gescrollt ist; ändert die Ansicht nur, wenn sich `scrolled` ändert
     @StateObject private var scroll = ScrollTracker()
     @State private var band: CGRect?
@@ -228,6 +230,8 @@ struct ShelfContent: View {
                         .onPreferenceChange(TileFramesKey.self) { tileFrames = $0 }
                     }
                     .coordinateSpace(name: "viewport")
+                    .onAppear { viewportHeight = geo.size.height }
+                    .onChange(of: geo.size.height) { _, height in viewportHeight = height }
                     .onPreferenceChange(ScrollOffsetKey.self) { scroll.offset = $0 }
                     // Pfeiltasten: Die ausgewählte Kachel bleibt ganz zu sehen, wie im Finder
                     .onChange(of: ui.scrollRequest) { _, request in
@@ -367,9 +371,10 @@ struct ShelfContent: View {
     @ViewBuilder
     private var mainGrid: some View {
         if store.entries.isEmpty && !showPending && !ui.showSampleTile {
+            // Mittig in der Fläche zwischen Kopf und Aktionsleiste
             emptyState
                 .frame(maxWidth: .infinity)
-                .padding(.top, 40)
+                .frame(height: max(0, viewportHeight - barHeight))
                 .allowsHitTesting(false)
                 .transition(Self.tileTransition)
         } else {
@@ -517,20 +522,17 @@ struct ShelfContent: View {
 
     // MARK: Leerer Zustand, Drop-Hervorhebung
 
+    /// Leere Ablage: Symbol und „Hier ablegen“, zurückgenommen grau; erst wenn etwas
+    /// darübergezogen wird, weiß
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "tray.and.arrow.down")
                 .font(.system(size: 30, weight: .light))
-                .foregroundStyle(.white.opacity(ui.isDropTargeted ? 0.95 : 0.45))
                 .scaleEffect(ui.isDropTargeted ? 1.12 : 1)
             Text(L("Drop here", "Hier ablegen"))
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.85))
-            Text(L("Files, web images,\nlinks and text", "Dateien, Bilder aus dem Web,\nLinks und Text"))
-                .font(.system(size: 11))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.white.opacity(0.45))
         }
+        .foregroundStyle(.white.opacity(ui.isDropTargeted ? 1 : 0.45))
     }
 
     private var dropHighlight: some View {
