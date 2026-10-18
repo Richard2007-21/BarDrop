@@ -210,7 +210,7 @@ struct OpeningSettings: View {
                                   "Mit Wartezeit öffnet ein Klick auf den Streifen die Ablage sofort."),
                           selection: $settings.openChoice,
                           options: OpenChoice.all.map { ($0, $0.title) })
-                ToggleRow(L("Pointer only on the strip itself", "Zeiger nur am Streifen selbst"),
+                ToggleRow(L("Small hit area for the pointer", "Kleiner Trefferbereich für den Zeiger"),
                           info: L("Without a file, the shelf only opens when the pointer touches the strip itself. While dragging files, the area at the edge stays generous.",
                                   "Ohne Datei öffnet die Ablage nur, wenn der Zeiger den Streifen selbst berührt. Beim Ziehen von Dateien bleibt der Bereich am Rand großzügig."),
                           isOn: $settings.exactPointer)

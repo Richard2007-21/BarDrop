@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.30.0-beta.20
+* **Changed:** Introduction: the shelf opens when you click “Let’s Go” and stays open while you drop the photo and drag it onto the Trash
+* **Changed:** Introduction: new step “Open with the Pointer” near the end: a short scene shows how the shelf opens at the edge without a file, then you try it
+* Introduction: the exercises stand freely under the text instead of in a box; the photo to drag has a soft, breathing highlight so you see it can be picked up
+* Introduction: the Trash in the exercise looks full or empty like the Trash of your Mac; “⌘Z brings it back” stays a little longer
+* Introduction: the photo to drag no longer disappears (it stays in memory, and it is created again if it was dragged somewhere else)
+* Introduction: texts reworded to match what happens now; And There’s More shows Pin instead of repeating Actions
+* Opening → When: the option is now called “Small hit area for the pointer”
+
 ## 1.30.0-beta.19
 * **Changed:** Introduction: on the first page the shelf opens at the edge, so you see where it is. On the next page it closes, the strip stays, and you drag the photo in
 * **Changed:** Introduction: instead of dragging the photo back out, you drag it onto the Trash in the action bar (or onto any action if the Trash isn’t there). This puts the sample photo in the Trash of your Mac; ⌘Z brings it back

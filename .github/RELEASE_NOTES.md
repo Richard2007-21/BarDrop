@@ -1,17 +1,21 @@
 ### Changed behavior
-* Introduction: the shelf opens on the first page so you see where it is; then you drop the photo and drag it onto the Trash in the action bar
-* The sample photo of the introduction ends up in your Trash; ⌘Z brings it back
+* Introduction: the shelf opens with “Let’s Go” and stays open while you practice
+* Introduction: a new step shows how to open the shelf with the pointer
 
 ### Also new
-* Right-click menu: “Remove from Shelf” makes clear the file itself stays
-* Introduction: the window sits exactly in the middle of the screen with the shelf
+* Cleaner exercises without a box; the photo shows that it can be picked up
+* The Trash in the introduction looks full or empty like yours
+* The practice photo no longer disappears
+* Clearer texts in the introduction and the option “Small hit area for the pointer”
 
 <!-- de -->
 
 ### Geändertes Verhalten
-* Einführung: Auf der ersten Seite öffnet sich die Ablage, damit du siehst, wo sie ist; danach legst du das Foto ab und ziehst es auf den Papierkorb der Aktionsleiste
-* Das Beispielfoto der Einführung landet dabei in deinem Papierkorb; ⌘Z holt es zurück
+* Einführung: Die Ablage öffnet sich mit „Los geht’s“ und bleibt beim Üben offen
+* Einführung: Ein neuer Schritt zeigt, wie man die Ablage mit dem Zeiger öffnet
 
 ### Außerdem
-* Rechtsklickmenü: „Aus der Ablage entfernen“ macht klar, dass die Datei selbst bleibt
-* Einführung: Das Fenster steht genau in der Mitte des Bildschirms mit der Ablage
+* Übungen ohne Kasten; das Foto zeigt, dass man es anfassen kann
+* Der Papierkorb in der Einführung sieht voll oder leer aus wie deiner
+* Das Übungsfoto verschwindet nicht mehr
+* Klarere Texte in der Einführung und die Option „Kleiner Trefferbereich für den Zeiger“

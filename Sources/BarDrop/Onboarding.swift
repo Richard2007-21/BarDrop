@@ -12,7 +12,7 @@ import Carbon
 /// geschafft ist. Farben, Schalter und Knöpfe wie in den Einstellungen.
 final class OnboardingModel: ObservableObject {
     enum Step: Int, CaseIterable, Identifiable {
-        case welcome, drop, retrieve, shortcut, features
+        case welcome, drop, retrieve, shortcut, hover, features
         var id: Int { rawValue }
     }
 
@@ -53,7 +53,7 @@ final class OnboardingModel: ObservableObject {
     }
 
     /// Schritte zum Mitmachen
-    static let practice: [Step] = [.drop, .retrieve, .shortcut]
+    static let practice: [Step] = [.drop, .retrieve, .shortcut, .hover]
 
     /// Der aktuelle Schritt ist geschafft
     var stepDone: Bool { completed.contains(step) }
@@ -81,7 +81,9 @@ final class OnboardingModel: ObservableObject {
         guard step == done, !completed.contains(done) else { return }
         Haptics.tap()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { _ = completed.insert(done) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+        // Der Hinweis auf ⌘Z nach dem Papierkorb braucht etwas länger zum Lesen
+        let pause = done == .retrieve ? 3.2 : 1.4
+        DispatchQueue.main.asyncAfter(deadline: .now() + pause) { [weak self] in
             guard let self, self.step == done else { return }
             self.advance()
         }
@@ -246,6 +248,11 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             .sink { [weak self] entries in self?.entriesChanged(entries) }
             .store(in: &subscriptions)
 
+        ui.$level
+            .receive(on: RunLoop.main)
+            .sink { [weak self] level in self?.levelChanged(level) }
+            .store(in: &subscriptions)
+
         // Übung „Aktionen“: das Foto auf eine Aktion der Leiste gezogen (normal der Papierkorb)
         NotificationCenter.default.publisher(for: ShelfActions.didPerformAction)
             .receive(on: RunLoop.main)
@@ -261,11 +268,15 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     private func prepare(_ step: OnboardingModel.Step) {
         // Willkommen: Die Ablage steht offen am Rand, damit man sieht, wo sie ist.
         // Bei den Übungen bleibt dort der Streifen stehen.
+        // Ab „Los geht’s“ steht die Ablage offen am Rand und bleibt beim Ablegen und bei den
+        // Aktionen offen. Zum Öffnen mit dem Zeiger ist sie zu, das übt man selbst.
         switch step {
-        case .welcome: showGuide(.expanded)
-        case .drop, .retrieve: showGuide(.peek)
+        case .drop, .retrieve: showGuide(.expanded)
         default: showGuide(nil)
         }
+        if step == .drop || step == .retrieve { ensureSample() }
+        if step == .retrieve { TrashState.shared.refresh() }
+        hoverArmed = false
         switch step {
         case .drop:
             baseline = Set(store.entries.map(\.id))
@@ -273,6 +284,22 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         default:
             break
         }
+    }
+
+    /// Schritt „Mit dem Zeiger öffnen“: Erst zählt es, wenn die Ablage zu war
+    private var hoverArmed = false
+
+    private func levelChanged(_ level: ShelfUIModel.Level) {
+        guard model.step == .hover else { return }
+        if level == .hidden { hoverArmed = true }
+        if level == .expanded && hoverArmed { model.complete(.hover) }
+    }
+
+    /// Das Übungsfoto muss da sein; wurde es woandershin gezogen (z. B. auf den Schreibtisch,
+    /// wo der Finder es verschiebt), wird es neu angelegt
+    private func ensureSample() {
+        if let url = model.sampleURL, FileManager.default.fileExists(atPath: url.path) { return }
+        if let fresh = Self.makeSample() { model.sampleURL = fresh }
     }
 
     private func entriesChanged(_ entries: [ShelfEntry]) {
@@ -579,8 +606,9 @@ extension OnboardingModel.Step {
         switch self {
         case .welcome: return L("Welcome", "Willkommen")
         case .drop: return L("Drop", "Ablegen")
-        case .retrieve: return L("Drag Out", "Herausziehen")
+        case .retrieve: return L("Actions", "Aktionen")
         case .shortcut: return L("Shortcut", "Kurzbefehl")
+        case .hover: return L("Open with the Pointer", "Mit dem Zeiger öffnen")
         case .features: return L("Discover More", "Mehr entdecken")
         }
     }
@@ -617,6 +645,7 @@ struct OnboardingView: View {
         case .drop: DropPage(model: model, settings: settings)
         case .retrieve: RetrievePage(model: model, settings: settings)
         case .shortcut: ShortcutPage(model: model, settings: settings)
+        case .hover: HoverPage(model: model, settings: settings)
         case .features: FeaturesPage(settings: settings)
         }
     }
@@ -727,63 +756,47 @@ private struct PresentationPage<Hero: View, Practice: View>: View {
     }
 }
 
-/// Die Übung einer Seite, in derselben Karte wie die Einstellungen: links das, womit man
-/// übt, rechts kurz, was zu tun ist. Danach ein grüner Haken mit kurzer Bestätigung an
-/// derselben Stelle.
+/// Die Übung einer Seite, frei stehend wie ein Objekt auf dem Schreibtisch: oben das, womit
+/// man übt, darunter in einem Satz, was zu tun ist. Danach an derselben Stelle ein grüner
+/// Haken mit kurzer Bestätigung.
 private struct TaskCard<Leading: View>: View {
     let done: Bool
     let instruction: String
     let confirmation: String
-    /// Die Karte selbst ist ein Ziel zum Ablegen
+    /// Ohne Bedeutung mehr (früher: Karte als Ablageziel); bleibt für die Aufrufe
     var dashed = false
-    /// Etwas wird gerade über die Karte gezogen
     var targeted = false
     @ViewBuilder let leading: () -> Leading
 
-    static var size: CGSize { CGSize(width: 440, height: 112) }
-
-    private var accent: Color { Color(nsColor: .controlAccentColor) }
+    static var size: CGSize { CGSize(width: 440, height: 130) }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
         ZStack {
-            shape.fill(SettingsTheme.card)
-            // Beim Darüberziehen wie ein Ablageziel in macOS: Rand in der Akzentfarbe
-            shape.strokeBorder(targeted && !done ? accent : SettingsTheme.cardBorder,
-                               lineWidth: targeted && !done ? 2 : 1)
             if done {
-                HStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22))
+                        .font(.system(size: 40))
                         .foregroundStyle(.white, .green)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                     Text(confirmation)
                         .font(.system(size: 13.5, weight: .medium))
                 }
                 .transition(.opacity)
             } else {
-                HStack(spacing: 18) {
+                VStack(spacing: 12) {
                     leading()
-                        .frame(minWidth: 120)
-                    Rectangle()
-                        .fill(SettingsTheme.separator)
-                        .frame(width: 1, height: 64)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L("Your turn", "Jetzt du"))
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Text(instruction)
-                            .font(.system(size: 13.5))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 0)
+                    Text(instruction)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 380)
                 }
-                .padding(.horizontal, SettingsTheme.rowPadding + 4)
                 .transition(.opacity)
             }
         }
         .frame(width: Self.size.width, height: Self.size.height)
-        .animation(.easeOut(duration: 0.15), value: targeted)
-        .animation(.easeInOut(duration: 0.25), value: done)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: done)
     }
 }
 
@@ -847,13 +860,13 @@ private struct DropPage: View {
 
     var body: some View {
         PresentationPage(title: L("Drop", "Ablegen"),
-                         text: L("Drag something to the \(edgeWord(settings)) edge of your screen. The shelf opens, and you let go.",
+                         text: L("Drag files, images or text to the \(edgeWord(settings)) edge of your screen and let go. The shelf keeps them for you.",
                                  "Zieh etwas an den \(edgeWord(settings)) Rand deines Bildschirms. Die Ablage öffnet sich, und du lässt los.")) {
             ShelfStage(scene: .drop)
         } practice: {
             TaskCard(done: model.stepDone,
-                     instruction: L("Drag this photo to the \(edgeWord(settings)) edge of your screen and let go.",
-                                    "Zieh dieses Foto an den \(edgeWord(settings)) Bildschirmrand und lass es dort los."),
+                     instruction: L("Drag this photo into the shelf at the \(edgeWord(settings)) edge.",
+                                    "Zieh dieses Foto in die Ablage am \(edgeWord(settings)) Rand."),
                      confirmation: L("The photo is in the shelf.", "Das Foto liegt in der Ablage.")) {
                 SampleTile(url: model.sampleURL, edge: settings.edge, onDragStarted: model.onSampleDragStarted)
             }
@@ -867,15 +880,11 @@ private struct RetrievePage: View {
     @ObservedObject var model: OnboardingModel
     @ObservedObject var settings: AppSettings
 
+    /// Papierkorb des Mac voll oder leer, wie in der Aktionsleiste und im Dock
+    @ObservedObject private var trash = TrashState.shared
+
     /// Der Papierkorb liegt in der Leiste (Standard); sonst irgendeine Aktion
     private var hasTrash: Bool { settings.quickActions.contains { $0.kind == .trash } }
-
-    /// Wie man die Ablage öffnet, passend zu den Einstellungen
-    private var howToOpen: String {
-        settings.openMode == .click
-            ? L("click the strip at the \(edgeWord(settings)) edge", "klick auf den Streifen am \(edgeWord(settings)) Rand")
-            : L("move the pointer to the \(edgeWord(settings)) edge", "fahr an den \(edgeWord(settings)) Rand")
-    }
 
     var body: some View {
         PresentationPage(title: L("Actions", "Aktionen"),
@@ -885,13 +894,14 @@ private struct RetrievePage: View {
         } practice: {
             TaskCard(done: model.stepDone,
                      instruction: hasTrash
-                        ? L("To open the shelf, \(howToOpen). Then drag the photo onto the Trash.",
-                            "Zum Öffnen \(howToOpen). Dann zieh das Foto auf den Papierkorb.")
-                        : L("To open the shelf, \(howToOpen). Then drag the photo onto an action.",
-                            "Zum Öffnen \(howToOpen). Dann zieh das Foto auf eine Aktion."),
+                        ? L("Drag the photo from the shelf onto the Trash at the bottom.",
+                            "Zieh das Foto aus der Ablage auf den Papierkorb unten.")
+                        : L("Drag the photo from the shelf onto an action at the bottom.",
+                            "Zieh das Foto aus der Ablage auf eine Aktion unten."),
                      confirmation: hasTrash ? L("In the Trash. ⌘Z brings it back.", "Im Papierkorb. ⌘Z holt es zurück.")
                                             : L("Done. Actions work with any item.", "Erledigt. Aktionen gehen mit jedem Objekt.")) {
-                Image(nsImage: NSImage(named: hasTrash ? NSImage.trashEmptyName : NSImage.folderName) ?? NSImage())
+                Image(nsImage: NSImage(named: hasTrash ? (trash.isFull ? NSImage.trashFullName : NSImage.trashEmptyName)
+                                                       : NSImage.folderName) ?? NSImage())
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
@@ -917,6 +927,41 @@ private struct ShortcutPage: View {
                      instruction: L("Press \(settings.hotKeyDescription).", "Drück \(settings.hotKeyDescription)."),
                      confirmation: L("That’s it.", "Genau so.")) {
                 KeyCaps(keys: ShortcutKeys.keys(settings), size: 40, pressed: false)
+            }
+        }
+    }
+}
+
+// MARK: Mit dem Zeiger öffnen
+
+private struct HoverPage: View {
+    @ObservedObject var model: OnboardingModel
+    @ObservedObject var settings: AppSettings
+
+    private var text: String {
+        settings.openMode == .click
+            ? L("Without a file, move the pointer to the \(edgeWord(settings)) edge. A small strip appears; click it and the shelf opens.",
+                "Ohne Datei fährst du mit dem Zeiger an den \(edgeWord(settings)) Rand. Ein schmaler Streifen erscheint; ein Klick darauf öffnet die Ablage.")
+            : L("Without a file, move the pointer to the \(edgeWord(settings)) edge. A small strip appears, and a moment later the shelf opens.",
+                "Ohne Datei fährst du mit dem Zeiger an den \(edgeWord(settings)) Rand. Ein schmaler Streifen erscheint, kurz darauf öffnet sich die Ablage.")
+    }
+
+    var body: some View {
+        PresentationPage(title: L("Open with the Pointer", "Mit dem Zeiger öffnen"), text: text) {
+            ShelfStage(scene: .hover)
+        } practice: {
+            TaskCard(done: model.stepDone,
+                     instruction: L("Move the pointer to the \(edgeWord(settings)) edge until the shelf opens.",
+                                    "Fahr mit dem Zeiger an den \(edgeWord(settings)) Rand, bis sich die Ablage öffnet."),
+                     confirmation: L("That’s how it opens.", "So öffnet sie sich.")) {
+                HStack(spacing: 10) {
+                    if settings.edge == .left { EdgeArrows(edge: .left) }
+                    Image(systemName: "cursorarrow")
+                        .font(.system(size: 34, weight: .regular))
+                        .foregroundStyle(.primary)
+                        .frame(width: 60, height: 60)
+                    if settings.edge == .right { EdgeArrows(edge: .right) }
+                }
             }
         }
     }
@@ -995,8 +1040,8 @@ private struct FeaturesPage: View {
     private var features: [Feature] {
         [
             Feature(id: "actions", symbol: "paperplane.fill", tint: Color(red: 0.2, green: 0.47, blue: 1),
-                    title: L("Actions", "Aktionen"),
-                    text: L("Drag onto AirDrop, a folder or the Trash", "Auf AirDrop, Ordner oder Papierkorb ziehen")),
+                    title: L("Pin", "Anheften"),
+                    text: L("Drag a folder or app onto the action bar", "Ordner oder App auf die Aktionsleiste ziehen")),
             Feature(id: "convert", symbol: "arrow.triangle.2.circlepath", tint: Color(red: 0.2, green: 0.78, blue: 0.4),
                     title: L("Convert", "Umwandeln"),
                     text: L("Right-click for JPEG, PDF and more", "Per Rechtsklick in JPEG, PDF und mehr")),
@@ -1099,6 +1144,9 @@ private struct SampleTile: View {
     let edge: ScreenEdge
     var onDragStarted: () -> Void = {}
     @State private var hovering = false
+    /// Das Foto bleibt im Speicher: Ändert sich die Datei (Umbenennen beim Sprachwechsel,
+    /// Ziehen), verschwindet es nicht aus der Übung
+    @State private var image: NSImage?
 
     var body: some View {
         HStack(spacing: 10) {
@@ -1118,6 +1166,15 @@ private struct SampleTile: View {
             preview
                 .frame(width: 64, height: 64)
                 .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                // Zum Anfassen: dezenter, atmender Ring in der Akzentfarbe
+                .background(
+                    TimelineView(.animation(minimumInterval: 1.0 / 30, paused: AnimationStyle.reduceMotion)) { context in
+                        let wave = 0.5 + 0.5 * sin(context.date.timeIntervalSinceReferenceDate * 2.2)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color(nsColor: .controlAccentColor).opacity(hovering ? 0.22 : 0.08 + 0.1 * wave))
+                            .frame(width: 84, height: 84)
+                    }
+                )
             Text(url?.lastPathComponent ?? "")
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
@@ -1132,12 +1189,15 @@ private struct SampleTile: View {
                 if let url { SampleDragArea(url: url, onDragStarted: onDragStarted) }
             }
         )
-        .help(L("Drag to the edge", "Zum Rand ziehen"))
+        .help(L("Drag into the shelf", "In die Ablage ziehen"))
+        .task(id: url) {
+            if let url, let loaded = NSImage(contentsOf: url) { image = loaded }
+        }
     }
 
     @ViewBuilder
     private var preview: some View {
-        if let url, let image = NSImage(contentsOf: url) {
+        if let image = image ?? url.flatMap(NSImage.init(contentsOf:)) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)

@@ -18,7 +18,7 @@ import Combine
 /// Ablauf einer Szene: setzt nacheinander Zustände der Vorführablage, in einer Schleife.
 /// Mit „Bewegung reduzieren“ (und in Vorschaubildern) steht der aussagekräftigste Moment.
 final class DemoShelf: ObservableObject {
-    enum Scene { case overview, drop, dragOut, shortcut }
+    enum Scene { case overview, drop, dragOut, shortcut, hover }
 
     let scene: Scene
     let settings = AppSettings.shared
@@ -175,6 +175,10 @@ final class DemoShelf: ObservableObject {
             set(level: .expanded, animation: nil)
             dragging = true
             pointer = trashAction
+        case .hover:
+            fill(withSample: true)
+            set(level: .expanded, animation: nil)
+            pointer = l.away(20, y: l.size.height * 0.5)
         case .shortcut:
             fill(withSample: true)
             set(level: .expanded, animation: nil)
@@ -288,6 +292,21 @@ final class DemoShelf: ObservableObject {
             }
             after(5.0) { self.move(to: l.away(l.full.width + 250, y: l.size.height * 0.64), duration: 0.6) }
             after(5.3) { self.set(level: .hidden, animation: style.close) }
+
+        case .hover:
+            // Ohne Datei: Zeiger an den Rand, Streifen, kurz darauf die Ablage; wieder weg
+            period = 5.4
+            fill(withSample: true)
+            set(level: .hidden, animation: nil)
+            pointer = l.away(l.full.width + 250, y: l.size.height * 0.62)
+            after(0.4) { self.move(to: l.away(4, y: l.size.height * 0.5), duration: 0.8) }
+            let click = settings.openMode == .click
+            after(1.2) { self.set(level: .peek, animation: style.peekIn) }
+            after(1.4) { self.set(level: .hint, animation: style.peekIn) }
+            if click { after(1.9) { self.click() } }
+            after(click ? 2.05 : 1.9) { self.set(level: .expanded, animation: style.open) }
+            after(3.6) { self.move(to: l.away(l.full.width + 250, y: l.size.height * 0.62), duration: 0.6) }
+            after(3.9) { self.set(level: .hidden, animation: style.close) }
 
         case .shortcut:
             // Kurzbefehl öffnet die Ablage, noch einmal schließt sie
