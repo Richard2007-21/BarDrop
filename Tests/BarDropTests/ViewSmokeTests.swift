@@ -247,26 +247,7 @@ final class ViewSmokeTests: XCTestCase {
             ui.previewTargetedAction = nil
             ui.selection = Set(store.entries.dropFirst(1).prefix(1).map(\.id))
 
-            // Für das Vorschau-GIF: ohne Auswahl, mit und ohne den See, und leer
-            if language == .english {
-                ui.selection = []
-                ui.showSampleTile = false
-                let lake = store.entries.first { $0.urls.first?.lastPathComponent == "Lake.jpg" }
-                shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
-                     size: CGSize(width: 440, height: 600), "Produkt GIF mit", dir: dir)
-                if let lake {
-                    let fresh = ShelfStore(baseDirectory: base.appendingPathComponent("GIF"))
-                    fresh.add(store.entries.reversed().filter { $0.id != lake.id }.flatMap(\.files))
-                    let freshActions = ShelfActions(store: fresh, ui: ui, settings: settings)
-                    shot(ShelfRootView(ui: ui, store: fresh, settings: settings, actions: freshActions),
-                         size: CGSize(width: 440, height: 600), "Produkt GIF ohne", dir: dir)
-                    fresh.add(lake.files)
-                    shot(ShelfRootView(ui: ui, store: fresh, settings: settings, actions: freshActions),
-                         size: CGSize(width: 440, height: 600), "Produkt GIF oben", dir: dir)
-                }
-            }
-
-            // Drittes Vorschau-GIF: zwei Bilder aus dem Browser ablegen, auf eine Folie ziehen,
+            // Vorschau-GIF (docs/preview.gif): zwei Bilder aus dem Browser ablegen, auf eine Folie ziehen,
             // ein Archiv in den Papierkorb und alles zurück. Platzhalter wie bei der Symbolgröße.
             if language == .english {
                 let g3 = base.appendingPathComponent("GIF3", isDirectory: true)
@@ -372,88 +353,6 @@ final class ViewSmokeTests: XCTestCase {
                 TrashState.shared.isFull = true
                 g("5", without)
                 TrashState.shared.isFull = false
-            }
-
-            // Zweites Vorschau-GIF: Fotos als Stapel ablegen, eines in eine Präsentation ziehen,
-            // eine Notiz in den Papierkorb und alles zurück (echter Kreislauf)
-            if language == .english {
-                let gifStore = ShelfStore(baseDirectory: base.appendingPathComponent("GIF2"))
-                let gifActions = ShelfActions(store: gifStore, ui: ui, settings: settings)
-                let byName = Dictionary((examples.singles + examples.stack).map { ($0.lastPathComponent, $0) },
-                                        uniquingKeysWith: { a, _ in a })
-                // Verschiedene Arten wie bei den Beispielen zur Symbolgröße: Ordner, Text, Video, Archiv, PDF
-                for name in ["Video.mov", "Archive.zip"] {
-                    FileManager.default.createFile(atPath: files.appendingPathComponent(name).path, contents: Data())
-                }
-                let named = byName.merging(["Video.mov": files.appendingPathComponent("Video.mov"),
-                                            "Archive.zip": files.appendingPathComponent("Archive.zip")]) { a, _ in a }
-                let old = ["Project", "Notes.txt", "Video.mov", "Archive.zip", "Trip.pdf"].compactMap { named[$0] }
-                let photos = examples.stack
-                for url in photos {
-                    try? FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: dir)
-                        .appendingPathComponent("GIF2 " + url.lastPathComponent).deletingPathExtension()
-                        .appendingPathExtension("jpg"))
-                }
-                // Alle Kacheln gleich sichtbar, wie in einer Ablage, die schon eine Weile benutzt wird
-                for url in old + photos {
-                    _ = await Thumbnails.load(url, size: 64)
-                    Thumbnails.shownOnce.insert(url.path)
-                }
-                settings.stackMultiple = false
-                gifStore.add(old.reversed().map { ShelfFile(url: $0, owned: false) })
-                settings.stackMultiple = true
-                settings.stackThreshold = 2
-                TrashState.shared.isFull = false
-                ui.selection = []
-                ui.openStack = nil
-                ui.memberSelection = []
-                func gif(_ name: String) {
-                    shot(ShelfRootView(ui: ui, store: gifStore, settings: settings, actions: gifActions),
-                         size: CGSize(width: 440, height: 600), "GIF2 \(name)", dir: dir)
-                }
-                gif("0")
-                ui.isDropTargeted = true
-                gif("0 drop")
-                ui.isDropTargeted = false
-                gifStore.add(photos.map { ShelfFile(url: $0, owned: false) })
-                gif("1")
-                if let stack = gifStore.entries.first(where: \.isStack) {
-                    ui.openStack = stack.id
-                    gif("2")
-                    ui.memberSelection = Set(stack.files.dropFirst().prefix(1).map(\.id))
-                    gif("2 sel")
-                    ui.memberSelection = []
-                    gifStore.forgetFiles(at: [photos[1]])
-                    gif("3")
-                    ui.openStack = nil
-                    gif("4")
-                    ui.selection = Set(gifStore.entries.filter { $0.urls.first?.lastPathComponent == "Notes.txt" }.map(\.id))
-                    gif("4 notes")
-                    // Beim Ziehen bleibt die Notiz ausgewählt, der Papierkorb leuchtet auf
-                    ui.previewTargetedAction = settings.quickActions.first { $0.kind == .trash }?.id
-                    gif("4 trash")
-                    ui.previewTargetedAction = nil
-                    ui.selection = []
-                    let withoutNotes = ShelfStore(baseDirectory: base.appendingPathComponent("GIF2b"))
-                    // Gleiche Reihenfolge wie vorher, nur ohne die Notiz: vom ältesten zum neuesten einfügen
-                    for entry in gifStore.entries.reversed() where entry.urls.first?.lastPathComponent != "Notes.txt" {
-                        settings.stackMultiple = entry.isStack
-                        withoutNotes.add(entry.files)
-                    }
-                    settings.stackMultiple = true
-                    TrashState.shared.isFull = true
-                    shot(ShelfRootView(ui: ui, store: withoutNotes, settings: settings,
-                                       actions: ShelfActions(store: withoutNotes, ui: ui, settings: settings)),
-                         size: CGSize(width: 440, height: 600), "GIF2 5", dir: dir)
-                    TrashState.shared.isFull = false
-                    if let restacked = gifStore.entries.first(where: \.isStack) {
-                        ui.selection = [restacked.id]
-                        gif("6 sel")
-                    }
-                    ui.selection = []
-                }
-                ui.openStack = nil
-                settings.stackMultiple = false
             }
 
             // 2. Mit Stapel

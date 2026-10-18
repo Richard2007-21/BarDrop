@@ -5,25 +5,42 @@ shelf, Settings and the shelf states for the GIF from the app's own views
 (`testProductShots` in `Tests/BarDropTests/ViewSmokeTests.swift`) and attaches them as
 `previews.zip` to the draft release “CI Vorschaubilder”.
 
-To rebuild them, put the `Produkt_*.png` files from that zip next to these files, add
-`Resources/AppIcon.png`, then:
+```bash
+pip install playwright pillow numpy
+```
+
+## Pictures
+
+Put the `Produkt_*.png` files from that zip next to these files, add `Resources/AppIcon.png`, then:
 
 ```bash
-pip install playwright pillow
 python3 make.py && python3 shoot.py p_hero_en p_actions_en p_stacks_en p_settings_en \
     p_hero_de p_actions_de p_stacks_de p_settings_de
-python3 -c "from PIL import Image; Image.open('Produkt_GIF_oben.png').crop((326,348,454,444)).save('lake_icon.png')"
-python3 gifshot.py
-ffmpeg -framerate 25 -i frames/f%04d.png -vf palettegen=max_colors=192 pal.png
-ffmpeg -framerate 25 -i frames/f%04d.png -i pal.png -lavfi paletteuse=dither=sierra2_4a -loop 0 preview.gif
 ```
 
-The preview GIF (`docs/preview.gif`) is built from `gif3.html` and `gif3.js` (files `GIF3_*.png`, cut the Archive icon from `GIF3_4.png` at 580,394 into `GIF3_archive_icon.png` with the black shelf made transparent, then `python3 gif3shot.py 25` and the same two ffmpeg steps on `frames3`). The earlier stack GIF is built from `gif2.html` and `gif2.js`. Put the `GIF2_*.png` files
-from `previews.zip` next to them, cut the photos and the note icon out of the shelf shots, then:
+Scale the results to 1600 × 1000 and save them as `docs/images/<name>-<lang>.jpg`. The four
+pictures share one background, so they read as one surface in the 2 × 2 grid of the README.
+
+## Preview GIF
+
+`gif3.html` and `gif3.js`: two images from an image search go into the shelf, onto a slide on
+another desktop, an archive goes to the Trash and comes back. Put the `GIF3_*.png` files from
+the zip next to them, cut the Archive icon out of a shelf shot (its black background made
+transparent), then render and encode:
 
 ```bash
-python3 -c "from PIL import Image; im=Image.open('GIF2_2.png').convert('RGB'); [im.crop((x-61,349,x+61,439)).save(f'GIF2_Sunset_{n}.jpg',quality=95) for n,x in [(1,390),(2,580),(3,770)]]; Image.open('GIF2_4.png').crop((516,596,644,724)).save('GIF2_notes_icon.png')"
-python3 gif2shot.py 25
-ffmpeg -framerate 25 -i frames2/f%04d.png -vf palettegen=max_colors=192:stats_mode=full pal.png
-ffmpeg -framerate 25 -i frames2/f%04d.png -i pal.png -lavfi paletteuse=dither=sierra2_4a -loop 0 preview.gif
+python3 - <<'PY'
+from PIL import Image
+import numpy as np
+im = np.array(Image.open('GIF3_4.png').convert('RGBA').crop((516, 330, 644, 458))).astype(float)
+a = np.clip((im[..., :3].max(axis=2) - 8) / 22, 0, 1)
+im[..., 3] = a * 255
+im[..., :3] = np.where(a[..., None] > 0, np.clip(im[..., :3] / np.maximum(a[..., None], 1e-3), 0, 255), 0)
+Image.fromarray(im.astype('uint8')).save('GIF3_archive_icon.png')
+PY
+python3 gif3shot.py 25
+ffmpeg -framerate 25 -i frames3/f%04d.png -vf palettegen=max_colors=192:stats_mode=full pal.png
+ffmpeg -framerate 25 -i frames3/f%04d.png -i pal.png -lavfi paletteuse=dither=sierra2_4a -loop 0 preview.gif
 ```
+
+The last frame equals the first, so the GIF loops without a cut.
