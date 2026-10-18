@@ -60,7 +60,7 @@ struct ShelfRootView: View {
                 // verschwindet er fast. Ohne Linie am Bildschirmrand selbst.
                 EdgeBlobShape(edge: settings.edge, cornerRadius: m.cornerRadius, fillet: m.fillet,
                               filletStretch: m.filletStretch, cornerStretch: m.cornerStretch, closed: false)
-                    .stroke(Color.white.opacity(settings.showOutline ? 0.2 : 0), lineWidth: 1)
+                    .stroke(Color.white.opacity(settings.showOutline || ui.forcesOutline ? 0.2 : 0), lineWidth: 1)
                     .allowsHitTesting(false)
 
                 content(m: m, full: full)

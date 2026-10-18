@@ -98,6 +98,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     /// Abgedunkelter Hintergrund auf allen Bildschirmen: Klicks daneben öffnen keine andere
     /// App, die Einführung bleibt vorn, bis man sie beendet
     private var backdrops: [IntroBackdrop] = []
+    /// Abdunkeln auch am Rand der Ablage, ohne dort Zeiger und Ziehen abzufangen
+    private var bandShades: [IntroBandShade] = []
     private var screenObserver: NSObjectProtocol?
     private var edgeSubscription: AnyCancellable?
     private var subscriptions: Set<AnyCancellable> = []
@@ -149,6 +151,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     private func showBackdrop() {
         let fresh = backdrops.isEmpty
         backdrops.forEach { $0.orderOut(nil) }
+        bandShades.forEach { $0.orderOut(nil) }
         backdrops = NSScreen.screens.map { screen in
             let backdrop = IntroBackdrop(screen: screen, edge: settings.edge,
                                          shelfWidth: CGFloat(settings.shelfWidth))
@@ -158,18 +161,28 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             backdrop.orderFrontRegardless()
             return backdrop
         }
+        bandShades = NSScreen.screens.map { screen in
+            let shade = IntroBandShade(screen: screen, edge: settings.edge,
+                                       shelfWidth: CGFloat(settings.shelfWidth))
+            shade.alphaValue = fresh ? 0 : 1
+            shade.orderFrontRegardless()
+            return shade
+        }
         if fresh {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.25
                 backdrops.forEach { $0.animator().alphaValue = 1 }
+                bandShades.forEach { $0.animator().alphaValue = 1 }
             }
         }
         if edgeSubscription == nil {
-            // Rand auf der ersten Seite gewechselt: der helle Bereich wandert mit
+            // Rand auf der ersten Seite gewechselt: der freie Bereich wandert mit
             edgeSubscription = settings.$edge.removeDuplicates().receive(on: RunLoop.main)
                 .sink { [weak self] edge in
                     guard let self else { return }
-                    self.backdrops.forEach { $0.update(edge: edge, shelfWidth: CGFloat(self.settings.shelfWidth)) }
+                    let width = CGFloat(self.settings.shelfWidth)
+                    self.backdrops.forEach { $0.update(edge: edge, shelfWidth: width) }
+                    self.bandShades.forEach { $0.update(edge: edge, shelfWidth: width) }
                 }
         }
         if screenObserver == nil {
@@ -187,8 +200,9 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         edgeSubscription = nil
-        let leaving = backdrops
+        let leaving: [NSWindow] = backdrops + bandShades
         backdrops = []
+        bandShades = []
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.2
             leaving.forEach { $0.animator().alphaValue = 0 }
@@ -390,15 +404,15 @@ final class IntroWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
-/// Abgedunkelte Fläche hinter der Einführung über einem ganzen Bildschirm, am Rand der Ablage
-/// hell. Fängt Klicks ab,
+/// Abgedunkelte Fläche hinter der Einführung über einem Bildschirm, außer dem Streifen am
+/// Rand der Ablage (den dunkelt `IntroBandShade` ab). Fängt Klicks ab,
 /// nimmt nichts zum Ablegen an (Ziehen geht durch zur Ablage) und wird nie selbst aktiv.
 final class IntroBackdrop: NSPanel {
     var onClick: () -> Void = {}
 
     var onMove: () -> Void = {}
-    /// Verlauf: zum Rand der Ablage hin hell, zur Mitte hin abgedunkelt
-    private let shade = CAGradientLayer()
+    /// Gleichmäßig abgedunkelt, nahtlos an `IntroBandShade`
+    private let shade = CALayer()
     private let screenFrame: CGRect
     /// Abdunkeln abseits des Rands
     static let dim: CGFloat = 0.42
@@ -425,35 +439,20 @@ final class IntroBackdrop: NSPanel {
         update(edge: edge, shelfWidth: shelfWidth, animated: false)
     }
 
-    /// Der Rand, an dem die Ablage erscheint, bleibt frei: Dort liegt keine Fläche, der
-    /// Bereich ist hell, und Zeiger, Hinfahren und Ablegen verhalten sich genau wie sonst.
-    /// Daneben geht es weich ins Dunkle über.
+    /// Der Streifen am Rand, an dem die Ablage erscheint, gehört nicht zu dieser Fläche:
+    /// Dort verhalten sich Zeiger, Hinfahren und Ablegen genau wie sonst.
     func update(edge: ScreenEdge, shelfWidth: CGFloat, animated: Bool = true) {
-        let band = shelfWidth + ShelfMetrics.panelMargin
-        var covered = screenFrame
-        covered.size.width = max(1, screenFrame.width - band)
-        if edge == .left { covered.origin.x = screenFrame.minX + band }
-        setFrame(covered, display: true)
-        let width = max(covered.width, 1)
-        let clear: CGFloat = 0
-        let soft = min(0.85, 280 / width)
-        let dark = NSColor.black.withAlphaComponent(Self.dim).cgColor
-        let none = NSColor.black.withAlphaComponent(0).cgColor
+        setFrame(IntroBandShade.frames(screen: screenFrame, edge: edge, shelfWidth: shelfWidth).rest, display: true)
         CATransaction.begin()
-        CATransaction.setDisableActions(!animated)
-        CATransaction.setAnimationDuration(0.35)
-        shade.colors = [none, none, dark, dark]
-        shade.locations = [0, NSNumber(value: Double(clear)), NSNumber(value: Double(soft)), 1]
-        // Vom Rand der Ablage zur anderen Seite
-        shade.startPoint = CGPoint(x: edge == .right ? 1 : 0, y: 0.5)
-        shade.endPoint = CGPoint(x: edge == .right ? 0 : 1, y: 0.5)
+        CATransaction.setDisableActions(true)
+        shade.backgroundColor = NSColor.black.withAlphaComponent(Self.dim).cgColor
         CATransaction.commit()
     }
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    private final class ClickCatcher: NSView {
+    fileprivate final class ClickCatcher: NSView {
         var onClick: () -> Void = {}
         var onMove: () -> Void = {}
 
@@ -472,6 +471,51 @@ final class IntroBackdrop: NSPanel {
         override func otherMouseDown(with event: NSEvent) { onClick() }
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     }
+}
+
+/// Abdunkeln des Streifens am Rand der Ablage, damit der ganze Bildschirm gleich dunkel
+/// ist. Nimmt keine Maus- und Ziehereignisse an: Zeiger, Hinfahren und Ablegen gehen
+/// durch zu dem, was darunter liegt, und die Ablage (darüber) bleibt hell.
+final class IntroBandShade: NSPanel {
+    private let screenFrame: CGRect
+
+    init(screen: NSScreen, edge: ScreenEdge, shelfWidth: CGFloat) {
+        screenFrame = screen.frame
+        super.init(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
+        level = OnboardingController.backdropLevel
+        isOpaque = false
+        backgroundColor = NSColor.black.withAlphaComponent(IntroBackdrop.dim)
+        hasShadow = false
+        isReleasedWhenClosed = false
+        hidesOnDeactivate = false
+        ignoresMouseEvents = true
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        update(edge: edge, shelfWidth: shelfWidth)
+    }
+
+    func update(edge: ScreenEdge, shelfWidth: CGFloat) {
+        setFrame(Self.frames(screen: screenFrame, edge: edge, shelfWidth: shelfWidth).band, display: true)
+    }
+
+    /// Aufteilung eines Bildschirms: Streifen am Rand (so breit wie das Fenster der Ablage)
+    /// und der Rest
+    static func frames(screen: CGRect, edge: ScreenEdge, shelfWidth: CGFloat) -> (band: CGRect, rest: CGRect) {
+        let width = min(shelfWidth + ShelfMetrics.panelMargin, max(screen.width - 1, 1))
+        var band = screen
+        band.size.width = width
+        var rest = screen
+        rest.size.width = screen.width - width
+        if edge == .right {
+            band.origin.x = screen.maxX - width
+        } else {
+            rest.origin.x = screen.minX + width
+        }
+        return (band, rest)
+    }
+
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 }
 
 extension OnboardingModel.Step {

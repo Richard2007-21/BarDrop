@@ -128,7 +128,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func showOnboarding() {
         if onboarding == nil {
             let onboarding = OnboardingController(store: store, ui: ui, settings: settings)
-            onboarding.onClose = { [weak self] in self?.onboarding = nil }
+            onboarding.onClose = { [weak self] in
+                self?.onboarding = nil
+                self?.ui.forcesOutline = false
+            }
             onboarding.wakeShelf = { [weak self] in self?.controller.wake() }
             onboarding.showGuide = { [weak self] on in self?.controller.showGuide(on) }
             onboarding.openSettings = { [weak self] in
@@ -136,6 +139,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             self.onboarding = onboarding
         }
+        // Auf dem abgedunkelten Bildschirm mit hellem Rahmen, damit man die Ablage sieht
+        ui.forcesOutline = true
         onboarding?.show()
     }
 

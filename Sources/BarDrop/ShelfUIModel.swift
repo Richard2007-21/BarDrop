@@ -53,6 +53,9 @@ final class ShelfUIModel: ObservableObject {
     var lastDropWasInternal = false
     /// Klick auf die mittlere Stufe: Ablage ganz öffnen (Modus „Per Klick“).
     var expandRequested = false
+    /// Einführung offen: heller Rahmen immer zeigen, damit die Ablage auf dem abgedunkelten
+    /// Bildschirm gut zu sehen ist (unabhängig von Aussehen → Heller Rahmen)
+    @Published var forcesOutline = false
     /// Beim Verstellen der Symbolgröße: Beispieldatei in der Ablage zeigen
     @Published var showSampleTile = false
     /// Lage der offenen Ablage (schwarze Form) auf dem Bildschirm, ohne Schattenrand
