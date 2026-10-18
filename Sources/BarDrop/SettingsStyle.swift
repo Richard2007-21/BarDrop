@@ -260,9 +260,16 @@ struct PickerRow<Value: Hashable>: View {
     }
 
     /// Wenige, kurze Möglichkeiten stehen direkt in der Zeile (wie ein Umschalter),
-    /// längere Listen öffnen ein Menü
+    /// längere Listen öffnen ein Menü. In beiden Sprachen gleich: Zwei Möglichkeiten sind
+    /// immer ein Umschalter (vorher kippte z. B. „Reihenfolge“ nur auf Deutsch ins Menü,
+    /// weil die deutschen Wörter länger sind); drei nur, wenn sie in beiden Sprachen kurz
+    /// sind (Titel, Animation), sonst ein Menü.
     private var inline: Bool {
-        options.count <= 3 && options.reduce(0) { $0 + $1.1.count } <= 26
+        switch options.count {
+        case 2: return true
+        case 3: return options.reduce(0) { $0 + $1.1.count } <= 26
+        default: return false
+        }
     }
 
     var body: some View {
