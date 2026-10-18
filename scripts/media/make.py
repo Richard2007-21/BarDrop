@@ -4,13 +4,13 @@ T={
  "hero":("A shelf at the<br>edge of your screen.","Drop anything at the edge of your screen. Drag it back out whenever you need it."),
  "actions":("One drag<br>to any action.","Drop items on AirDrop, a folder or the Trash. Folders and the Trash work like in the Finder, and ⌘Z puts things back."),
  "stacks":("Stacks keep<br>things together.","Drop several files at once and they stay together. Click a stack to look inside."),
- "settings":("Feels right<br>at home on a Mac.","Edge, size, actions and how files are kept, in Settings built like macOS."),
+ "settings":("Feels right<br>at home on a Mac.","Edge, size, actions and how files are kept, in Settings built like macOS. Light and dark."),
 },
 "de":{
  "hero":("Eine Ablage am Rand<br>deines Bildschirms.","Leg alles am Bildschirmrand ab und zieh es wieder heraus, wenn du es brauchst."),
  "actions":("Ein Zug<br>zur Aktion.","Leg Objekte auf AirDrop, einen Ordner oder den Papierkorb. Ordner und Papierkorb funktionieren wie im Finder, ⌘Z legt alles zurück."),
  "stacks":("Stapel halten<br>zusammen.","Mehrere Dateien auf einmal bleiben zusammen. Ein Klick auf den Stapel zeigt, was drin ist."),
- "settings":("Fühlt sich an<br>wie macOS.","Rand, Größe, Aktionen und wie Dateien aufbewahrt werden, in Einstellungen im Stil von macOS."),
+ "settings":("Fühlt sich an<br>wie macOS.","Rand, Größe, Aktionen und wie Dateien aufbewahrt werden, in Einstellungen im Stil von macOS. Hell und dunkel."),
 }}
 HEAD='<html><head><link rel="stylesheet" href="base.css"><style>.shot{position:absolute}.win{position:absolute;width:436px;height:640px;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.14)}.win img{width:436px;height:640px;display:block}.tag{position:absolute;color:#fff;font-size:15px;font-weight:600;opacity:.8}</style></head><body>'
 def title(t,top=300,badge=False):
@@ -28,6 +28,9 @@ for lang,t in T.items():
     pages["stacks"]=HEAD+'<div class="wall" style="filter:hue-rotate(30deg)"></div>'+title(t["stacks"],330)+f'<img class="shot" src="Produkt_Stapel_{lang}.png" style="right:0;top:100px;width:660px;height:900px">'+'</body></html>'
     # Ganzes Einstellungsfenster im Dunkelmodus, mit Ampel wie in macOS
     lights='<div style="position:absolute;left:20px;top:20px;display:flex;gap:8px">'+''.join(f'<span style="width:12px;height:12px;border-radius:50%;background:{c};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25)"></span>' for c in ("#ff5f57","#febc2e","#28c840"))+'</div>'
-    pages["settings"]=HEAD+'<div class="wall" style="filter:hue-rotate(-50deg)"></div>'+title(t["settings"],330)+f'<div style="position:absolute;left:800px;top:150px;width:680px;height:700px;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.16)"><img src="Produkt_Fenster_Aktionen_{lang}.png" style="width:680px;height:700px;display:block">{lights}</div>'+'</body></html>'
+    def window(img,left,top,border):
+        return f'<div style="position:absolute;left:{left}px;top:{top}px;width:680px;height:700px;transform:scale(.78);transform-origin:top left;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);border:1px solid {border}"><img src="{img}" style="width:680px;height:700px;display:block">{lights}</div>'
+    # Dunkel hinten, hell davor und leicht versetzt: beide Erscheinungsbilder
+    pages["settings"]=HEAD+'<div class="wall" style="filter:hue-rotate(-50deg)"></div>'+title(t["settings"],330)+window(f"Produkt_Fenster_Aktionen_{lang}.png",760,120,"rgba(255,255,255,.16)")+window(f"Produkt_Fenster_Allgemein_{lang}_hell.png",990,300,"rgba(0,0,0,.18)")+'</body></html>'
     for k,v in pages.items():
         open(f"p_{k}_{lang}.html","w").write(v)
