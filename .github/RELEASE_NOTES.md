@@ -1,33 +1,25 @@
-### Changed behavior
-* Reset All Settings resets everything, also the language and beta versions; only your items stay
-* Remove automatically can no longer be undone with ⌘Z
-* Removing from the shelf and moving to the Trash now sound different
+### Fixed
+* Introduction: the shelf now stays bright above the dimmed background
 
 ### Also new
-* Action names for all actions, folders only, or none
-* A sound when you drop something into a folder of the action bar
-* Actions inside an open stack use the files selected there
-* Files dragged from the Finder onto the Trash can be put back with ⌘Z
-* Introduction: the shelf stays bright above the dimmed background
-* New screenshots land in the shelf more reliably
-* Less flicker when dropping images and PDFs
-* Items → Storage looks tidy again
-* New pictures and preview on GitHub
+* Option to open the shelf with the pointer only on the strip itself; dragged files still get a generous area
+* Dragging an action out of the bar sounds like removing an app from the Dock
+* Removing from the shelf sounds short and right away
+* The Trash action looks full when your Trash has something in it
+* Dropped files show their preview right away instead of a generic icon first
+* Cleaner exercises in the introduction
+* ⌘⌫ Move to Trash is listed under Keyboard shortcuts
 
 <!-- de -->
 
-### Geändertes Verhalten
-* „Alle Einstellungen zurücksetzen“ setzt alles zurück, auch Sprache und Beta-Versionen; nur deine Objekte bleiben
-* Automatisch entfernen lässt sich nicht mehr mit ⌘Z widerrufen
-* Entfernen aus der Ablage und In den Papierkorb legen klingen jetzt unterschiedlich
+### Behoben
+* Einführung: Die Ablage bleibt jetzt hell über dem abgedunkelten Hintergrund
 
 ### Außerdem
-* Namen bei allen Aktionen, nur bei Ordnern oder bei keiner
-* Ein Klang, wenn du etwas in einen Ordner der Aktionsleiste legst
-* Aktionen im geöffneten Stapel verwenden die dort ausgewählten Dateien
-* Aus dem Finder auf den Papierkorb gezogene Dateien lassen sich mit ⌘Z zurücklegen
-* Einführung: Die Ablage bleibt hell über dem abgedunkelten Hintergrund
-* Neue Bildschirmfotos landen zuverlässiger in der Ablage
-* Weniger Flackern beim Ablegen von Bildern und PDFs
-* Objekte → Speichern sieht wieder aufgeräumt aus
-* Neue Bilder und Vorschau auf GitHub
+* Auf Wunsch öffnet der Zeiger die Ablage nur am Streifen selbst; gezogene Dateien behalten den großzügigen Bereich
+* Eine aus der Leiste gezogene Aktion klingt wie eine App, die man aus dem Dock entfernt
+* Entfernen aus der Ablage klingt kurz und sofort
+* Die Aktion Papierkorb sieht voll aus, wenn dein Papierkorb etwas enthält
+* Abgelegte Dateien zeigen sofort ihre Vorschau statt erst ein allgemeines Symbol
+* Aufgeräumte Übungen in der Einführung
+* ⌘⌫ In den Papierkorb legen steht bei den Tastenkürzeln

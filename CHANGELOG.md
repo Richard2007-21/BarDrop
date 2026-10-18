@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.30.0-beta.17
+* **Fixed:** Introduction: the shelf is above the dimmed background. The cause: the shelf window lost its level when it was set up as a floating panel, so it sat below the background (and below other floating windows)
+* Opening → When → “Pointer only on the strip itself”: without a file, the shelf only opens when the pointer touches the strip; while dragging files the area stays generous (off by default)
+* Dragging an action out of the action bar plays the sound macOS plays when an icon is removed from the Dock
+* Removing from the shelf: only the first, short part of the Finder sound, right away (it faded in and rang on for over a second)
+* The Trash action looks full when the Trash of your Mac has something in it, like in the Dock
+* Dropped files show their preview right away: a quick preview first, then the sharp one, instead of the generic file icon first
+* Introduction: the exercises are in the same cards as Settings; the drop area is a dashed well that lights up in the accent color
+* Keyboard → Keyboard shortcuts lists ⌘⌫ Move to Trash
+* Names: “Open in full screen” is now “Also over full-screen apps”
+
 ## 1.30.0-beta.16
 * **Changed:** Reset All Settings really resets everything, including the language (back to “System”), updates and beta versions; only the items in the shelf are kept
 * **Changed:** Remove automatically no longer goes into ⌘Z (it did in beta 15); copies are still deleted only after 15 minutes
