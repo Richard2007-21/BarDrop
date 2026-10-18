@@ -12,9 +12,13 @@ enum Sounds {
     /// Aus der Ablage entfernen (⌫, Entfernen, Alle entfernen): der Klang des Finders
     /// „move to trash“, den BarDrop bis 1.30.0 Beta 14 für alles verwendet hat. Nur sein
     /// erster Schlag: Die Datei blendet 80 ms leise ein und klingt danach noch über eine
-    /// Sekunde nach, das wirkte verzögert und zu lang.
-    private static let removeSound: NSSound? =
-        NSSound(contentsOf: URL(fileURLWithPath: systemSounds + "finder/move to trash.aif"), byReference: false)
+    /// Sekunde nach, das wirkte verzögert und zu lang. Leiser abgespielt: man hört ihn oft.
+    private static let removeSound: NSSound? = {
+        let sound = NSSound(contentsOf: URL(fileURLWithPath: systemSounds + "finder/move to trash.aif"), byReference: false)
+        sound?.volume = removeVolume
+        return sound
+    }()
+    private static let removeVolume: Float = 0.5
     private static let removeStart: TimeInterval = 0.08
     private static let removeLength: TimeInterval = 0.17
     private static var removeStop: DispatchWorkItem?

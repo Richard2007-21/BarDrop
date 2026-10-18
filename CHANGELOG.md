@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.30.0-beta.22
+* Introduction: no more cut-out in the dimmed background behind the window (it lagged behind when you moved the window)
+* “Remove from Shelf” plays its sound at half the volume
+* Icons in the Settings sidebar and on the last page of the introduction have a slight shadow
+* Diagnostic log (beta only): every error is recorded with its code, a readable name, the system’s message (names and paths hidden) and the place in the code where it happened; uncaught exceptions and macOS crash reports of BarDrop are included in the saved log. Quick Look’s harmless “no cached preview” for the fast first preview is marked as normal
+* README: new pictures of an action in use and of the whole Settings window
+
 ## 1.30.0-beta.21
 * **Changed:** BarDrop opens at login by default; it is turned on at the first launch (turn it off in the introduction or in Settings → General). Reset All Settings turns it back on
 * **Changed:** All actions are in the lower row by default (for everyone who never moved them)

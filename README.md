@@ -61,9 +61,9 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 
 <p align="center">
   <img src="docs/images/hero-en.jpg" width="49%" alt="The shelf open at the right edge of the screen with six files">
-  <img src="docs/images/actions-en.jpg" width="49%" alt="The action bar with AirDrop, Downloads and Trash">
+  <img src="docs/images/actions-en.jpg" width="49%" alt="A photo dragged onto the Downloads action in the action bar">
   <img src="docs/images/stacks-en.jpg" width="49%" alt="Several files grouped as a stack">
-  <img src="docs/images/settings-en.jpg" width="49%" alt="Settings in dark and light mode">
+  <img src="docs/images/settings-en.jpg" width="49%" alt="The Settings window in dark mode">
 </p>
 
 ## Features
