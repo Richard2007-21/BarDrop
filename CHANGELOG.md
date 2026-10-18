@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.30.0-beta.14
+* Removing items (⌫, menu, Remove All) and the Trash action play the Finder’s trash sound, if interface sound effects are on in System Settings
+* Quick Look: ← → ↑ ↓ move the selection in the shelf and show the newly selected item; with several selected items Quick Look pages through them itself
+* Appearance → Title: “BarDrop”, “Shelf” or “None”
+* Update available (regular or beta): red badge next to About BarDrop in Settings; opening Settings checks quietly. No window without a click; silent installation stays as before. The “Update to …” item in the shelf menu is gone
+* Selection like in the Finder: gray area about a quarter larger than the icon, name highlight slightly wider, with Finder corner radii
+* Soft fade under the header while the list is scrolled, like above the action bar
+* Empty shelf: icon and “Drop here” only, gray until something is dragged over, centered between header and action bar
+* Light mode: Settings and introduction use macOS system colors (cards, lines, switches, segments, keys, buttons); dark mode unchanged
+* Introduction: the whole screen is dimmed, including the edge (which still lets pointer and drops through), the shelf shows the light outline, strip and shelf sit in the middle of the edge, minimize is disabled
+* Dragging an action out of the bar: no puff of smoke
+* Choices with two options are segmented controls in both languages (Sort order was a menu in German only)
+* The shelf stays open while a selection rectangle is drawn
+* Icon size: the examples appear on the first slider move and stay until the shelf has fully closed
+* Pinning a folder or app by dragging: no slide-in animation
+* New tiles redraw when their preview or placeholder appears, also without focus (items from the web no longer vanish until the next opening)
+* Open on click: the strip keeps the size set under Appearance
+* Right-click menus open only once BarDrop is active (highlight follows the pointer, Convert looks the same as the menu)
+* Arrow keys scroll the list so the selected item stays fully visible
+* Quick Look open: a click elsewhere or switching apps closes Quick Look and the shelf
+* Haptics: a strip already shown as a preview pulses when the pointer reaches it; the trackpad is reopened and the pulse repeated when the connection is lost (sleep)
+* While dragging out of the shelf it fades without blur (smoother)
+
 ## 1.30.0-beta.13
 * Introduction: dropping the sample image works again. The dimmed background no longer covers the edge where the shelf sits; that strip stays bright and behaves exactly as without the introduction (hovering, dragging in, opening)
 * Introduction: while dropping and dragging out, the first strip stays visible at the edge in the size set in Settings, so you know where to drag; it stays while dragging and the shelf opens as usual near the edge
