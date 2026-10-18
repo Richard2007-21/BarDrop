@@ -192,8 +192,15 @@ final class ShelfStore: ObservableObject {
         return types
     }
 
-    /// `baseDirectory` nur für Tests; normal: ~/Library/Application Support/BarDrop
+    /// Nur die echte Ablage schreibt ins Diagnoseprotokoll, nicht die Vorführablagen der
+    /// Einführung (sonst sähe dort z. B. das Leeren der Vorführung wie echtes Entfernen aus)
+    private let logsDiagnostics: Bool
+    private var diagnostics: Diagnostics? { logsDiagnostics ? Diagnostics.shared : nil }
+
+    /// `baseDirectory` nur für Tests und die Vorführung der Einführung;
+    /// normal: ~/Library/Application Support/BarDrop
     init(baseDirectory: URL? = nil) {
+        logsDiagnostics = baseDirectory == nil
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         baseDir = baseDirectory ?? support.appendingPathComponent("BarDrop", isDirectory: true)
         itemsDir = baseDir.appendingPathComponent("Items", isDirectory: true)
@@ -209,7 +216,7 @@ final class ShelfStore: ObservableObject {
     private func copyFinished(_ id: UUID, _ copy: URL?) {
         guard let copy else {
             Log.importing.error("Kopie fehlgeschlagen, Datei bleibt als Verweis")
-            Diagnostics.shared.failure("store", "Kopie fehlgeschlagen, Datei bleibt als Verweis")
+            diagnostics?.failure("store", "Kopie fehlgeschlagen, Datei bleibt als Verweis")
             return
         }
         var updated = entries
@@ -244,13 +251,13 @@ final class ShelfStore: ObservableObject {
             let backup = baseDir.appendingPathComponent("shelf-unlesbar-\(Int(Date().timeIntervalSince1970)).json")
             try? FileManager.default.moveItem(at: dbURL, to: backup)
             Log.store.error("Liste unlesbar, gesichert: \(error.localizedDescription, privacy: .public)")
-            Diagnostics.shared.failure("store", "Liste unlesbar, gesichert", error)
+            diagnostics?.failure("store", "Liste unlesbar, gesichert", error)
             return
         }
         let broken = decoded.filter { $0.entry == nil }.count
         if broken > 0 {
             Log.store.error("\(broken, privacy: .public) beschädigte Einträge übersprungen")
-            Diagnostics.shared.failure("store", "\(broken) beschädigte Einträge übersprungen")
+            diagnostics?.failure("store", "\(broken) beschädigte Einträge übersprungen")
             // Rohdaten aufheben, damit das nächste Speichern sie nicht verwirft
             if let raw = try? JSONSerialization.jsonObject(with: data) as? [Any], raw.count == decoded.count {
                 unreadableEntries = zip(raw, decoded).filter { $0.1.entry == nil }.map { $0.0 }
@@ -341,7 +348,7 @@ final class ShelfStore: ObservableObject {
             try data.write(to: dbURL, options: .atomic)
         } catch {
             Log.store.error("Speichern fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
-            Diagnostics.shared.failure("store", "Speichern fehlgeschlagen", error)
+            diagnostics?.failure("store", "Speichern fehlgeschlagen", error)
         }
     }
 
@@ -514,8 +521,8 @@ final class ShelfStore: ObservableObject {
                 if let error {
                     Log.store.error("Papierkorb fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
                 }
-                Diagnostics.shared.record("trash", "\(trashed.count) of \(urls.count) files=\(Diagnostics.anon(urls))")
-                if let error { Diagnostics.shared.failure("trash", "Papierkorb fehlgeschlagen", error) }
+                self.diagnostics?.record("trash", "\(trashed.count) of \(urls.count) files=\(Diagnostics.anon(urls))")
+                if let error { self.diagnostics?.failure("trash", "Papierkorb fehlgeschlagen", error) }
                 let mapping = Dictionary(trashed.map { ($0.key.standardizedFileURL, $0.value) },
                                          uniquingKeysWith: { first, _ in first })
                 let shelfFiles = self.entries.flatMap(\.files)
@@ -564,7 +571,7 @@ final class ShelfStore: ObservableObject {
             if !rest.files.isEmpty { updated.append(rest) }
         }
         guard !removed.isEmpty || !extraItems.isEmpty else { return nil }
-        Diagnostics.shared.record("store", "takeOut \(removed.count) undoable=\(undoable) delay=\(delay.map { String(Int($0)) } ?? "–") trashed=\(trashed.count) extra=\(extraItems.count)")
+        diagnostics?.record("store", "takeOut \(removed.count) undoable=\(undoable) delay=\(delay.map { String(Int($0)) } ?? "–") trashed=\(trashed.count) extra=\(extraItems.count)")
         if !removed.isEmpty {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { entries = updated }
         }
@@ -610,7 +617,7 @@ final class ShelfStore: ObservableObject {
 
     /// Legt entfernte Dateien zurück an ihren alten Platz. Registriert das Wiederholen.
     private func undo(_ removal: ShelfRemoval) {
-        Diagnostics.shared.record("store", "undo files=\(removal.fileIDs.count) trashed=\(removal.trashed.count)")
+        diagnostics?.record("store", "undo files=\(removal.fileIDs.count) trashed=\(removal.trashed.count)")
         removals.removeAll { $0 === removal }
         putBackFromTrash(removal.trashed)
         let present = Set(entries.flatMap { $0.files.map(\.id) })
@@ -671,7 +678,7 @@ final class ShelfStore: ObservableObject {
                 try fm.moveItem(at: inTrash, to: original)
             } catch {
                 Log.store.error("Zurücklegen fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
-                Diagnostics.shared.failure("store", "Zurücklegen fehlgeschlagen", error)
+                diagnostics?.failure("store", "Zurücklegen fehlgeschlagen", error)
             }
         }
     }
@@ -723,7 +730,7 @@ final class ShelfStore: ObservableObject {
             if !e.files.isEmpty { updated.append(e) }
         }
         if changed {
-            Diagnostics.shared.record("store", "prune: missing or moved files updated")
+            diagnostics?.record("store", "prune: missing or moved files updated")
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { entries = updated }
         }
     }
@@ -754,14 +761,14 @@ final class ShelfStore: ObservableObject {
         importer.alwaysCopy = AppSettings.shared.copyAllFiles
         pendingImports += 1
         let started = Date()
-        Diagnostics.shared.record("import", "start types=\(pb.types?.map(\.rawValue).prefix(12).joined(separator: ",") ?? "–") target=\(target != nil) copy=\(AppSettings.shared.copyAllFiles)")
+        diagnostics?.record("import", "start types=\(pb.types?.map(\.rawValue).prefix(12).joined(separator: ",") ?? "–") target=\(target != nil) copy=\(AppSettings.shared.copyAllFiles)")
         // Bloßes Ablegen: Dateien gleich zeigen, auch wenn sie noch kopiert werden.
         // Arbeitet danach eine Aktion mit ihnen, braucht sie die fertigen Kopien.
         let showWhileCopying = target == nil && completion == nil
         importer.importContent(of: pb, showWhileCopying: showWhileCopying) { [weak self] files in
             guard let self else { return }
             self.pendingImports = max(0, self.pendingImports - 1)
-            Diagnostics.shared.record("import", "done \(files.count) in \(Int(Date().timeIntervalSince(started) * 1000)) ms owned=\(files.filter(\.owned).count) files=\(Diagnostics.anon(files.map(\.url)))")
+            self.diagnostics?.record("import", "done \(files.count) in \(Int(Date().timeIntervalSince(started) * 1000)) ms owned=\(files.filter(\.owned).count) files=\(Diagnostics.anon(files.map(\.url)))")
             guard !files.isEmpty else {
                 completion?([])
                 return
