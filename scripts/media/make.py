@@ -4,13 +4,13 @@ T={
  "hero":("A shelf at the<br>edge of your screen.","Drop anything at the edge of your screen. Drag it back out whenever you need it."),
  "actions":("One drag<br>to any action.","Drop items on AirDrop, a folder or the Trash. Folders and the Trash work like in the Finder, and ⌘Z puts things back."),
  "stacks":("Stacks keep<br>things together.","Drop several files at once and they stay together. Click a stack to look inside."),
- "settings":("Feels right<br>at home on a Mac.","Edge, size, actions and how files are kept, in Settings built like macOS. Light and dark."),
+ "settings":("Feels right<br>at home on a Mac.","Edge, size, actions and how files are kept, in Settings built like macOS."),
 },
 "de":{
  "hero":("Eine Ablage am Rand<br>deines Bildschirms.","Leg alles am Bildschirmrand ab und zieh es wieder heraus, wenn du es brauchst."),
  "actions":("Ein Zug<br>zur Aktion.","Leg Objekte auf AirDrop, einen Ordner oder den Papierkorb. Ordner und Papierkorb funktionieren wie im Finder, ⌘Z legt alles zurück."),
  "stacks":("Stapel halten<br>zusammen.","Mehrere Dateien auf einmal bleiben zusammen. Ein Klick auf den Stapel zeigt, was drin ist."),
- "settings":("Fühlt sich an<br>wie macOS.","Rand, Größe, Aktionen und wie Dateien aufbewahrt werden, in Einstellungen im Stil von macOS. Hell und dunkel."),
+ "settings":("Fühlt sich an<br>wie macOS.","Rand, Größe, Aktionen und wie Dateien aufbewahrt werden, in Einstellungen im Stil von macOS."),
 }}
 HEAD='<html><head><link rel="stylesheet" href="base.css"><style>.shot{position:absolute}.win{position:absolute;width:436px;height:640px;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.14)}.win img{width:436px;height:640px;display:block}.tag{position:absolute;color:#fff;font-size:15px;font-weight:600;opacity:.8}</style></head><body>'
 def title(t,top=300,badge=False):
