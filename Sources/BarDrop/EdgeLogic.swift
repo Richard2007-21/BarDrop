@@ -16,6 +16,8 @@ enum EdgeLogic {
         var manualOpen = false
         /// Nach manuellem Öffnen war der Zeiger schon einmal über der Ablage
         var manualHovered = false
+        /// Seit die Ablage zuletzt ganz verborgen war, gab es schon einen Impuls
+        var hapticGiven = false
     }
 
     /// Messwerte eines Takts.
@@ -87,6 +89,8 @@ enum EdgeLogic {
 
     static func decide(_ state: inout State, _ s: Sample, _ c: Config) -> Result {
         var result = Result(target: state.level)
+        if state.level == .hidden { state.hapticGiven = false }
+        defer { if result.haptic { state.hapticGiven = true } }
 
         if s.locked {
             result.target = .expanded
@@ -134,6 +138,10 @@ enum EdgeLogic {
                 && s.dy < max(50, s.height / 2 + s.fillet + 6) + slack.y
             let elapsed = s.now.timeIntervalSince(state.levelSince)
             if touchesEdge {
+                // Stand der Streifen schon, ohne dass der Zeiger ihn erreicht hatte (Vorschau
+                // beim Start, nach dem Verstellen oder in der Einführung): Der Impuls kommt,
+                // sobald der Zeiger ihn erreicht. Sonst bliebe dieses Öffnen ohne Impuls.
+                if state.level != .hidden && !state.hapticGiven { result.haptic = true }
                 switch state.level {
                 case .hidden where s.inRevealZone:
                     // Nur im erlaubten Bereich: Dort sitzt der Streifen genau mittig am Zeiger

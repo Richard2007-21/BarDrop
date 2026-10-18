@@ -59,6 +59,7 @@ final class TrackpadActuator {
         if let sym = dlsym(handle, "MTActuatorActuate") { actuateFn = unsafeBitCast(sym, to: ActuateFn.self) }
         if let sym = dlsym(handle, "MTActuatorClose") { close = unsafeBitCast(sym, to: CloseFn.self) }
         refresh()
+        observeWake()
     }
 
     /// Sucht alle Multitouch-Geräte (eingebautes Trackpad, Magic Trackpad) und öffnet ihre Aktuatoren.
@@ -91,16 +92,34 @@ final class TrackpadActuator {
     /// Löst einen Impuls auf allen Trackpads aus. Gibt false zurück, wenn das nicht möglich war.
     @discardableResult
     func actuate(_ strength: Strength) -> Bool {
+        guard actuateFn != nil else { return false }
+        if fire(strength) { return true }
+        // Nach dem Ruhezustand, nach dem Neuverbinden eines Magic Trackpads oder wenn macOS
+        // das Gerät neu angelegt hat, können die geöffneten Aktuatoren ungültig sein. Dann
+        // sofort neu öffnen und denselben Impuls noch einmal auslösen, statt ihn zu verlieren.
+        // Ohne Trackpad (nur Maus) höchstens alle 5 Sekunden suchen.
+        let wait: TimeInterval = actuators.isEmpty ? 5 : 1
+        guard Date().timeIntervalSince(lastRefresh) > wait else { return false }
+        refresh()
+        return fire(strength)
+    }
+
+    private func fire(_ strength: Strength) -> Bool {
         guard let actuateFn else { return false }
-        // Ein später angeschlossenes Magic Trackpad wird beim nächsten Impuls gefunden
-        if actuators.isEmpty, Date().timeIntervalSince(lastRefresh) > 5 { refresh() }
         var success = false
         for actuator in actuators where actuateFn(actuator, strength.rawValue, 0, 0, 0) == 0 {
             success = true
         }
-        if !success && !actuators.isEmpty && Date().timeIntervalSince(lastRefresh) > 30 {
-            refresh()   // z. B. nach Ruhezustand neu öffnen
-        }
         return success
+    }
+
+    /// Nach dem Aufwachen die Verbindungen zum Trackpad gleich neu öffnen, damit schon der
+    /// erste Impuls danach ankommt.
+    private var wakeObserver: NSObjectProtocol?
+
+    private func observeWake() {
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.refresh() }
     }
 }

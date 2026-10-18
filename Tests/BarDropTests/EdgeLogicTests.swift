@@ -38,6 +38,24 @@ final class EdgeLogicTests: XCTestCase {
         XCTAssertTrue(r.haptic, "Genau ein Impuls beim ersten Streifen")
     }
 
+    /// Stand der Streifen schon als Vorschau (Start, Einführung), kommt der Impuls, sobald
+    /// der Zeiger ihn erreicht, und nur einmal
+    func testPreviewStripPulsesOnceWhenReached() {
+        var s = state(.peek, since: 0)
+        XCTAssertTrue(EdgeLogic.decide(&s, sample(dx: 1, at: 0.05, level: .peek), .init()).haptic)
+        XCTAssertFalse(EdgeLogic.decide(&s, sample(dx: 1, at: 0.06, level: .peek), .init()).haptic)
+        s.level = .hint
+        XCTAssertFalse(EdgeLogic.decide(&s, sample(dx: 1, at: 0.2, level: .hint), .init()).haptic)
+    }
+
+    func testFirstStripPulseIsNotRepeatedAtNextStages() {
+        var s = state(.hidden)
+        XCTAssertTrue(EdgeLogic.decide(&s, sample(dx: 1), .init()).haptic)
+        s.level = .peek
+        s.levelSince = t0
+        XCTAssertFalse(EdgeLogic.decide(&s, sample(dx: 1, at: 0.15, level: .peek), .init()).haptic)
+    }
+
     func testStagesNeedTimeToGrow() {
         var s = state(.peek, since: 0)
         XCTAssertEqual(EdgeLogic.decide(&s, sample(dx: 1, at: 0.05, level: .peek), .init()).target, .peek,
