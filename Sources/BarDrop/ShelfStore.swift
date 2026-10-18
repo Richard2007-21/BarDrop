@@ -505,10 +505,19 @@ final class ShelfStore: ObservableObject {
                 }
                 let mapping = Dictionary(trashed.map { ($0.key.standardizedFileURL, $0.value) },
                                          uniquingKeysWith: { first, _ in first })
-                let ids = self.entries.flatMap(\.files)
-                    .filter { mapping[$0.url.standardizedFileURL] != nil }.map(\.id)
-                if !ids.isEmpty {
-                    self.takeOut(Set(ids), undoable: true, trashed: mapping)
+                let shelfFiles = self.entries.flatMap(\.files)
+                let ids = shelfFiles.filter { mapping[$0.url.standardizedFileURL] != nil }.map(\.id)
+                // Direkt aus dem Finder auf die Aktion gezogen: ⌘Z legt sie zurück und
+                // ebenfalls in die Ablage (oben, wie neu abgelegt)
+                let inShelf = Set(shelfFiles.map(\.url.standardizedFileURL))
+                let outside = mapping.keys.filter { !inShelf.contains($0) }.sorted { $0.path < $1.path }
+                let extra = outside.map { url -> ShelfRemoval.Item in
+                    var file = ShelfFile(url: url, owned: false)
+                    file.bookmark = nil
+                    return ShelfRemoval.Item(index: 0, before: ShelfEntry(files: [file]))
+                }
+                if !ids.isEmpty || !extra.isEmpty {
+                    self.takeOut(Set(ids), undoable: true, trashed: mapping, extraItems: extra)
                 }
                 completion(mapping.count)
             }
@@ -524,8 +533,8 @@ final class ShelfStore: ObservableObject {
     /// Nicht widerrufbar: Eigene Dateien werden sofort gelöscht.
     @discardableResult
     private func takeOut(_ fileIDs: Set<UUID>, undoable: Bool, deleteOwnedAfter delay: TimeInterval? = nil,
-                         trashed: [URL: URL] = [:]) -> ShelfRemoval? {
-        guard !fileIDs.isEmpty else { return nil }
+                         trashed: [URL: URL] = [:], extraItems: [ShelfRemoval.Item] = []) -> ShelfRemoval? {
+        guard !fileIDs.isEmpty || !extraItems.isEmpty else { return nil }
         var items: [ShelfRemoval.Item] = []
         var removed: [ShelfFile] = []
         var updated: [ShelfEntry] = []
@@ -541,8 +550,12 @@ final class ShelfStore: ObservableObject {
             rest.files.removeAll { fileIDs.contains($0.id) }
             if !rest.files.isEmpty { updated.append(rest) }
         }
-        guard !removed.isEmpty else { return nil }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { entries = updated }
+        guard !removed.isEmpty || !extraItems.isEmpty else { return nil }
+        if !removed.isEmpty {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { entries = updated }
+        }
+        items += extraItems
+        let extraFiles = extraItems.flatMap(\.before.files)
 
         // Im Papierkorb liegende eigene Dateien gehören jetzt dem Papierkorb: nichts löschen
         let owned = removed.filter { $0.owned && trashed[$0.url.standardizedFileURL] == nil }
@@ -558,7 +571,7 @@ final class ShelfStore: ObservableObject {
                 self.deleteOwnedFiles(due)
             }
         }
-        let removal = ShelfRemoval(items: items, fileIDs: Set(removed.map(\.id)),
+        let removal = ShelfRemoval(items: items, fileIDs: Set((removed + extraFiles).map(\.id)),
                                    heldFiles: delay == nil ? owned : [], trashed: trashed)
         removals.append(removal)
         undoManager.registerUndo(withTarget: removal) { [weak self] removal in

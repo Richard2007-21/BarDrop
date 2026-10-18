@@ -118,6 +118,24 @@ final class UndoTests: XCTestCase {
         XCTAssertTrue(store.entries.flatMap(\.files).contains { $0.id == user.id })
     }
 
+    /// Direkt aus dem Finder auf die Aktion Papierkorb: ⌘Z legt zurück und in die Ablage
+    func testTrashFromFinderIsUndoable() throws {
+        let dir = base.appendingPathComponent("Finder")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("Brief.txt")
+        try Data("brief".utf8).write(to: file)
+        let done = expectation(description: "Papierkorb")
+        var count = 0
+        store.moveToTrash([file]) { n in count = n; done.fulfill() }
+        wait(for: [done], timeout: 15)
+        try XCTSkipIf(count == 0, "Kein Papierkorb in dieser Umgebung")
+        XCTAssertTrue(store.undoManager.canUndo)
+        _ = store.undoLast()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), "Wieder an seinem Ort")
+        XCTAssertTrue(store.entries.flatMap(\.urls).contains { $0.standardizedFileURL == file.standardizedFileURL },
+                      "Und in der Ablage")
+    }
+
     func testFolderOperationLikeFinder() {
         let (_, user) = addFiles()
         let folder = base.appendingPathComponent("Ziel")
