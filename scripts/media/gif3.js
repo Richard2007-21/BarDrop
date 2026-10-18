@@ -12,13 +12,14 @@ function path(t,keys){
     const bow=Math.sin(u*Math.PI)*arc;return[lerp(x0,x1,u),lerp(y0,y1,u)-bow]}}
   return keys[keys.length-1].slice(1,3)}
 
-const S=window.SLOTS, BODY_LEFT=506+280*374/880;
+// Die Ablage zählt den Zeiger noch 18 pt neben ihrer Form als „darüber“ (EdgeController)
+const S=window.SLOTS, BODY_LEFT=506+280*374/880-18;
 const LAKE=[334.5,183], DUSK=[545.5,325], PH1=[275,289], PH2=[505,289];
 const inRect=(x,y,cx,cy,w,h)=>Math.abs(x-cx)<=w/2&&Math.abs(y-cy)<=h/2;
 const DUR=20.3;
 const P=[[0,430,470],[0.6,430,470],[1.25,LAKE[0],LAKE[1],10],[1.35,LAKE[0],LAKE[1]],[2.5,858,290,40],[2.7,858,290],
-  [3.5,DUSK[0],DUSK[1],25],[3.6,DUSK[0],DUSK[1]],[4.8,858,290,40],[5.0,858,290],[5.6,640,420,10],[6.6,640,420],
-  [7.1,872,285,20],[7.9,S.r1c2[0],S.r1c2[1]+2,15],[8.35,S.r1c2[0],S.r1c2[1]+2],[9.5,PH1[0],PH1[1],30],[9.75,PH1[0],PH1[1]],
+  [3.5,DUSK[0],DUSK[1],25],[3.6,DUSK[0],DUSK[1]],[4.8,858,290,40],[5.0,858,290],[5.6,520,430,10],[6.75,520,430],
+  [7.25,872,285,20],[7.9,S.r1c2[0],S.r1c2[1]+2,15],[8.35,S.r1c2[0],S.r1c2[1]+2],[9.5,PH1[0],PH1[1],30],[9.75,PH1[0],PH1[1]],
   [10.3,872,285,25],[10.95,S.r1c1[0],S.r1c1[1]+2,15],[11.35,S.r1c1[0],S.r1c1[1]+2],[12.4,PH2[0],PH2[1],25],[12.65,PH2[0],PH2[1]],
   [13.1,872,285,15],[13.85,S.r1c2[0],S.r1c2[1]+2,15],[14.25,S.r1c2[0],S.r1c2[1]+2],[15.05,S.trash[0],S.trash[1],15],[15.3,S.trash[0],S.trash[1]],
   [16.0,720,400,10],[16.6,450,420,15],[18.6,450,420],[20.0,430,470,15],[20.3,430,470]];
@@ -41,7 +42,7 @@ function shelfImage(t){
   return 'h4';
 }
 function openness(t){
-  const win=[[2.15,L_A+0.3],[4.45,L_B+0.3],[7.45,L_1],[10.65,L_2],[13.45,L_C+0.3]];
+  const win=[[2.15,L_A+0.3],[4.45,L_B+0.3],[7.6,L_1],[10.65,L_2],[13.45,L_C+0.3]];
   for(const [a,b] of win){
     if(t>=a&&t<b) return back(seg(t,a,a+0.28));
     if(t>=b&&t<b+0.25) return 1-io(seg(t,b,b+0.22));
@@ -49,7 +50,7 @@ function openness(t){
   return 0;
 }
 function strip(t){
-  const w=[[1.4,2.15],[3.7,4.45],[7.15,7.45],[10.35,10.65],[13.15,13.45]];
+  const w=[[1.4,2.15],[3.7,4.45],[7.3,7.6],[10.35,10.65],[13.15,13.45]];
   for(const [a,b] of w) if(t>=a&&t<b+0.15) return seg(t,a,a+0.12)*(1-seg(t,b,b+0.15));
   return 0;
 }
@@ -60,7 +61,7 @@ function keys(t){
 }
 // Ruhiger ablaufen lassen: etwas langsamer, nach wichtigen Schritten kurz innehalten
 const SLOW=1.25;
-const HOLDS=[[2.55,0.5],[4.85,0.7],[6.5,0.4],[9.75,0.6],[12.65,0.7],[15.3,0.7],[16.1,0.6],[17.4,0.3],[18.1,0.6],[19.3,0.3]];
+const HOLDS=[[2.55,0.5],[4.85,0.7],[6.65,0.4],[9.75,0.6],[12.65,0.7],[15.3,0.7],[16.1,0.6],[17.4,0.3],[18.1,0.6],[19.3,0.3]];
 function sceneTime(real){
   let r=real,last=0;
   for(const [at,hold] of HOLDS){
@@ -79,7 +80,7 @@ window.render=function(real){
   const pt=$('pointer'); pt.style.left=(px-2)+'px'; pt.style.top=(py-2)+'px';
 
   // Schreibtische: Wischen zur Präsentation und am Ende zurück
-  let sw=0; if(t>=5.8&&t<18.6) sw=io(seg(t,5.8,6.5)); if(t>=18.6) sw=1-io(seg(t,18.6,19.3));
+  let sw=0; if(t>=6.0&&t<18.6) sw=io(seg(t,6.0,6.65)); if(t>=18.6) sw=1-io(seg(t,18.6,19.3));
   $('sp1').style.transform=`translateX(${-900*sw}px)`; $('sp2').style.transform=`translateX(${900*(1-sw)}px)`;
   const inPresent=sw>=0.5;
   $('app').textContent=inPresent?'Present':'Browser'; $('m4').textContent=inPresent?'Insert':'History';

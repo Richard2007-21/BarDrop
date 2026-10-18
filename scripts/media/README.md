@@ -18,7 +18,7 @@ ffmpeg -framerate 25 -i frames/f%04d.png -vf palettegen=max_colors=192 pal.png
 ffmpeg -framerate 25 -i frames/f%04d.png -i pal.png -lavfi paletteuse=dither=sierra2_4a -loop 0 preview.gif
 ```
 
-The preview GIF (`docs/preview.gif`) is built from `gif2.html` and `gif2.js`. Put the `GIF2_*.png` files
+The preview GIF (`docs/preview.gif`) is built from `gif3.html` and `gif3.js` (files `GIF3_*.png`, cut the Archive icon from `GIF3_4.png` at 580,394 into `GIF3_archive_icon.png`, then `python3 gif3shot.py 25` and the same two ffmpeg steps on `frames3`). The earlier stack GIF is built from `gif2.html` and `gif2.js`. Put the `GIF2_*.png` files
 from `previews.zip` next to them, cut the photos and the note icon out of the shelf shots, then:
 
 ```bash
