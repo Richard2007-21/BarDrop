@@ -412,9 +412,13 @@ private struct PinSlot: View {
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: targeted)
         .overlay(Group { if !shelfDemo {PinDropTarget(ui: ui, onTargeted: { targeted = $0 }) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            // Ohne Animation: Die neue Aktion steht sofort an der Stelle, an der sie
+            // abgelegt wurde, statt von der Seite hereinzugleiten
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
                 settings.pin(url)
-                ui.setPinCandidate(nil)
+                ui.setPinCandidate(nil, animated: false)
             }
         }} })
         .help(L("Pin “\(name)” to the action bar", "„\(name)“ an die Aktionsleiste anheften"))

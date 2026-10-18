@@ -51,10 +51,16 @@ final class ShelfUIModel: ObservableObject {
     @Published private(set) var pinCandidate: URL?
     private var pinClear: DispatchWorkItem?
 
-    func setPinCandidate(_ url: URL?) {
+    func setPinCandidate(_ url: URL?, animated: Bool = true) {
         holdPinCandidate()
         guard pinCandidate != url else { return }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { pinCandidate = url }
+        if animated {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { pinCandidate = url }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { pinCandidate = url }
+        }
     }
 
     /// Der Zeiger ist noch über der Ablage (ein Ziel darin hat den Drag übernommen)
