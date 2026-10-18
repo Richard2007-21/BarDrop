@@ -216,7 +216,9 @@ final class ViewSmokeTests: XCTestCase {
         ui.expandedBody = CGRect(x: 0, y: 0, width: settings.shelfWidth, height: settings.shelfHeight)
         for language in [AppLanguage.english, .german] {
             settings.language = language
-            shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
+            // Wie in der Einführung ohne AppKit-Flächen: So lässt sich die Ablage scharf zeichnen
+            shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions)
+                    .environment(\.shelfDemo, true),
                  size: CGSize(width: 380, height: 520), "Produkt Ablage \(language.rawValue)", dir: dir)
             for (pane, name) in [(AnyView(ItemSettings(settings: settings, store: store)), "Objekte"),
                                  (AnyView(OpeningSettings(settings: settings)), "Oeffnen"),
@@ -232,17 +234,17 @@ final class ViewSmokeTests: XCTestCase {
     /// Wie `render`, aber in doppelter Auflösung
     private func shot<V: View>(_ view: V, size: CGSize, _ name: String, dir: String,
                                appearance: NSAppearance.Name? = nil) {
-        let host = NSHostingView(rootView: view)
-        if let appearance { host.appearance = NSAppearance(named: appearance) }
-        host.frame = CGRect(origin: .zero, size: size)
-        host.layoutSubtreeIfNeeded()
-        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2),
-                                         pixelsHigh: Int(size.height * 2), bitsPerSample: 8, samplesPerPixel: 4,
-                                         hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-                                         bytesPerRow: 0, bitsPerPixel: 0) else { return XCTFail(name) }
-        rep.size = size
-        host.cacheDisplay(in: host.bounds, to: rep)
-        guard let png = rep.representation(using: .png, properties: [:]) else { return XCTFail(name) }
+        // Scharf in doppelter Auflösung (ImageRenderer); Ansichten mit AppKit-Teilen zeichnet
+        // er nicht, dann wie `render` über ein Fenster in doppelter Größe
+        let scheme: ColorScheme = appearance == .aqua ? .light : .dark
+        let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height)
+                                         .environment(\.colorScheme, scheme))
+        renderer.scale = 2
+        var data: Data?
+        if let cg = renderer.cgImage {
+            data = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])
+        }
+        guard let png = data else { return XCTFail(name) }
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name.replacingOccurrences(of: " ", with: "_") + ".png"))
     }
