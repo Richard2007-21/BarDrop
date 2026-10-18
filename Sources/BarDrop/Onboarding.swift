@@ -676,13 +676,14 @@ private struct PresentationPage<Hero: View, Practice: View>: View {
     }
 }
 
-/// Die Übung einer Seite: hervorgehoben in der Akzentfarbe, damit klar ist, dass man hier
-/// selbst etwas tut. Danach ein grüner Haken mit kurzer Bestätigung an derselben Stelle.
+/// Die Übung einer Seite, in derselben Karte wie die Einstellungen: links das, womit man
+/// übt, rechts kurz, was zu tun ist. Danach ein grüner Haken mit kurzer Bestätigung an
+/// derselben Stelle.
 private struct TaskCard<Leading: View>: View {
     let done: Bool
     let instruction: String
     let confirmation: String
-    /// Gestrichelt: die Karte selbst ist ein Ziel zum Ablegen
+    /// Die Karte selbst ist ein Ziel zum Ablegen
     var dashed = false
     /// Etwas wird gerade über die Karte gezogen
     var targeted = false
@@ -693,42 +694,64 @@ private struct TaskCard<Leading: View>: View {
     private var accent: Color { Color(nsColor: .controlAccentColor) }
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
         ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(done ? Color.green.opacity(0.1) : accent.opacity(targeted ? 0.2 : 0.08))
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(done ? Color.green.opacity(0.5) : accent.opacity(targeted ? 0.95 : 0.55),
-                              style: StrokeStyle(lineWidth: 1.5, dash: dashed && !done ? [6, 5] : []))
+            shape.fill(SettingsTheme.card)
+            // Beim Darüberziehen wie ein Ablageziel in macOS: Rand in der Akzentfarbe
+            shape.strokeBorder(targeted && !done ? accent : SettingsTheme.cardBorder,
+                               lineWidth: targeted && !done ? 2 : 1)
             if done {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24))
+                        .font(.system(size: 22))
                         .foregroundStyle(.white, .green)
                     Text(confirmation)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 13.5, weight: .medium))
                 }
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                .transition(.opacity)
             } else {
-                HStack(spacing: 16) {
+                HStack(spacing: 18) {
                     leading()
-                    VStack(alignment: .leading, spacing: 3) {
+                        .frame(minWidth: 120)
+                    Rectangle()
+                        .fill(SettingsTheme.separator)
+                        .frame(width: 1, height: 64)
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(L("Your turn", "Jetzt du"))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(accent)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
                         Text(instruction)
-                            .font(.system(size: 13))
+                            .font(.system(size: 13.5))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, SettingsTheme.rowPadding + 4)
                 .transition(.opacity)
             }
         }
         .frame(width: Self.size.width, height: Self.size.height)
-        .scaleEffect(targeted ? 1.02 : 1)
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: targeted)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: done)
+        .animation(.easeOut(duration: 0.15), value: targeted)
+        .animation(.easeInOut(duration: 0.25), value: done)
+    }
+}
+
+/// Feld zum Ablegen in der Übungskarte: gestrichelte Mulde wie ein Ablageziel in macOS
+private struct DropWell: View {
+    var targeted: Bool
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        shape
+            .fill(Color.primary.opacity(targeted ? 0.08 : 0.03))
+            .overlay(shape.strokeBorder(targeted ? Color(nsColor: .controlAccentColor) : Color.secondary.opacity(0.45),
+                                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+            .overlay(
+                Image(systemName: "tray.and.arrow.down")
+                    .font(.system(size: 24, weight: .regular))
+                    .foregroundStyle(targeted ? Color(nsColor: .controlAccentColor) : .secondary)
+            )
+            .frame(width: 96, height: 72)
     }
 }
 
@@ -813,10 +836,7 @@ private struct RetrievePage: View {
                                     "Öffne die Ablage und zieh das Bild auf dieses Feld."),
                      confirmation: L("Works with any app.", "Klappt mit jeder App."),
                      dashed: true, targeted: targeted) {
-                Image(systemName: "tray.and.arrow.down")
-                    .font(.system(size: 30, weight: .regular))
-                    .foregroundStyle(Color(nsColor: .controlAccentColor))
-                    .frame(width: 72, height: 72)
+                DropWell(targeted: targeted)
             }
             .overlay(
                 ReturnDropTarget(enabled: !model.stepDone, targeted: $targeted) {
@@ -842,7 +862,7 @@ private struct ShortcutPage: View {
             TaskCard(done: model.stepDone,
                      instruction: L("Press \(settings.hotKeyDescription).", "Drück \(settings.hotKeyDescription)."),
                      confirmation: L("That’s it.", "Genau so.")) {
-                KeyCaps(keys: ShortcutKeys.keys(settings), size: 46, pressed: false)
+                KeyCaps(keys: ShortcutKeys.keys(settings), size: 40, pressed: false)
             }
         }
     }
