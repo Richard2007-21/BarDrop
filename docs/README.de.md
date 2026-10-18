@@ -63,7 +63,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
   <img src="images/hero-de.jpg" width="49%" alt="Die Ablage offen am rechten Bildschirmrand mit sechs Dateien">
   <img src="images/actions-de.jpg" width="49%" alt="Ein Foto wird auf die Aktion Downloads in der Aktionsleiste gezogen">
   <img src="images/stacks-de.jpg" width="49%" alt="Mehrere Dateien als Stapel">
-  <img src="images/settings-de.jpg" width="49%" alt="Das Einstellungsfenster im Dunkelmodus">
+  <img src="images/settings-de.jpg" width="49%" alt="Das Einstellungsfenster hell und dunkel">
 </p>
 
 ## Funktionen

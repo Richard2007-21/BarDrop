@@ -1,0 +1,85 @@
+<html><head><style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:880px;height:550px;overflow:hidden;font-family:Inter,sans-serif;-webkit-font-smoothing:antialiased}
+.wall{position:absolute;inset:0;background:
+ radial-gradient(700px 500px at 15% 110%, #ff8a6b 0%, rgba(255,138,107,0) 55%),
+ radial-gradient(600px 450px at 85% -10%, #3a5bff 0%, rgba(58,91,255,0) 60%),
+ radial-gradient(520px 520px at 60% 60%, #8a3ffc 0%, rgba(138,63,252,0) 65%),
+ linear-gradient(135deg,#1a1f6b 0%,#5b2ca8 45%,#c2477d 80%,#f08a5d 100%)}
+.menubar{position:absolute;top:0;left:0;right:0;height:24px;background:rgba(20,10,40,.3);color:#fff;font-size:11.5px;font-weight:500;display:flex;align-items:center;padding:0 14px;gap:16px;z-index:5}
+.menubar b{font-weight:700}.menubar .r{margin-left:auto}
+.icon{position:absolute;display:flex;flex-direction:column;align-items:center;gap:4px;width:96px;transform:translate(-50%,-50%)}
+.icon .im{width:56px;height:42px;padding:3px;border-radius:5px;display:flex;align-items:center;justify-content:center}
+.icon .im img{width:50px;height:37.5px;display:block;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.icon .lb{font-size:10.5px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);padding:1px 5px;border-radius:4px;white-space:nowrap}
+.icon.sel .lb{background:#2f6ff5;text-shadow:none}
+.icon.sel .im{background:rgba(255,255,255,.22)}
+.icon.dim .lb{background:rgba(160,160,170,.55);text-shadow:none}
+.icon.dim .im{background:rgba(255,255,255,.14)}
+#lasso{position:absolute;border:1px solid rgba(255,255,255,.85);background:rgba(255,255,255,.14);display:none}
+/* Erfundene Präsentations-App */
+#win{position:absolute;left:200px;top:62px;width:400px;height:292px;border-radius:11px;background:#1e1e20;box-shadow:0 22px 50px rgba(0,0,0,.45),0 0 0 .5px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.14);overflow:hidden;color:#e8e8ed}
+#win .top{height:38px;display:flex;align-items:center;padding:0 12px;gap:7px;background:#2a2a2d;border-bottom:1px solid rgba(0,0,0,.5)}
+#win .tl{width:11px;height:11px;border-radius:50%}
+#win .ttl{flex:1;text-align:center;font-size:11.5px;font-weight:600;margin-right:46px}
+#win.inactive .tl{background:#4a4a4d!important}
+#win.inactive .ttl{color:#8e8e93}
+#win .side{position:absolute;left:0;top:38px;bottom:0;width:78px;background:#252528;border-right:1px solid rgba(0,0,0,.4);padding:10px 9px;display:flex;flex-direction:column;gap:9px}
+#win .th{height:34px;border-radius:3px;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+#win .th.on{box-shadow:0 0 0 2px #2f6ff5}
+#win .th .t{position:absolute;left:5px;top:5px;width:26px;height:3px;background:#1d1d1f;border-radius:1px}
+#win .th .p{position:absolute;right:5px;top:8px;width:22px;height:16px;border:1px dashed #c7c7cc;border-radius:2px}
+#win .th .ph{position:absolute;right:5px;top:8px;width:22px;height:16px;border-radius:2px;background-size:cover;background-position:center;opacity:0}
+#win .stage{position:absolute;left:78px;top:38px;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:#1a1a1c}
+#slide{width:292px;height:164px;background:#fff;border-radius:2px;position:relative;box-shadow:0 4px 14px rgba(0,0,0,.45);color:#1d1d1f}
+#slide h2{position:absolute;left:18px;top:22px;font-size:17px;font-weight:700;letter-spacing:-.2px}
+#slide .sub{position:absolute;left:18px;top:47px;font-size:9px;color:#6e6e73}
+#slide .ln{position:absolute;left:18px;height:4px;border-radius:2px;background:#e5e5ea}
+#ph{position:absolute;right:16px;top:30px;width:128px;height:96px;border:1.5px dashed #c7c7cc;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:8.5px;color:#8e8e93}
+#ph.hot{border-color:#2f6ff5;background:rgba(47,111,245,.08);color:#2f6ff5}
+#photo{position:absolute;right:16px;top:30px;width:128px;height:96px;border-radius:2px;background-size:cover;background-position:center;opacity:0}
+/* Ablage */
+#shelf{position:absolute;right:0;top:30px;width:374px;height:510px;transform-origin:100% 50%;z-index:3}
+#shelf img{position:absolute;inset:0;width:100%;height:100%;opacity:0}
+#strip{position:absolute;right:0;width:7px;height:68px;background:#000;border-radius:6px 0 0 6px;top:251px;box-shadow:0 0 0 1px rgba(255,255,255,.2);z-index:2}
+#dim{position:absolute;width:58px;height:46px;border-radius:6px;background:rgba(0,0,0,.62);opacity:0;z-index:4}
+#ghost{position:absolute;z-index:6;pointer-events:none}
+#pointer{position:absolute;width:20px;height:28px;z-index:8}
+#keys{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;gap:6px;z-index:9;opacity:0}
+#keys span{min-width:34px;height:34px;padding:0 9px;border-radius:8px;background:rgba(30,30,34,.82);color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 .5px rgba(255,255,255,.25),0 6px 16px rgba(0,0,0,.35)}
+</style></head><body>
+<div class="wall"></div>
+<div class="menubar"><b id="app">Finder</b><span>File</span><span>Edit</span><span>View</span><span id="m4">Go</span><span>Window</span><span>Help</span><span class="r">9:41</span></div>
+
+<div class="icon" id="d1" style="left:72px;top:118px"><div class="im"><img src="GIF2_Sunset_1.jpg"></div><div class="lb">Sunset 1.jpg</div></div>
+<div class="icon" id="d2" style="left:72px;top:206px"><div class="im"><img src="GIF2_Sunset_2.jpg"></div><div class="lb">Sunset 2.jpg</div></div>
+<div class="icon" id="d3" style="left:72px;top:294px"><div class="im"><img src="GIF2_Sunset_3.jpg"></div><div class="lb">Sunset 3.jpg</div></div>
+<div id="lasso"></div>
+
+<div id="win" class="inactive">
+  <div class="top"><span class="tl" style="background:#ff5f57"></span><span class="tl" style="background:#febc2e"></span><span class="tl" style="background:#28c840"></span><div class="ttl">Summer Trip</div></div>
+  <div class="side">
+    <div class="th"><div class="t" style="top:13px;left:12px;width:30px;height:4px"></div></div>
+    <div class="th on"><div class="t"></div><div class="p"></div><div class="ph" id="thph" style="background-image:url(GIF2_Sunset_2.jpg)"></div></div>
+    <div class="th"><div class="t"></div></div>
+  </div>
+  <div class="stage"><div id="slide">
+    <h2>Summer Trip</h2><div class="sub">Evenings by the sea</div>
+    <div class="ln" style="top:72px;width:110px"></div><div class="ln" style="top:82px;width:96px"></div><div class="ln" style="top:92px;width:104px"></div>
+    <div id="ph"><svg width="22" height="18" viewBox="0 0 22 18"><rect x="1" y="1" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="15" cy="6" r="2" fill="currentColor"/><path d="M2 15 L8 9 L12 13 L15 10 L20 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Drop an image</div>
+    <div id="photo" style="background-image:url(GIF2_Sunset_2.jpg)"></div>
+  </div></div>
+</div>
+
+<div id="strip"></div>
+<div id="shelf">
+  <img id="g0" src="GIF2_0.png"><img id="g0d" src="GIF2_0_drop.png"><img id="g1" src="GIF2_1.png">
+  <img id="g2" src="GIF2_2.png"><img id="g2s" src="GIF2_2_sel.png"><img id="g4" src="GIF2_4.png">
+  <img id="g4n" src="GIF2_4_notes.png"><img id="g4t" src="GIF2_4_trash.png"><img id="g5" src="GIF2_5.png"><img id="g6" src="GIF2_6_sel.png">
+</div>
+<div id="dim"></div>
+<div id="ghost"></div>
+<div id="keys"></div>
+<svg id="pointer" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12 27 L15.5 25.5 L11.5 17 L19 17 Z" fill="#000" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
+<script src="gif2.js"></script>
+</body></html>

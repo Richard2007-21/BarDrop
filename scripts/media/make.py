@@ -31,6 +31,6 @@ for lang,t in T.items():
     def window(img,left,top,border):
         return f'<div style="position:absolute;left:{left}px;top:{top}px;width:680px;height:700px;transform:scale(.78);transform-origin:top left;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);border:1px solid {border}"><img src="{img}" style="width:680px;height:700px;display:block">{lights}</div>'
     # Dunkel hinten, hell davor und leicht versetzt: beide Erscheinungsbilder
-    pages["settings"]=HEAD+'<div class="wall" style="filter:hue-rotate(-50deg)"></div>'+title(t["settings"],330)+window(f"Produkt_Fenster_Aktionen_{lang}.png",760,120,"rgba(255,255,255,.16)")+window(f"Produkt_Fenster_Allgemein_{lang}_hell.png",990,300,"rgba(0,0,0,.18)")+'</body></html>'
+    pages["settings"]=HEAD+'<div class="wall" style="filter:hue-rotate(-50deg)"></div>'+title(t["settings"],330)+window(f"Produkt_Fenster_Aktionen_{lang}.png",760,120,"rgba(255,255,255,.16)")+window(f"Produkt_Fenster_Objekte_{lang}_hell.png",990,300,"rgba(0,0,0,.18)")+'</body></html>'
     for k,v in pages.items():
         open(f"p_{k}_{lang}.html","w").write(v)
