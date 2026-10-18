@@ -84,7 +84,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         ui?.ownDragActive = false
         onDraggingOut(false)
         guard operation == [], !dragStartFrame.contains(screenPoint), let remove = dragOut?.remove else { return }
-        NSAnimationEffect.poof.show(centeredAt: screenPoint, size: NSSize(width: 40, height: 40))
+        // Ohne Staubwolke: Die Aktion verschwindet einfach, ihr Platz schließt sich
         Haptics.drop()
         DispatchQueue.main.async { remove() }
     }
