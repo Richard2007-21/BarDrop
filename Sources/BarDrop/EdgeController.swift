@@ -95,6 +95,7 @@ final class EdgeController: NSObject {
         self.settings = settings
         self.actions = ShelfActions(store: store, ui: ui, settings: settings)
         self.panel = ShelfPanel()
+        self.lastTileIconSize = settings.tileIconSize
         super.init()
 
         actions.panel = panel
@@ -342,7 +343,10 @@ final class EdgeController: NSObject {
 
     // MARK: Zustände
 
-    private lazy var lastTileIconSize = settings.tileIconSize
+    /// Symbolgröße beim letzten Prüfen. Gleich beim Start gesetzt: Ein erst beim ersten
+    /// Lesen übernommener Wert wäre schon der verstellte, und das erste Verschieben des
+    /// Reglers zeigte keine Beispieldateien.
+    private var lastTileIconSize: Double
 
     /// Zuletzt sichtbar oder benutzt (für stille Updates)
     private(set) var lastActivity = Date()
@@ -620,13 +624,16 @@ final class EdgeController: NSObject {
 
         if let until = previewUntil, until <= now {
             previewUntil = nil
-            if ui.showSampleTile { ui.showSampleTile = false }
             // Nach einer kurzen Vorschau zurück zum Streifen der Einführung
             if guideActive {
                 previewLevel = .peek
                 previewUntil = .distantFuture
             }
         }
+
+        // Beispieldateien der Symbolgröße erst ausblenden, wenn die Vorschau vorbei und
+        // die Ablage ganz zu ist: Beim Zuklappen sieht man sie noch, wie beim Verstellen
+        if ui.showSampleTile && previewUntil == nil && fullyHidden { ui.showSampleTile = false }
 
         // Rand zu einem Bildschirm daneben, der selbst eine Ablage hat: Dort gehört sie nicht hin.
         // Darf nur dieser Bildschirm eine Ablage haben, bleibt sie wie bisher an diesem Rand.
