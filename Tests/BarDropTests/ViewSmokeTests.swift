@@ -266,6 +266,74 @@ final class ViewSmokeTests: XCTestCase {
                 }
             }
 
+            // Zweites Vorschau-GIF: Fotos als Stapel ablegen, eines in eine Präsentation ziehen,
+            // eine Notiz in den Papierkorb und alles zurück (echter Kreislauf)
+            if language == .english {
+                let gifStore = ShelfStore(baseDirectory: base.appendingPathComponent("GIF2"))
+                let gifActions = ShelfActions(store: gifStore, ui: ui, settings: settings)
+                let byName = Dictionary((examples.singles + examples.stack).map { ($0.lastPathComponent, $0) },
+                                        uniquingKeysWith: { a, _ in a })
+                let old = ["Notes.txt", "Trip.pdf", "Chart.png"].compactMap { byName[$0] }
+                let photos = examples.stack
+                for url in photos {
+                    try? FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: dir)
+                        .appendingPathComponent("GIF2 " + url.lastPathComponent).deletingPathExtension()
+                        .appendingPathExtension("jpg"))
+                }
+                settings.stackMultiple = false
+                gifStore.add(old.reversed().map { ShelfFile(url: $0, owned: false) })
+                settings.stackMultiple = true
+                settings.stackThreshold = 2
+                TrashState.shared.isFull = false
+                ui.selection = []
+                ui.openStack = nil
+                ui.memberSelection = []
+                func gif(_ name: String) {
+                    shot(ShelfRootView(ui: ui, store: gifStore, settings: settings, actions: gifActions),
+                         size: CGSize(width: 440, height: 600), "GIF2 \(name)", dir: dir)
+                }
+                gif("0")
+                ui.isDropTargeted = true
+                gif("0 drop")
+                ui.isDropTargeted = false
+                gifStore.add(photos.map { ShelfFile(url: $0, owned: false) })
+                gif("1")
+                if let stack = gifStore.entries.first(where: \.isStack) {
+                    ui.openStack = stack.id
+                    gif("2")
+                    ui.memberSelection = Set(stack.files.dropFirst().prefix(1).map(\.id))
+                    gif("2 sel")
+                    ui.memberSelection = []
+                    gifStore.forgetFiles(at: [photos[1]])
+                    gif("3")
+                    ui.openStack = nil
+                    gif("4")
+                    ui.selection = Set(gifStore.entries.filter { $0.urls.first?.lastPathComponent == "Notes.txt" }.map(\.id))
+                    gif("4 notes")
+                    ui.selection = []
+                    ui.previewTargetedAction = settings.quickActions.first { $0.kind == .trash }?.id
+                    gif("4 trash")
+                    ui.previewTargetedAction = nil
+                    let withoutNotes = ShelfStore(baseDirectory: base.appendingPathComponent("GIF2b"))
+                    settings.stackMultiple = false
+                    withoutNotes.add(gifStore.entries.reversed().filter { $0.urls.first?.lastPathComponent != "Notes.txt" && !$0.isStack }.flatMap(\.files))
+                    settings.stackMultiple = true
+                    withoutNotes.add(gifStore.entries.filter(\.isStack).flatMap(\.files))
+                    TrashState.shared.isFull = true
+                    shot(ShelfRootView(ui: ui, store: withoutNotes, settings: settings,
+                                       actions: ShelfActions(store: withoutNotes, ui: ui, settings: settings)),
+                         size: CGSize(width: 440, height: 600), "GIF2 5", dir: dir)
+                    TrashState.shared.isFull = false
+                    if let restacked = gifStore.entries.first(where: \.isStack) {
+                        ui.selection = [restacked.id]
+                        gif("6 sel")
+                    }
+                    ui.selection = []
+                }
+                ui.openStack = nil
+                settings.stackMultiple = false
+            }
+
             // 2. Mit Stapel
             settings.stackMultiple = true
             settings.stackThreshold = 2

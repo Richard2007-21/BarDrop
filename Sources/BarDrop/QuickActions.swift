@@ -115,7 +115,8 @@ struct QuickAction: Codable, Identifiable, Hashable {
 /// direkt lesen geht nur mit Festplattenvollzugriff und ist darum nur der zweite Weg.
 final class TrashState: ObservableObject {
     static let shared = TrashState()
-    @Published private(set) var isFull = false
+    /// Von außen nur für die Produktbilder gesetzt; sonst über `refresh()`
+    @Published var isFull = false
 
     private init() { refresh() }
 
