@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.30.0-beta.18
+* Introduction: the file to drag is a photo (“Photo.jpg”), the same sample file that appears when changing the icon size, instead of the app icon
+* README: “Screenshots” link at the top and its own section; the preview loop moves the file from the desktop into the shelf and back, more smoothly
+
 ## 1.30.0-beta.17
 * **Fixed:** Introduction: the shelf is above the dimmed background. The cause: the shelf window lost its level when it was set up as a floating panel, so it sat below the background (and below other floating windows)
 * Opening → When → “Pointer only on the strip itself”: without a file, the shelf only opens when the pointer touches the strip; while dragging files the area stays generous (off by default)

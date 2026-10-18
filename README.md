@@ -19,6 +19,8 @@
   <a href="https://github.com/zzuuuiii/BarDrop/releases">All versions</a>
   &nbsp;·&nbsp;
   <a href="CHANGELOG.md">Changelog</a>
+  &nbsp;·&nbsp;
+  <a href="#screenshots">Screenshots</a>
 </p>
 
 <p align="center">
@@ -55,7 +57,7 @@ Images from the browser, links and text work just like files. On first launch a 
 
 After that, BarDrop keeps itself up to date in the background while you’re not using it, two days after each release. Both this and early beta versions can be set in Settings → About BarDrop.
 
-## Features
+## Screenshots
 
 <p align="center">
   <img src="docs/images/hero-en.jpg" width="49%" alt="The shelf open at the right edge of the screen with six files">
@@ -63,6 +65,8 @@ After that, BarDrop keeps itself up to date in the background while you’re not
   <img src="docs/images/stacks-en.jpg" width="49%" alt="Several files grouped as a stack">
   <img src="docs/images/settings-en.jpg" width="49%" alt="Settings in dark and light mode">
 </p>
+
+## Features
 
 **Shelf**
 * Left or right edge, at a fixed height or wherever the pointer reaches the edge (whole edge or middle half)

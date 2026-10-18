@@ -25,46 +25,50 @@ html,body{width:880px;height:550px;overflow:hidden;font-family:Inter,sans-serif;
 </style></head><body>
 <div class="wall"></div>
 <div class="menubar"><b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span><span class="r">9:41</span></div>
-<div class="icon" id="folder" style="left:120px;top:110px"><div class="folder im" id="fold"></div><div class="lb">Photos</div></div>
 <div class="icon" id="lake" style="left:120px;top:230px"><img class="im" src="lake_icon.png" style="width:54px;height:41px"><div class="lb">Lake.jpg</div></div>
 <div id="strip"></div>
-<div id="shelf"><img id="s1" src="Produkt_GIF_ohne.png"><img id="s2" src="Produkt_GIF_oben.png"></div>
-<div id="ghost"><img src="lake_icon.png"></div>
+<div id="shelf"><img id="s1" src="Produkt_GIF_ohne.png"><img id="s2" src="Produkt_GIF_oben.png"><div id="dim" style="position:absolute;left:137px;top:146px;width:58px;height:46px;border-radius:6px;background:rgba(0,0,0,.6);opacity:0"></div></div>
+<div id="ghost" style="display:flex;flex-direction:column;align-items:center;gap:4px"><img src="lake_icon.png"><div style="font-size:11px;font-weight:600;color:#fff;background:#2f6ff5;padding:1px 5px;border-radius:4px">Lake.jpg</div></div>
 <svg id="pointer" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12 27 L15.5 25.5 L11.5 17 L19 17 Z" fill="#000" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
 <script>
-const E=(t)=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2, C=(x)=>Math.max(0,Math.min(1,x));
-const lerp=(a,b,t)=>a+(b-a)*t;
-function seg(t,a,b){return C((t-a)/(b-a))}
-function path(t,keys){ // keys [[time,x,y]]
-  if(t<=keys[0][0])return keys[0].slice(1);
-  for(let i=1;i<keys.length;i++){if(t<=keys[i][0]){const[a,x0,y0]=keys[i-1],[b,x1,y1]=keys[i];const u=E(C((t-a)/(b-a)));return[lerp(x0,x1,u),lerp(y0,y1,u)]}}
-  return keys[keys.length-1].slice(1)}
-const LAKE=[120,230], SLOT=[672,198], EDGE=[862,288], FOLD=[120,110];
-const P=[[0,330,420],[0.4,330,420],[1.0,LAKE[0]+6,LAKE[1]+4],[1.25,LAKE[0]+6,LAKE[1]+4],[2.45,EDGE[0],EDGE[1]],[2.75,EDGE[0],EDGE[1]],[3.6,560,400],[4.1,560,400],[4.7,866,300],[5.05,866,300],[5.45,SLOT[0]+8,SLOT[1]+6],[5.6,SLOT[0]+8,SLOT[1]+6],[6.9,FOLD[0]+8,FOLD[1]+6],[7.15,FOLD[0]+8,FOLD[1]+6],[8.2,330,420],[8.8,330,420]];
+const C=(x)=>Math.max(0,Math.min(1,x)), lerp=(a,b,t)=>a+(b-a)*t;
+const io=(t)=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const out=(t)=>1-Math.pow(1-t,3);
+const back=(t)=>{const c1=1.2,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2)};
+const seg=(t,a,b)=>C((t-a)/(b-a));
+// Bewegungen mit leichtem Bogen (wie eine echte Handbewegung)
+function path(t,keys){
+  if(t<=keys[0][0])return keys[0].slice(1,3);
+  for(let i=1;i<keys.length;i++){if(t<=keys[i][0]){const[a,x0,y0]=keys[i-1],[b,x1,y1,arc=0]=keys[i];const u=io(C((t-a)/(b-a)));
+    const bow=Math.sin(u*Math.PI)*arc;return[lerp(x0,x1,u),lerp(y0,y1,u)-bow]}}
+  return keys[keys.length-1].slice(1,3)}
+const ICON=[120,232], SLOT=[672,212], EDGE=[866,292];
+const P=[[0,330,400],[0.5,330,400],[1.1,ICON[0]+4,ICON[1]+2,20],[1.3,ICON[0]+4,ICON[1]+2],[2.5,EDGE[0],EDGE[1],40],[2.75,EDGE[0],EDGE[1]],
+         [3.6,540,400,20],[4.0,540,400],[4.6,868,300,15],[4.95,868,300],[5.35,SLOT[0]+4,SLOT[1]+2,10],[5.5,SLOT[0]+4,SLOT[1]+2],
+         [6.75,ICON[0]+4,ICON[1]+2,45],[6.95,ICON[0]+4,ICON[1]+2],[7.7,330,400,20],[9.0,330,400]];
 window.render=function(t){
-  const [px,py]=path(t,P); const pt=document.getElementById('pointer'); pt.style.left=px+'px'; pt.style.top=py+'px';
-  // selection on desktop
-  document.getElementById('lake').classList.toggle('sel', t>1.05&&t<2.6);
-  // ghost
-  const g=document.getElementById('ghost'); let gs=0, gx=px-6, gy=py-4, gsc=1;
-  if(t>1.25&&t<2.5){gs=1}
-  if(t>=2.5&&t<2.75){gs=1-seg(t,2.6,2.75); const u=E(seg(t,2.5,2.72)); gx=lerp(EDGE[0]-6,SLOT[0],u); gy=lerp(EDGE[1]-4,SLOT[1],u); gsc=lerp(1,1.15,u)}
-  if(t>5.6&&t<6.95){gs=1}
-  if(t>=6.95&&t<7.15){const u=seg(t,6.95,7.12); gs=1-u; gsc=1-.6*u; gx=FOLD[0]; gy=FOLD[1]}
-  g.style.opacity=gs; g.style.left=gx+'px'; g.style.top=gy+'px'; g.style.transform=`translate(-50%,-50%) scale(${gsc})`;
-  // desktop lake: moves into folder at 7.0, comes back at loop seam
-  let lo=1; if(t>6.95) lo=1-seg(t,6.95,7.1); if(t>8.0) lo=seg(t,8.0,8.7);
-  document.getElementById('lake').style.opacity=lo;
-  document.getElementById('fold').classList.toggle('hot', t>6.6&&t<7.05);
-  const fs=(t>7.0&&t<7.3)?1+.08*Math.sin(seg(t,7.0,7.3)*Math.PI):1; document.getElementById('folder').style.transform=`translate(-50%,-50%) scale(${fs})`;
-  // shelf open state
+  const [px,py]=path(t,P); const pt=document.getElementById('pointer'); pt.style.left=(px-2)+'px'; pt.style.top=(py-2)+'px';
+  const icon=document.getElementById('lake');
+  icon.classList.toggle('sel', t>1.15&&t<2.5);
+  // Schreibtisch: beim Ablegen in die Ablage verschoben, beim Herausziehen wieder da
+  let io_=1; if(t>=1.3&&t<2.5) io_=.45; if(t>=2.5&&t<6.75) io_=0; icon.style.opacity=io_;
+  // Gezogenes Bild folgt dem Zeiger
+  const g=document.getElementById('ghost'); let go=0, gx=px-4, gy=py-2, gsc=1;
+  if(t>=1.3&&t<2.5) go=.85;
+  if(t>=2.5&&t<2.72){const u=out(seg(t,2.5,2.72)); gx=lerp(EDGE[0]-4,SLOT[0],u); gy=lerp(EDGE[1]-2,SLOT[1],u); go=.85*(1-seg(t,2.62,2.72))}
+  if(t>=5.5&&t<6.75) go=.85;
+  g.style.opacity=go; g.style.left=gx+'px'; g.style.top=gy+'px'; g.style.transform=`translate(-50%,-30%) scale(${gsc})`;
+  // Ablage: wächst aus dem Streifen
   let open=0;
-  if(t>=2.15&&t<3.15) open=E(seg(t,2.15,2.45)); if(t>=3.15&&t<3.45) open=1-E(seg(t,3.15,3.4));
-  if(t>=4.75&&t<6.05) open=E(seg(t,4.75,5.05)); if(t>=6.05&&t<6.4) open=1-E(seg(t,6.05,6.35));
-  const sh=document.getElementById('shelf'); sh.style.opacity=C(open*1.6); sh.style.transform=`scale(${lerp(.55,1,open)},${lerp(.35,1,open)})`;
-  document.getElementById('s2').style.opacity=(t>2.62&&t<6.2)?1:0;
-  // strip
-  let st=0; if(t>1.85&&t<3.7) st=seg(t,1.85,2.0)*(1-seg(t,3.45,3.7)); if(t>4.4&&t<6.6) st=seg(t,4.4,4.55)*(1-seg(t,6.35,6.6));
+  if(t>=2.12&&t<3.2) open=back(seg(t,2.12,2.42)); if(t>=3.2&&t<3.45) open=1-io(seg(t,3.2,3.42));
+  if(t>=4.55&&t<6.05) open=back(seg(t,4.55,4.85)); if(t>=6.05&&t<6.3) open=1-io(seg(t,6.05,6.27));
+  const sh=document.getElementById('shelf'); const o=Math.max(0,open);
+  sh.style.opacity=C(o*2.2); sh.style.transform=`scale(${lerp(.04,1,o)},${lerp(.16,1,o)})`;
+  sh.style.filter=`blur(${(1-C(o))*6}px)`;
+  document.getElementById('s2').style.opacity=(t>2.62&&t<6.4)?1:0;
+  document.getElementById('dim').style.opacity=(t>5.5&&t<6.4)?1:0;
+  // Streifen am Rand
+  let st=0; if(t>1.85&&t<3.65) st=seg(t,1.85,2.0)*(1-seg(t,3.42,3.6)); if(t>4.3&&t<6.5) st=seg(t,4.3,4.45)*(1-seg(t,6.27,6.45));
   const s=document.getElementById('strip'); s.style.opacity=st; s.style.width=(7*st)+'px';
 }
 render(0);

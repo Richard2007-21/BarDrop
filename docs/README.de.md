@@ -19,6 +19,8 @@
   <a href="https://github.com/zzuuuiii/BarDrop/releases">Alle Versionen</a>
   &nbsp;·&nbsp;
   <a href="../CHANGELOG.md">Änderungen (englisch)</a>
+  &nbsp;·&nbsp;
+  <a href="#bildschirmfotos">Bildschirmfotos</a>
 </p>
 
 <p align="center">
@@ -55,7 +57,7 @@ Bilder aus dem Browser, Links und Text funktionieren genauso wie Dateien. Beim e
 
 Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht benutzt, jeweils zwei Tage nach dem Erscheinen einer Version. Das und frühe Beta-Versionen stellst du unter Einstellungen → Über BarDrop ein.
 
-## Funktionen
+## Bildschirmfotos
 
 <p align="center">
   <img src="images/hero-de.jpg" width="49%" alt="Die Ablage offen am rechten Bildschirmrand mit sechs Dateien">
@@ -63,6 +65,8 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
   <img src="images/stacks-de.jpg" width="49%" alt="Mehrere Dateien als Stapel">
   <img src="images/settings-de.jpg" width="49%" alt="Einstellungen im dunklen und hellen Modus">
 </p>
+
+## Funktionen
 
 **Ablage**
 * Links oder rechts, feste Höhe oder dort, wo der Zeiger den Rand erreicht (ganzer Rand oder mittlere Hälfte)
