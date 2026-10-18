@@ -158,6 +158,16 @@ struct ShelfContent: View {
             .allowsHitTesting(false)
     }
 
+    /// Übergang unter dem Kopf: dieselbe S-Kurve wie über der Leiste, gespiegelt
+    private var topFade: some View {
+        let stops: [Gradient.Stop] = Self.fadeCurve.reversed().map { point in
+            Gradient.Stop(color: Color.black.opacity(point.1), location: 1 - point.0)
+        }
+        return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
+            .frame(height: Self.barFade)
+            .allowsHitTesting(false)
+    }
+
     /// Länge des Verlaufs über der Leiste: kurz, damit er nicht weit in die Kacheln reicht
     private static let barFade: CGFloat = 24
     /// Deckkraft entlang des Verlaufs (S-Kurve, smoothstep)
@@ -228,6 +238,13 @@ struct ShelfContent: View {
                         } })
                         .overlay(alignment: .topLeading) { bandOverlay }
                         .onPreferenceChange(TileFramesKey.self) { tileFrames = $0 }
+                    }
+                    // Oben derselbe weiche Übergang wie über der Aktionsleiste: Was unter den
+                    // Kopf scrollt, läuft ins Schwarz aus statt hart abgeschnitten zu werden
+                    .overlay(alignment: .top) {
+                        topFade
+                            .opacity(scroll.scrolled ? 1 : 0)
+                            .animation(.easeOut(duration: 0.15), value: scroll.scrolled)
                     }
                     .coordinateSpace(name: "viewport")
                     .onAppear { viewportHeight = geo.size.height }
