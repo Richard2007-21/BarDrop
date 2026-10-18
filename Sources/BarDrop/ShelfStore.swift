@@ -425,13 +425,14 @@ final class ShelfStore: ObservableObject {
         takeOut(ids, undoable: true)
     }
 
-    /// Entfernt Einträge, die älter als `interval` Sekunden sind. Widerrufbar wie
-    /// Entfernen von Hand; eigene Dateien werden erst nach 15 Minuten gelöscht.
+    /// Entfernt Einträge, die älter als `interval` Sekunden sind. Nicht widerrufbar: Das
+    /// passiert von selbst und soll ⌘Z nicht belegen. Eigene Dateien werden erst nach
+    /// 15 Minuten gelöscht.
     func removeExpired(olderThan interval: TimeInterval) {
         guard interval > 0 else { return }
         let cutoff = Date().addingTimeInterval(-interval)
         let expired = entries.filter { $0.added < cutoff }.flatMap(\.files).map(\.id)
-        if !expired.isEmpty { takeOut(Set(expired), undoable: true, deleteOwnedAfter: 15 * 60) }
+        if !expired.isEmpty { takeOut(Set(expired), undoable: false, deleteOwnedAfter: 15 * 60) }
     }
 
     /// Entfernt alles (widerrufbar).
@@ -457,6 +458,12 @@ final class ShelfStore: ObservableObject {
     /// Die Datei gehört danach dem Nutzer und wird beim Entfernen nicht gelöscht.
     func relocate(_ old: URL, to new: URL) {
         let key = old.standardizedFileURL
+        // Eine eigene Kopie hat ihren Speicherordner verlassen: leeren Ordner gleich löschen
+        let oldDir = key.deletingLastPathComponent()
+        if oldDir.path.hasPrefix(itemsDir.standardizedFileURL.path + "/"),
+           (try? FileManager.default.contentsOfDirectory(atPath: oldDir.path))?.isEmpty == true {
+            try? FileManager.default.removeItem(at: oldDir)
+        }
         for e in entries.indices {
             for f in entries[e].files.indices where entries[e].files[f].url.standardizedFileURL == key {
                 entries[e].files[f].url = new
@@ -560,7 +567,13 @@ final class ShelfStore: ObservableObject {
         // Im Papierkorb liegende eigene Dateien gehören jetzt dem Papierkorb: nichts löschen
         let owned = removed.filter { $0.owned && trashed[$0.url.standardizedFileURL] == nil }
         guard undoable else {
-            deleteOwnedFiles(owned)
+            if let delay {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    self?.deleteOwnedFiles(owned)
+                }
+            } else {
+                deleteOwnedFiles(owned)
+            }
             return nil
         }
         for file in owned { pendingDeletion[file.url.standardizedFileURL] = file }

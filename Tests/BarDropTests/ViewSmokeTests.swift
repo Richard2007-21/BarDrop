@@ -193,42 +193,148 @@ final class ViewSmokeTests: XCTestCase {
         }
     }
 
-    /// Bilder für die Produktseite auf GitHub: die echte Ablage und die echten Einstellungen,
-    /// in doppelter Auflösung und mit durchsichtigem Hintergrund. Nur mit BARDROP_PREVIEW_DIR.
-    func testProductShots() throws {
+    /// Bilder für die Produktseite auf GitHub: die echte Ablage mit echten Dateien und
+    /// Vorschaubildern, die echten Einstellungen und die Einführung, in doppelter Auflösung
+    /// mit durchsichtigem Hintergrund. Nur mit BARDROP_PREVIEW_DIR.
+    func testProductShots() async throws {
         guard let dir = ProcessInfo.processInfo.environment["BARDROP_PREVIEW_DIR"], !dir.isEmpty else {
             throw XCTSkip("Nur in CI")
         }
         let settings = AppSettings.shared
-        let store = ShelfStore(baseDirectory: base)
-        let ui = ShelfUIModel()
-        let actions = ShelfActions(store: store, ui: ui, settings: settings)
-        let saved = (settings.tileIconSize, settings.shelfHeight, settings.language, settings.showOutline)
+        let saved = (settings.tileIconSize, settings.shelfHeight, settings.shelfWidth, settings.language,
+                     settings.showOutline, settings.edge)
         defer {
-            settings.tileIconSize = saved.0; settings.shelfHeight = saved.1
-            settings.language = saved.2; settings.showOutline = saved.3
+            settings.tileIconSize = saved.0; settings.shelfHeight = saved.1; settings.shelfWidth = saved.2
+            settings.language = saved.3; settings.showOutline = saved.4; settings.edge = saved.5
         }
         settings.tileIconSize = 64
-        settings.shelfHeight = 340
         settings.showOutline = true
-        ui.level = .expanded
-        ui.showSampleTile = true
-        ui.expandedBody = CGRect(x: 0, y: 0, width: settings.shelfWidth, height: settings.shelfHeight)
+        settings.edge = .right
+
         for language in [AppLanguage.english, .german] {
             settings.language = language
-            // Wie in der Einführung ohne AppKit-Flächen: So lässt sich die Ablage scharf zeichnen
-            shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions)
-                    .environment(\.shelfDemo, true),
-                 size: CGSize(width: 380, height: 520), "Produkt Ablage \(language.rawValue)", dir: dir)
-            for (pane, name) in [(AnyView(ItemSettings(settings: settings, store: store)), "Objekte"),
-                                 (AnyView(OpeningSettings(settings: settings)), "Oeffnen"),
-                                 (AnyView(ActionSettings(settings: settings)), "Aktionen")] {
+            let lang = language.rawValue
+            let files = base.appendingPathComponent("Produkt-\(lang)")
+            try FileManager.default.createDirectory(at: files, withIntermediateDirectories: true)
+            let examples = Self.productFiles(in: files)
+
+            let store = ShelfStore(baseDirectory: base.appendingPathComponent("Store-\(lang)"))
+            let ui = ShelfUIModel()
+            let actions = ShelfActions(store: store, ui: ui, settings: settings)
+            settings.stackMultiple = false
+            store.add(examples.singles.reversed().map { ShelfFile(url: $0, owned: false) })
+            // Vorschaubilder vorab laden: Die Kacheln zeigen sie dann sofort
+            for url in examples.singles + examples.stack {
+                _ = await Thumbnails.load(url, size: 64)
+                Thumbnails.shownOnce.insert(url.path)
+            }
+            ui.level = .expanded
+            ui.isKey = true
+
+            // 1. Ablage mit sechs Objekten, eines ausgewählt
+            settings.shelfWidth = 300
+            settings.shelfHeight = 400
+            ui.expandedBody = CGRect(x: 0, y: 0, width: 300, height: 400)
+            ui.selection = Set(store.entries.dropFirst(1).prefix(1).map(\.id))
+            shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
+                 size: CGSize(width: 440, height: 600), "Produkt Ablage \(lang)", dir: dir)
+
+            // 2. Mit Stapel
+            settings.stackMultiple = true
+            settings.stackThreshold = 2
+            store.add(examples.stack.map { ShelfFile(url: $0, owned: false) })
+            ui.selection = Set(store.entries.prefix(1).map(\.id))
+            shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
+                 size: CGSize(width: 440, height: 600), "Produkt Stapel \(lang)", dir: dir)
+            if let stack = store.entries.first(where: \.isStack) {
+                ui.selection = []
+                ui.openStack = stack.id
+                ui.memberSelection = Set(stack.files.prefix(1).map(\.id))
+                shot(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
+                     size: CGSize(width: 440, height: 600), "Produkt Stapel offen \(lang)", dir: dir)
+                ui.openStack = nil
+                ui.memberSelection = []
+            }
+
+            // 3. Einstellungen (Standardgröße der Ablage)
+            settings.shelfWidth = ShelfDefaults.width
+            settings.shelfHeight = ShelfDefaults.height
+            let panes: [(AnyView, String)] = [
+                (AnyView(GeneralSettings(settings: settings)), "Allgemein"),
+                (AnyView(OpeningSettings(settings: settings)), "Oeffnen"),
+                (AnyView(AppearanceSettings(settings: settings)), "Aussehen"),
+                (AnyView(ItemSettings(settings: settings, store: store)), "Objekte"),
+                (AnyView(ActionSettings(settings: settings)), "Aktionen"),
+                (AnyView(KeyboardSettings(settings: settings)), "Tastatur")
+            ]
+            for (pane, name) in panes {
                 for (appearance, look) in [(NSAppearance.Name.darkAqua, "dunkel"), (.aqua, "hell")] {
                     shot(pane.background(SettingsTheme.contentBackdrop), size: CGSize(width: 436, height: 640),
-                         "Produkt \(name) \(language.rawValue) \(look)", dir: dir, appearance: appearance)
+                         "Produkt \(name) \(lang) \(look)", dir: dir, appearance: appearance)
                 }
             }
+
+            // 4. Einführung
+            let controller = OnboardingController(store: ShelfStore(baseDirectory: base.appendingPathComponent("Intro-\(lang)")),
+                                                  ui: ShelfUIModel(), settings: settings)
+            controller.model.onFinish = { _ in }
+            for step in [OnboardingModel.Step.allCases.first, OnboardingModel.Step.allCases.dropFirst().first].compactMap({ $0 }) {
+                controller.model.go(to: step)
+                RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+                shot(OnboardingView(model: controller.model, openSettings: {}).background(SettingsTheme.contentBackdrop),
+                     size: OnboardingController.size, "Produkt Einfuehrung \(step.rawValue) \(lang)", dir: dir,
+                     appearance: .darkAqua)
+            }
         }
+    }
+
+    /// Beispieldateien für die Produktbilder: die der Einführung und ein paar weitere
+    private static func productFiles(in dir: URL) -> (singles: [URL], stack: [URL]) {
+        var singles = DemoShelf.makeExamples(in: dir)
+        func photo(_ name: String, _ top: NSColor, _ bottom: NSColor, sun: NSColor, hill: NSColor) -> URL {
+            let url = dir.appendingPathComponent(name)
+            let image = NSImage(size: NSSize(width: 800, height: 600), flipped: false) { rect in
+                NSGradient(starting: top, ending: bottom)?.draw(in: rect, angle: -90)
+                sun.setFill()
+                NSBezierPath(ovalIn: NSRect(x: 520, y: 330, width: 130, height: 130)).fill()
+                hill.setFill()
+                let path = NSBezierPath()
+                path.move(to: .zero)
+                path.curve(to: NSPoint(x: 800, y: 160), controlPoint1: NSPoint(x: 260, y: 330),
+                           controlPoint2: NSPoint(x: 520, y: 40))
+                path.line(to: NSPoint(x: 800, y: 0))
+                path.close()
+                path.fill()
+                return true
+            }
+            if let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+               let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) {
+                try? jpg.write(to: url)
+            }
+            return url
+        }
+        singles.append(photo(L("Lake.jpg", "See.jpg"), NSColor(red: 0.45, green: 0.72, blue: 1, alpha: 1),
+                             NSColor(red: 0.85, green: 0.93, blue: 1, alpha: 1),
+                             sun: NSColor(red: 1, green: 0.95, blue: 0.7, alpha: 1),
+                             hill: NSColor(red: 0.2, green: 0.5, blue: 0.35, alpha: 1)))
+        let notes = dir.appendingPathComponent(L("Notes.txt", "Notizen.txt"))
+        try? Data(L("Shopping list\n- Coffee\n- Bread\n", "Einkaufsliste\n- Kaffee\n- Brot\n").utf8).write(to: notes)
+        singles.append(notes)
+        let folder = dir.appendingPathComponent(L("Project", "Projekt"), isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        singles.append(folder)
+        let stack = [
+            photo(L("Sunset 1.jpg", "Sonnenuntergang 1.jpg"), NSColor(red: 1, green: 0.55, blue: 0.4, alpha: 1),
+                  NSColor(red: 1, green: 0.85, blue: 0.6, alpha: 1), sun: .white,
+                  hill: NSColor(red: 0.55, green: 0.25, blue: 0.3, alpha: 1)),
+            photo(L("Sunset 2.jpg", "Sonnenuntergang 2.jpg"), NSColor(red: 0.6, green: 0.35, blue: 0.85, alpha: 1),
+                  NSColor(red: 1, green: 0.7, blue: 0.6, alpha: 1), sun: NSColor(red: 1, green: 0.9, blue: 0.6, alpha: 1),
+                  hill: NSColor(red: 0.3, green: 0.2, blue: 0.4, alpha: 1)),
+            photo(L("Sunset 3.jpg", "Sonnenuntergang 3.jpg"), NSColor(red: 0.95, green: 0.4, blue: 0.5, alpha: 1),
+                  NSColor(red: 1, green: 0.8, blue: 0.5, alpha: 1), sun: NSColor(red: 1, green: 1, blue: 0.85, alpha: 1),
+                  hill: NSColor(red: 0.35, green: 0.15, blue: 0.25, alpha: 1))
+        ]
+        return (singles, stack)
     }
 
     /// Wie `render`, aber in doppelter Auflösung

@@ -664,6 +664,10 @@ final class AppSettings: ObservableObject {
     /// Einführung und interne Umstellungen bleiben unberührt.
     func resetAll() {
         resetShelfLayout()
+        language = .system
+        betaUpdates = false
+        labelsOnlyFolders = false
+        titleStyle = .bardrop
         dragReveal = .immediately
         hapticsEnabled = true
         animationStyle = .standard

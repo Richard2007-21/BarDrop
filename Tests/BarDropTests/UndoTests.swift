@@ -80,21 +80,14 @@ final class UndoTests: XCTestCase {
         wait(for: [gone], timeout: 3)
     }
 
-    /// Seit 1.30.0 Beta 15 lässt sich auch automatisches Entfernen widerrufen; eigene
-    /// Dateien bleiben dafür 15 Minuten erhalten
-    func testAutomaticRemovalIsUndoable() {
+    /// Automatisches Entfernen belegt ⌘Z nicht; eigene Dateien bleiben noch 15 Minuten
+    func testAutomaticRemovalIsNotUndoable() {
         let (owned, _) = addFiles()
-        let order = store.entries.map(\.id)
         Thread.sleep(forTimeInterval: 0.05)
         store.removeExpired(olderThan: 0.01)    // alles gilt als abgelaufen
         XCTAssertTrue(store.entries.isEmpty)
-        XCTAssertTrue(store.undoManager.canUndo)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: owned.url.path), "Eigene Datei bleibt erhalten")
-        store.undoManager.undo()
-        XCTAssertEqual(store.entries.map(\.id), order)
-        // Zurückgeholt zählt wie neu abgelegt: nicht gleich wieder entfernt
-        store.removeExpired(olderThan: 60)
-        XCTAssertEqual(store.entries.count, 2)
+        XCTAssertFalse(store.undoManager.canUndo)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: owned.url.path), "Eigene Datei bleibt noch erhalten")
     }
 
     /// Papierkorb wie im Finder: ⌘Z legt die Datei an ihren alten Ort und in die Ablage zurück

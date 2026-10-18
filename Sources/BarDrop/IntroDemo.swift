@@ -299,7 +299,7 @@ final class DemoShelf: ObservableObject {
     // MARK: Beispieldateien
 
     /// Ein Diagramm, ein Dokument und ein Foto, wie sie im Alltag in der Ablage liegen
-    private static func makeExamples(in directory: URL) -> [URL] {
+    static func makeExamples(in directory: URL) -> [URL] {
         var urls: [URL] = []
 
         // Ein Diagramm statt Text: In der kleinen Kachel ist Text nicht zu erkennen

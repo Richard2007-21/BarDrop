@@ -50,8 +50,8 @@ struct GeneralSettings: View {
     private func confirmReset() {
         let alert = NSAlert()
         alert.messageText = L("Reset all settings?", "Alle Einstellungen zurücksetzen?")
-        alert.informativeText = L("All settings, including the shortcut and the action bar, go back to their defaults. The language, beta versions and the items in the shelf are kept. This can’t be undone.",
-                                  "Alle Einstellungen, auch Kurzbefehl und Aktionsleiste, werden auf den Standard zurückgesetzt. Sprache, Beta-Versionen und Objekte in der Ablage bleiben erhalten. Das lässt sich nicht widerrufen.")
+        alert.informativeText = L("All settings go back to their defaults, including the language, the shortcut, the action bar, updates and beta versions. Only the items in the shelf are kept. This can’t be undone.",
+                                  "Alle Einstellungen werden auf den Standard zurückgesetzt, auch Sprache, Kurzbefehl, Aktionsleiste, Updates und Beta-Versionen. Nur die Objekte in der Ablage bleiben erhalten. Das lässt sich nicht widerrufen.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: L("Reset", "Zurücksetzen"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
@@ -459,7 +459,7 @@ struct ItemSettings: View {
                         let count = store.entries.reduce(0) { $0 + $1.files.count }
                         if ShelfActions.confirmRemovingAll(count) {
                             store.removeAll()
-                            Sounds.trash()
+                            Sounds.remove()
                         }
                     }
                     .buttonStyle(KlackButtonStyle(destructive: true))

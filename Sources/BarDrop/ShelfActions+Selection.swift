@@ -61,7 +61,7 @@ extension ShelfActions {
         ui.memberSelection.subtract(files.map(\.id))
         store.removeFiles(Set(files.map(\.id)), from: stack.id)
         announceRemoval(files.count)
-        if sound { Sounds.trash() }
+        if sound { Sounds.remove() }
     }
 
     // MARK: Befehle für die aktuelle Ansicht (Ablage oder Stapel)

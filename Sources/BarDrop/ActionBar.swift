@@ -361,7 +361,8 @@ struct QuickActionButton: View {
                     actions.perform(action, urls: urls, anchor: anchor)
                 },
                 onClick: { anchor in
-                    actions.perform(action, urls: actions.selectedEntries.flatMap(\.urls), anchor: anchor)
+                    // Im geöffneten Stapel die dort ausgewählten Dateien, sonst die Auswahl der Ablage
+                    actions.perform(action, urls: actions.currentSelectionURLs, anchor: anchor)
                 },
                 operation: { info in dropOperation(info) },
                 dragOut: dragOut,

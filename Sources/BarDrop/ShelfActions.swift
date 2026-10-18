@@ -136,7 +136,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         ui.selection.subtract(ids)
         store.remove(ids)
         announceRemoval(count)
-        if sound { Sounds.trash() }
+        if sound { Sounds.remove() }
     }
 
     // MARK: Rückmeldung und Widerrufen
