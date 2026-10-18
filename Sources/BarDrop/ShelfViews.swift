@@ -610,6 +610,28 @@ private struct SizeGuideTile: View {
     }
 }
 
+/// Maße der Auswahl wie im Finder (Symbolansicht, abgenommen an macOS 26): Die graue
+/// Fläche ist rund ein Viertel größer als das Symbol, mit leicht gerundeten Ecken; die
+/// Markierung des Namens ist etwas breiter als die Fläche, mit knapp 5 pt Rundung.
+enum TileMetrics {
+    /// Seitenlänge der grauen Fläche um das Symbol
+    static func box(_ iconSize: CGFloat) -> CGFloat {
+        iconSize + 2 * max(6, (iconSize * 0.12).rounded())
+    }
+
+    static func boxRadius(_ iconSize: CGFloat) -> CGFloat {
+        (box(iconSize) * 0.093).rounded()
+    }
+
+    /// Höchstbreite der Markierung des Namens
+    static func labelWidth(_ iconSize: CGFloat) -> CGFloat {
+        (box(iconSize) * 1.083).rounded()
+    }
+
+    static let labelPadding: CGFloat = 6
+    static let labelRadius: CGFloat = 4.5
+}
+
 struct TileLabel<Preview: View>: View {
     let title: String
     let isSelected: Bool
@@ -627,12 +649,13 @@ struct TileLabel<Preview: View>: View {
     }
 
     var body: some View {
+        let box = TileMetrics.box(iconSize)
         VStack(spacing: 4) {
             preview()
                 .frame(width: iconSize + 4, height: iconSize + 4)
-                .padding(4)
+                .padding((box - iconSize - 4) / 2)
                 .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    RoundedRectangle(cornerRadius: TileMetrics.boxRadius(iconSize), style: .continuous)
                         .fill(Color.white.opacity(isSelected || isDropTarget ? 0.14 : 0))
                 )
                 .scaleEffect(isDropTarget ? 1.06 : 1)
@@ -643,10 +666,10 @@ struct TileLabel<Preview: View>: View {
                 .lineLimit(2)
                 .truncationMode(.middle)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, TileMetrics.labelPadding)
                 .padding(.vertical, 1)
-                .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(nameBackground))
-                .frame(maxWidth: iconSize + 28, minHeight: 30, alignment: .top)
+                .background(RoundedRectangle(cornerRadius: TileMetrics.labelRadius, style: .continuous).fill(nameBackground))
+                .frame(maxWidth: TileMetrics.labelWidth(iconSize), minHeight: 30, alignment: .top)
         }
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)

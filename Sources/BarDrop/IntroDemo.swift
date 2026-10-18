@@ -416,10 +416,11 @@ struct DemoLayout {
         let start = 12 + (available - used) / 2
         let row = CGFloat(index / columns), col = CGFloat(index % columns)
         let top: CGFloat = full.fillet + 12 + 30 + 4 + 6
-        let rowHeight = iconSize + 12 + 4 + 30 + 12
+        let box = TileMetrics.box(iconSize)
+        let rowHeight = box + 4 + 30 + 12
         let frame = shelfFrame
         return CGPoint(x: frame.minX + start + col * (column + spacing) + column / 2,
-                       y: frame.minY + top + row * (rowHeight + 6) + 6 + (iconSize + 12) / 2)
+                       y: frame.minY + top + row * (rowHeight + 6) + 6 + box / 2)
     }
 }
 
