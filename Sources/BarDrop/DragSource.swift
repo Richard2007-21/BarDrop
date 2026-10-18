@@ -70,10 +70,7 @@ final class DragSourceNSView: NSView, NSDraggingSource {
         onMouseDown([])
         guard let menu = menuProvider(self) else { return }
         ui?.menuOpen = true
-        // Menüs einer App im Hintergrund folgen dem Zeiger teils verzögert: vorher aktivieren
-        if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }
-        window?.makeKey()
-        NSMenu.popUpContextMenu(menu, with: event, for: self)
+        ShelfMenu.popUp(menu, with: event, for: self)
         ui?.menuOpen = false
     }
 
@@ -312,6 +309,33 @@ struct DragSource: NSViewRepresentable {
         view.onOwnDrop = onOwnDrop
         view.onShelfDrop = onShelfDrop
         view.onShelfTargeted = onShelfTargeted
+    }
+}
+
+/// Rechtsklick-Menüs der Ablage (Systemmenüs).
+enum ShelfMenu {
+    /// Zeigt das Menü erst, wenn BarDrop wirklich aktiv ist. Die Ablage öffnet sich, ohne
+    /// BarDrop zu aktivieren, und das Aktivieren läuft verzögert ab. Ging das Menü vorher
+    /// auf, folgte seine Markierung dem Zeiger nur teilweise, und ein Untermenü (Umwandeln),
+    /// das erst danach erschien, sah anders durchscheinend aus als das Menü selbst.
+    static func popUp(_ menu: NSMenu, with event: NSEvent, for view: NSView) {
+        activate()
+        view.window?.makeKey()
+        NSMenu.popUpContextMenu(menu, with: event, for: view)
+    }
+
+    /// Aktivieren und auf die Bestätigung des Systems warten, höchstens `timeout` Sekunden.
+    /// Dabei werden nur die Systemereignisse der Aktivierung verarbeitet; Klicks und
+    /// Tasten bleiben in der Warteschlange.
+    static func activate(timeout: TimeInterval = 0.25) {
+        guard !NSApp.isActive else { return }
+        NSApp.activate()
+        let deadline = Date().addingTimeInterval(timeout)
+        while !NSApp.isActive, Date() < deadline {
+            guard let event = NSApp.nextEvent(matching: [.appKitDefined, .systemDefined], until: deadline,
+                                              inMode: .default, dequeue: true) else { break }
+            NSApp.sendEvent(event)
+        }
     }
 }
 
