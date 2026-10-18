@@ -77,19 +77,19 @@ final class OnboardingSampleTests: XCTestCase {
         let store = ShelfStore(baseDirectory: base)
         let controller = OnboardingController(store: store, ui: ShelfUIModel(), settings: settings)
         let model = controller.model
-        XCTAssertEqual(model.sampleURL?.lastPathComponent, "Welcome to BarDrop.png")
+        XCTAssertEqual(model.sampleURL?.lastPathComponent, "Photo.jpg")
 
         // Sprache auf der ersten Seite wechseln, dann zum Schritt „Ablegen“
         settings.language = .german
         model.go(to: .drop)
         let sample = try XCTUnwrap(model.sampleURL)
-        XCTAssertEqual(sample.lastPathComponent, "Willkommen bei BarDrop.png")
+        XCTAssertEqual(sample.lastPathComponent, "Foto.jpg")
         XCTAssertTrue(FileManager.default.fileExists(atPath: sample.path))
 
         // Ablegen und eine eigene Datei dazulegen (Stapel)
         drop([sample], into: store)
         XCTAssertEqual(store.entries.count, 1)
-        XCTAssertEqual(store.entries[0].files[0].url.lastPathComponent, "Willkommen bei BarDrop.png")
+        XCTAssertEqual(store.entries[0].files[0].url.lastPathComponent, "Foto.jpg")
         let own = base.appendingPathComponent("eigen.txt")
         try Data("meins".utf8).write(to: own)
         let pb = NSPasteboard(name: NSPasteboard.Name("BarDropIntro-\(UUID().uuidString)"))

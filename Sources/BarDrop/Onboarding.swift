@@ -372,9 +372,10 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         return window
     }
 
-    static var sampleName: String { L("Welcome to BarDrop.png", "Willkommen bei BarDrop.png") }
+    /// Dieselbe Beispieldatei wie beim Verstellen der Symbolgröße („Foto.jpg“)
+    static var sampleName: String { L("Photo.jpg", "Foto.jpg") }
 
-    /// Beispielbild zum Ablegen. Liegt in einem temporären Ordner und wird beim
+    /// Beispielfoto zum Ablegen. Liegt in einem temporären Ordner und wird beim
     /// Ablegen wie ein Bild aus dem Web in die Ablage kopiert.
     static func makeSample() -> URL? {
         let dir = FileManager.default.temporaryDirectory
@@ -385,17 +386,36 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         } catch {
             return nil
         }
-        // Das Symbol der App, ganz und ohne eigenen Rahmen: Es bringt seine Form selbst mit
-        let side: CGFloat = 512
-        let icon = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
-        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
-            icon.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+        // Eine Landschaft: Himmel, Sonne, Berge und See, im Querformat wie ein Foto
+        let image = NSImage(size: NSSize(width: 640, height: 480), flipped: false) { rect in
+            NSGradient(starting: NSColor(red: 0.36, green: 0.62, blue: 0.98, alpha: 1),
+                       ending: NSColor(red: 0.98, green: 0.78, blue: 0.62, alpha: 1))?.draw(in: rect, angle: -90)
+            NSColor(red: 1, green: 0.93, blue: 0.72, alpha: 1).setFill()
+            NSBezierPath(ovalIn: NSRect(x: 420, y: 250, width: 96, height: 96)).fill()
+            func mountain(_ points: [NSPoint], _ color: NSColor) {
+                color.setFill()
+                let path = NSBezierPath()
+                path.move(to: NSPoint(x: 0, y: 150))
+                points.forEach { path.line(to: $0) }
+                path.line(to: NSPoint(x: 640, y: 150))
+                path.line(to: NSPoint(x: 640, y: 0))
+                path.line(to: .zero)
+                path.close()
+                path.fill()
+            }
+            mountain([NSPoint(x: 120, y: 300), NSPoint(x: 230, y: 220), NSPoint(x: 360, y: 330), NSPoint(x: 520, y: 190)],
+                     NSColor(red: 0.42, green: 0.45, blue: 0.68, alpha: 1))
+            mountain([NSPoint(x: 80, y: 210), NSPoint(x: 200, y: 260), NSPoint(x: 340, y: 190), NSPoint(x: 470, y: 240), NSPoint(x: 640, y: 175)],
+                     NSColor(red: 0.2, green: 0.45, blue: 0.4, alpha: 1))
+            NSGradient(starting: NSColor(red: 0.3, green: 0.58, blue: 0.9, alpha: 1),
+                       ending: NSColor(red: 0.16, green: 0.36, blue: 0.66, alpha: 1))?
+                .draw(in: NSRect(x: 0, y: 0, width: 640, height: 150), angle: -90)
             return true
         }
         guard let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),
-              let png = rep.representation(using: .png, properties: [:]),
-              (try? png.write(to: url)) != nil else { return nil }
+              let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]),
+              (try? jpg.write(to: url)) != nil else { return nil }
         return url
     }
 }
@@ -801,9 +821,9 @@ private struct DropPage: View {
             ShelfStage(scene: .drop)
         } practice: {
             TaskCard(done: model.stepDone,
-                     instruction: L("Drag this image to the \(edgeWord(settings)) edge of your screen and let go.",
-                                    "Zieh dieses Bild an den \(edgeWord(settings)) Bildschirmrand und lass es dort los."),
-                     confirmation: L("The image is in the shelf.", "Das Bild liegt in der Ablage.")) {
+                     instruction: L("Drag this photo to the \(edgeWord(settings)) edge of your screen and let go.",
+                                    "Zieh dieses Foto an den \(edgeWord(settings)) Bildschirmrand und lass es dort los."),
+                     confirmation: L("The photo is in the shelf.", "Das Foto liegt in der Ablage.")) {
                 SampleTile(url: model.sampleURL, edge: settings.edge, onDragStarted: model.onSampleDragStarted)
             }
         }
@@ -832,8 +852,8 @@ private struct RetrievePage: View {
             ShelfStage(scene: .dragOut)
         } practice: {
             TaskCard(done: model.stepDone,
-                     instruction: L("Open the shelf and drag the image onto this box.",
-                                    "Öffne die Ablage und zieh das Bild auf dieses Feld."),
+                     instruction: L("Open the shelf and drag the photo onto this box.",
+                                    "Öffne die Ablage und zieh das Foto auf dieses Feld."),
                      confirmation: L("Works with any app.", "Klappt mit jeder App."),
                      dashed: true, targeted: targeted) {
                 DropWell(targeted: targeted)
