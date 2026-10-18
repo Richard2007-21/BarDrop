@@ -4,7 +4,7 @@
 * Removing items (⌫, menu, Remove All) and the Trash action play the Finder’s trash sound, if interface sound effects are on in System Settings
 * Quick Look: ← → ↑ ↓ move the selection in the shelf and show the newly selected item; with several selected items Quick Look pages through them itself
 * Appearance → Title: “BarDrop”, “Shelf” or “None”
-* Update available (regular or beta): red badge next to About BarDrop in Settings; opening Settings checks quietly. No window without a click; silent installation stays as before. The “Update to …” item in the shelf menu is gone
+* Update available (regular or beta): red badge next to About BarDrop in Settings; with “Update automatically” on, opening Settings also checks quietly. No window without a click; silent installation stays as before. The “Update to …” item in the shelf menu is gone
 * Selection like in the Finder: gray area about a quarter larger than the icon, name highlight slightly wider, with Finder corner radii
 * Soft fade under the header while the list is scrolled, like above the action bar
 * Empty shelf: icon and “Drop here” only, gray until something is dragged over, centered between header and action bar
