@@ -318,8 +318,12 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     /// Ohne „private“ für den Test, der das echte Fenster abbildet
     func makeWindow() -> NSWindow {
         let window = IntroWindow(contentRect: NSRect(origin: .zero, size: Self.size),
-                                 styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+                                 styleMask: [.titled, .closable, .fullSizeContentView],
                                  backing: .buffered, defer: false)
+        // Ohne Minimieren: Der abgedunkelte Hintergrund bliebe sonst ohne Einführung stehen.
+        // Der Knopf bleibt sichtbar, aber
+        // ausgegraut, wie Vergrößern bei Fenstern mit fester Größe.
+        window.standardWindowButton(.miniaturizeButton)?.isEnabled = false
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.toolbar = NSToolbar(identifier: "BarDropIntroduction")
