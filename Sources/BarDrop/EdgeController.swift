@@ -26,6 +26,8 @@ final class EdgeController: NSObject {
     var keepAppActive: () -> Bool = { false }
 
     private var screen: NSScreen?
+    /// Bildschirm, an dessen Rand die Ablage gerade erscheint (für die Einführung)
+    var shelfScreen: NSScreen? { screen ?? allowedScreens().first }
     /// Bildschirm, an dem die Ablage gerade sitzt (dort öffnen auch die Einstellungen)
     var currentScreen: NSScreen? { screen }
     private var logic = EdgeLogic.State()

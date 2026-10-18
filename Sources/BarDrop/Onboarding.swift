@@ -122,6 +122,9 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     /// damit man sieht, wo sie ist), als Streifen (Übungen) oder gar nicht (nil).
     var showGuide: (ShelfUIModel.Level?) -> Void = { _ in }
 
+    /// Bildschirm mit der Ablage: Dort erscheint auch das Fenster der Einführung
+    var shelfScreen: () -> NSScreen? = { nil }
+
     var isVisible: Bool { window?.isVisible == true }
 
     init(store: ShelfStore, ui: ShelfUIModel, settings: AppSettings) {
@@ -138,7 +141,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         if window == nil { window = makeWindow() }
         NSApp.activate(ignoringOtherApps: true)
         showBackdrop()
-        window?.center()
+        if let window { Self.centerExactly(window, on: shelfScreen()) }
         window?.makeKeyAndOrderFront(nil)
         // Erst jetzt ist die Ablage verbunden: den aktuellen Schritt zeigen (Willkommen: offen)
         prepare(model.step)
@@ -386,8 +389,18 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         window.contentMinSize = Self.size
         window.contentMaxSize = Self.size
         window.setContentSize(Self.size)
-        window.center()
+        Self.centerExactly(window)
         return window
+    }
+
+    /// Genau in die Mitte des Bildschirms (sichtbarer Bereich ohne Menüleiste und Dock).
+    /// `center()` von macOS setzt Fenster bewusst etwas oberhalb der Mitte.
+    static func centerExactly(_ window: NSWindow, on preferred: NSScreen? = nil) {
+        guard let screen = preferred ?? window.screen ?? NSScreen.main else { return }
+        let area = screen.visibleFrame
+        let size = window.frame.size
+        window.setFrameOrigin(NSPoint(x: (area.midX - size.width / 2).rounded(),
+                                      y: (area.midY - size.height / 2).rounded()))
     }
 
     /// Dieselbe Beispieldatei wie beim Verstellen der Symbolgröße („Foto.jpg“)

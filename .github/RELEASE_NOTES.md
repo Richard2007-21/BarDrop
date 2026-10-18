@@ -4,6 +4,7 @@
 
 ### Also new
 * Right-click menu: “Remove from Shelf” makes clear the file itself stays
+* Introduction: the window sits exactly in the middle of the screen with the shelf
 
 <!-- de -->
 
@@ -13,3 +14,4 @@
 
 ### Außerdem
 * Rechtsklickmenü: „Aus der Ablage entfernen“ macht klar, dass die Datei selbst bleibt
+* Einführung: Das Fenster steht genau in der Mitte des Bildschirms mit der Ablage
