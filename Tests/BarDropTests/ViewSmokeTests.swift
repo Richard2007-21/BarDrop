@@ -234,17 +234,20 @@ final class ViewSmokeTests: XCTestCase {
     /// Wie `render`, aber in doppelter Auflösung
     private func shot<V: View>(_ view: V, size: CGSize, _ name: String, dir: String,
                                appearance: NSAppearance.Name? = nil) {
-        // Scharf in doppelter Auflösung (ImageRenderer); Ansichten mit AppKit-Teilen zeichnet
-        // er nicht, dann wie `render` über ein Fenster in doppelter Größe
-        let scheme: ColorScheme = appearance == .aqua ? .light : .dark
-        let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height)
-                                         .environment(\.colorScheme, scheme))
-        renderer.scale = 2
-        var data: Data?
-        if let cg = renderer.cgImage {
-            data = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])
-        }
-        guard let png = data else { return XCTFail(name) }
+        // Doppelte Auflösung ohne Bildschirm mit Retina: die Ansicht in normaler Größe
+        // auslegen und beim Zeichnen auf das Doppelte vergrößern. Text und Symbole sind
+        // Vektoren bzw. haben Bilder in doppelter Auflösung und bleiben dabei scharf.
+        let scaled = view
+            .frame(width: size.width, height: size.height)
+            .scaleEffect(2, anchor: .topLeading)
+            .frame(width: size.width * 2, height: size.height * 2, alignment: .topLeading)
+        let host = NSHostingView(rootView: scaled)
+        if let appearance { host.appearance = NSAppearance(named: appearance) }
+        host.frame = CGRect(origin: .zero, size: CGSize(width: size.width * 2, height: size.height * 2))
+        host.layoutSubtreeIfNeeded()
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return XCTFail(name) }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else { return XCTFail(name) }
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name.replacingOccurrences(of: " ", with: "_") + ".png"))
     }
