@@ -88,8 +88,7 @@ struct PaneIcon: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
-            .fill(LinearGradient(colors: [pane.tint.opacity(0.85), pane.tint],
-                                 startPoint: .top, endPoint: .bottom))
+            .fill(SettingsTheme.iconGradient(pane.tint))
             .overlay(
                 Image(systemName: pane.symbol)
                     .font(.system(size: size * 0.52, weight: .semibold))
@@ -188,7 +187,7 @@ struct SettingsRoot: View {
         case .items: ItemSettings(settings: settings, store: store)
         case .actions: ActionSettings(settings: settings)
         case .keyboard: KeyboardSettings(settings: settings)
-        case .about: AboutSettings(settings: settings, showOnboarding: showOnboarding)
+        case .about: AboutSettings(settings: settings, store: store, showOnboarding: showOnboarding)
         }
     }
 }
@@ -238,8 +237,36 @@ private struct SidebarRow: View {
 
 struct AboutSettings: View {
     @ObservedObject var settings: AppSettings
+    var store: ShelfStore? = nil
     @ObservedObject private var updater = Updater.shared
     let showOnboarding: () -> Void
+
+    /// Diagnoseprotokoll ein: erst nach dem Hinweis, was erfasst wird
+    private var diagnostics: Binding<Bool> {
+        Binding(get: { settings.diagnosticsEnabled },
+                set: { on in
+                    if on {
+                        guard Self.confirmDiagnostics() else { return }
+                        settings.diagnosticsEnabled = true
+                        Diagnostics.shared.record("app", "Diagnoseprotokoll eingeschaltet")
+                    } else {
+                        settings.diagnosticsEnabled = false
+                        Diagnostics.shared.clear()
+                    }
+                })
+    }
+
+    static func confirmDiagnostics() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L("Turn on the diagnostic log?", "Diagnoseprotokoll einschalten?")
+        alert.informativeText = L("BarDrop then records in detail what happens in the app: drops, previews, the shelf at the edge, actions, the introduction and errors, together with your settings and your Mac model and macOS version. File and folder names, paths and contents are not recorded; files appear only as an anonymous code with their type. The log stays on this Mac and is never sent. Only when you click “Save Log” is a text file created that you can pass on yourself, for example to report a bug.",
+                                  "BarDrop hält dann ausführlich fest, was in der App passiert: Ablegen, Vorschaubilder, die Ablage am Rand, Aktionen, die Einführung und Fehler, dazu deine Einstellungen sowie Mac-Modell und macOS-Version. Datei- und Ordnernamen, Pfade und Inhalte werden nicht erfasst; Dateien erscheinen nur als anonyme Kennung mit ihrem Typ. Das Protokoll bleibt auf diesem Mac und wird nie verschickt. Erst mit „Protokoll sichern“ entsteht eine Textdatei, die du selbst weitergeben kannst, etwa um einen Fehler zu melden.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L("Turn On", "Einschalten"))
+        alert.addButton(withTitle: L("Cancel", "Abbrechen"))
+        alert.icon = NSApp.applicationIconImage
+        return alert.runModal() == .alertFirstButtonReturn
+    }
 
     private var version: String {
         Updater.shared.currentVersion
@@ -305,6 +332,18 @@ struct AboutSettings: View {
                           info: L("Try new features before they come to everyone. Betas may still have bugs.",
                                   "Neue Funktionen ausprobieren, bevor sie für alle erscheinen. Betas können noch Fehler haben."),
                           isOn: $settings.betaUpdates)
+                if settings.betaUpdates {
+                    ToggleRow(L("Diagnostic log", "Diagnoseprotokoll"),
+                              info: L("Only in beta versions, off by default. Records in detail and anonymously what happens in BarDrop, to find bugs. Stays on this Mac until you save it.",
+                                      "Nur in Beta-Versionen, standardmäßig aus. Hält ausführlich und anonym fest, was in BarDrop passiert, um Fehler zu finden. Bleibt auf diesem Mac, bis du es sicherst."),
+                              isOn: diagnostics)
+                    if settings.diagnosticsEnabled {
+                        SettingsRow(L("Log file", "Protokolldatei")) {
+                            Button(L("Save Log", "Protokoll sichern")) { Diagnostics.shared.saveReport(store: store) }
+                                .buttonStyle(KlackButtonStyle())
+                        }
+                    }
+                }
             }
 
             SettingsSection(L("Credits", "Dank und Quellen")) {

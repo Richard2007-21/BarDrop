@@ -510,6 +510,7 @@ final class ShelfStore: ObservableObject {
                 if let error {
                     Log.store.error("Papierkorb fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
                 }
+                Diagnostics.shared.record("trash", "\(trashed.count) of \(urls.count) error=\(error.map { ($0 as NSError).code } ?? 0) files=\(Diagnostics.anon(urls))")
                 let mapping = Dictionary(trashed.map { ($0.key.standardizedFileURL, $0.value) },
                                          uniquingKeysWith: { first, _ in first })
                 let shelfFiles = self.entries.flatMap(\.files)
@@ -558,6 +559,7 @@ final class ShelfStore: ObservableObject {
             if !rest.files.isEmpty { updated.append(rest) }
         }
         guard !removed.isEmpty || !extraItems.isEmpty else { return nil }
+        Diagnostics.shared.record("store", "takeOut \(removed.count) undoable=\(undoable) delay=\(delay.map { String(Int($0)) } ?? "–") trashed=\(trashed.count) extra=\(extraItems.count)")
         if !removed.isEmpty {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { entries = updated }
         }
@@ -603,6 +605,7 @@ final class ShelfStore: ObservableObject {
 
     /// Legt entfernte Dateien zurück an ihren alten Platz. Registriert das Wiederholen.
     private func undo(_ removal: ShelfRemoval) {
+        Diagnostics.shared.record("store", "undo files=\(removal.fileIDs.count) trashed=\(removal.trashed.count)")
         removals.removeAll { $0 === removal }
         putBackFromTrash(removal.trashed)
         let present = Set(entries.flatMap { $0.files.map(\.id) })
@@ -714,6 +717,7 @@ final class ShelfStore: ObservableObject {
             if !e.files.isEmpty { updated.append(e) }
         }
         if changed {
+            Diagnostics.shared.record("store", "prune: missing or moved files updated")
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { entries = updated }
         }
     }
@@ -743,12 +747,15 @@ final class ShelfStore: ObservableObject {
         importer.convertImages = AppSettings.shared.convertWebImages
         importer.alwaysCopy = AppSettings.shared.copyAllFiles
         pendingImports += 1
+        let started = Date()
+        Diagnostics.shared.record("import", "start types=\(pb.types?.map(\.rawValue).prefix(12).joined(separator: ",") ?? "–") target=\(target != nil) copy=\(AppSettings.shared.copyAllFiles)")
         // Bloßes Ablegen: Dateien gleich zeigen, auch wenn sie noch kopiert werden.
         // Arbeitet danach eine Aktion mit ihnen, braucht sie die fertigen Kopien.
         let showWhileCopying = target == nil && completion == nil
         importer.importContent(of: pb, showWhileCopying: showWhileCopying) { [weak self] files in
             guard let self else { return }
             self.pendingImports = max(0, self.pendingImports - 1)
+            Diagnostics.shared.record("import", "done \(files.count) in \(Int(Date().timeIntervalSince(started) * 1000)) ms owned=\(files.filter(\.owned).count) files=\(Diagnostics.anon(files.map(\.url)))")
             guard !files.isEmpty else {
                 completion?([])
                 return

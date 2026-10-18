@@ -94,13 +94,21 @@ enum EdgeLogic {
         if state.level == .hidden { state.hapticGiven = false }
         defer { if result.haptic { state.hapticGiven = true } }
 
+        // Kleiner Trefferbereich: auch gezogene Dateien müssen den Streifen selbst erreichen
+        let expand: (distance: CGFloat, span: CGFloat) = c.exactPointer
+            ? (max(12, s.width + 4), max(40, s.height / 2 + s.fillet + 6))
+            : c.dragExpand
+
         if s.locked {
+            result.target = .expanded
+        } else if s.dragging && s.preview == .expanded && s.onScreen {
+            // Einführung: Die Ablage steht offen und bleibt es, während etwas gezogen wird
             result.target = .expanded
         } else if s.dragging {
             if s.ownDrag {
                 // Objekt aus der Ablage: Sie schließt, sobald es sie verlässt, öffnet sich
                 // aber wieder, wenn man damit an den Rand zurückkommt (zum Zurücklegen)
-                let backAtEdge = s.onScreen && !s.innerEdge && s.dx < c.dragExpand.distance && s.dy < c.dragExpand.span
+                let backAtEdge = s.onScreen && !s.innerEdge && s.dx < expand.distance && s.dy < expand.span
                 result.target = s.overExpanded || state.manualOpen || backAtEdge ? .expanded : .hidden
                 // Zurück am Rand: derselbe leichte Impuls wie beim ersten Hineinziehen
                 if result.target == .expanded && state.level != .expanded { result.haptic = true }
@@ -109,11 +117,11 @@ enum EdgeLogic {
             } else if !s.onScreen || (s.innerEdge && !s.overExpanded && !state.manualOpen) {
                 // Drag auf anderem Bildschirm, oder auf dem Weg hinüber zum Bildschirm daneben
                 result.target = .hidden
-            } else if s.overExpanded || (s.dx < c.dragExpand.distance && s.dy < c.dragExpand.span) {
+            } else if s.overExpanded || (s.dx < expand.distance && s.dy < expand.span) {
                 result.target = .expanded
                 // Die Datei hat die Ablage erreicht: ein leichter Impuls, sofort
                 if state.level != .expanded { result.haptic = true }
-            } else if s.dx < dragHintDistance && s.dy < dragHintSpan {
+            } else if !c.exactPointer && s.dx < dragHintDistance && s.dy < dragHintSpan {
                 result.target = .hint
             } else {
                 // „Streifen sofort zeigen“: schmaler Streifen schon beim Start des Ziehens.

@@ -59,7 +59,7 @@ struct GeneralSettings: View {
         alert.icon = NSApp.applicationIconImage
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         settings.resetAll()
-        if launchAtLogin { launchAtLogin = false }   // meldet BarDrop über onChange ab
+        if !launchAtLogin { launchAtLogin = true }   // Standard: angemeldet (über onChange)
     }
 }
 
@@ -210,9 +210,9 @@ struct OpeningSettings: View {
                                   "Mit Wartezeit öffnet ein Klick auf den Streifen die Ablage sofort."),
                           selection: $settings.openChoice,
                           options: OpenChoice.all.map { ($0, $0.title) })
-                ToggleRow(L("Small hit area for the pointer", "Kleiner Trefferbereich für den Zeiger"),
-                          info: L("Without a file, the shelf only opens when the pointer touches the strip itself. While dragging files, the area at the edge stays generous.",
-                                  "Ohne Datei öffnet die Ablage nur, wenn der Zeiger den Streifen selbst berührt. Beim Ziehen von Dateien bleibt der Bereich am Rand großzügig."),
+                ToggleRow(L("Small hit area", "Kleiner Trefferbereich"),
+                          info: L("The shelf only opens when the pointer or a dragged file reaches the strip itself, not the area around it.",
+                                  "Die Ablage öffnet sich erst, wenn der Zeiger oder eine gezogene Datei den Streifen selbst erreicht, nicht schon den Bereich drumherum."),
                           isOn: $settings.exactPointer)
                 PickerRow(L("While dragging files", "Beim Ziehen von Dateien"), selection: $settings.dragReveal,
                           options: DragReveal.allCases.map { ($0, $0.title) })

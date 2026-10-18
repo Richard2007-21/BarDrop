@@ -213,7 +213,7 @@ final class DragSourceNSView: NSView, NSDraggingSource {
 
     /// Eigene Objekte dürfen nur auf andere Kacheln, nicht auf sich selbst.
     private func canMerge(_ sender: NSDraggingInfo) -> Bool {
-        guard let id = dropTargetID else { return false }
+        guard IntroGate.allowsMerge, let id = dropTargetID else { return false }
         guard isOwn(sender) else { return true }
         return !(ui?.draggedEntryIDs ?? []).subtracting([id]).isEmpty
     }

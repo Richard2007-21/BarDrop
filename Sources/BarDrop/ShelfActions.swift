@@ -129,6 +129,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// `sound`: Klang des Papierkorbs wie im Finder (nicht beim Ausschneiden)
     func remove(_ entries: [ShelfEntry], sound: Bool = true) {
         guard !entries.isEmpty else { return }
+        Diagnostics.shared.record("remove", "entries=\(entries.count) sound=\(sound)")
         let ids = Set(entries.map(\.id))
         let count = entries.reduce(0) { $0 + $1.files.count }
         // Erst den Stapel verlassen (das wählt ihn aus), dann die Auswahl bereinigen
@@ -158,6 +159,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     /// ⌘Z: zuletzt Entferntes zurückholen und auswählen.
     func undo() {
+        Diagnostics.shared.record("undo", "canUndo=\(store.undoManager.canUndo) action=\(store.undoManager.undoActionName)")
         guard store.undoManager.canUndo else { return NSSound.beep() }
         let restored = store.undoLast()
         // Nichts mehr da, was sich zurückholen ließe
@@ -203,6 +205,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     func dragEnded(_ files: [ShelfFile], operation: NSDragOperation) {
         let internalDrop = ui.lastDropWasInternal
         ui.lastDropWasInternal = false
+        Diagnostics.shared.record("dragOut", "ended operation=\(operation.rawValue) internal=\(internalDrop) files=\(Diagnostics.anon(files.map(\.url)))")
         if !operation.isEmpty && !internalDrop && settings.removeAfterDragOut {
             let urls = files.map(\.url).filter { !DragExporter.shared.failedRecently($0) }
             store.removeFiles(at: urls, deleteOwnedAfter: 15 * 60)
@@ -321,6 +324,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     func perform(_ action: QuickAction, urls: [URL], anchor: NSView,
                  modifiers: NSEvent.ModifierFlags = NSEvent.modifierFlags) {
+        Diagnostics.shared.record("action", "\(action.kind.rawValue) items=\(urls.count) modifiers=\(modifiers.rawValue) files=\(Diagnostics.anon(urls))")
         if !urls.isEmpty {
             NotificationCenter.default.post(name: Self.didPerformAction, object: self,
                                             userInfo: ["urls": urls, "kind": action.kind.rawValue])

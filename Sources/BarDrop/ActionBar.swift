@@ -11,6 +11,8 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     var onClick: (NSView) -> Void = { _ in }
     /// Vorgang, den der Zeiger beim Drüberziehen zeigt (Ordner: verschieben oder kopieren)
     var operation: (NSDraggingInfo) -> NSDragOperation = { _ in .copy }
+    /// Art der Aktion (Einführung: nur die passende Aktion nimmt etwas an)
+    var kind: QuickAction.Kind?
     /// Herausziehen entfernt die Aktion (nur mit „Anheften in der Ablage“): Bild und Entfernen
     var dragOut: (image: () -> NSImage, remove: () -> Void)?
     /// Die Aktion wird gerade herausgezogen (ihr Platz in der Leiste wird blass)
@@ -95,8 +97,11 @@ final class ActionDropNSView: NSView, NSDraggingSource {
 
     // MARK: Drop
 
+    private var introAllows: Bool { kind.map(IntroGate.allowsDrop(on:)) ?? true }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         ui?.holdPinCandidate()
+        guard introAllows else { return [] }
         onTargeted(true)
         Haptics.tap()
         return Self.allowed(operation(sender), by: sender.draggingSourceOperationMask)
@@ -104,8 +109,11 @@ final class ActionDropNSView: NSView, NSDraggingSource {
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         ui?.holdPinCandidate()
+        guard introAllows else { return [] }
         return Self.allowed(operation(sender), by: sender.draggingSourceOperationMask)
     }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { introAllows }
 
     /// Nur Vorgänge anzeigen, die die Quelle erlaubt. Verschieben ohne Erlaubnis zeigt
     /// den Zeiger ohne Zeichen, wie der Finder beim Verschieben.
@@ -147,6 +155,7 @@ struct ActionDropTarget: NSViewRepresentable {
     var onOwnDrop: ([URL], NSView) -> Void
     var onClick: (NSView) -> Void
     var operation: (NSDraggingInfo) -> NSDragOperation = { _ in .copy }
+    var kind: QuickAction.Kind? = nil
     var dragOut: (image: () -> NSImage, remove: () -> Void)? = nil
     var onDraggingOut: (Bool) -> Void = { _ in }
 
@@ -165,6 +174,7 @@ struct ActionDropTarget: NSViewRepresentable {
         view.onOwnDrop = onOwnDrop
         view.onClick = onClick
         view.operation = operation
+        view.kind = kind
         view.dragOut = dragOut
         view.onDraggingOut = onDraggingOut
     }
@@ -369,6 +379,7 @@ struct QuickActionButton: View {
                     actions.perform(action, urls: actions.currentSelectionURLs, anchor: anchor)
                 },
                 operation: { info in dropOperation(info) },
+                kind: action.kind,
                 dragOut: dragOut,
                 onDraggingOut: { value in
                     withAnimation(.easeOut(duration: 0.15)) { draggingOut = value }

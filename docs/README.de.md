@@ -71,7 +71,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 **Ablage**
 * Links oder rechts, feste Höhe oder dort, wo der Zeiger den Rand erreicht (ganzer Rand oder mittlere Hälfte)
 * Öffnet sofort oder nach 1 bis 5 Sekunden am Rand, per Klick oder per Kurzbefehl; ein Klick auf den Streifen überspringt die Wartezeit
-* Großzügiger Trefferbereich, du musst den Streifen nicht genau treffen
+* Großzügiger Trefferbereich, du musst den Streifen nicht genau treffen, oder auf Wunsch ein kleiner, der nur auf den Streifen selbst reagiert
 * Apps ausnehmen, in denen der Rand die Ablage nicht öffnen soll, zum Beispiel Spiele, und auf Wunsch im Vollbild geschlossen bleiben
 * Auch schnell an den Rand geworfene Dateien werden sicher aufgenommen
 * Feiner heller Rahmen, damit sie auch auf dunklem Hintergrund zu sehen ist
@@ -92,10 +92,13 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * AirDrop, Mail, Nachrichten, Teilen, Papierkorb, beliebige Ordner und Apps
 * Objekte darauf ziehen oder auswählen und anklicken
 * Ordner und Papierkorb wie im Finder: auf derselben Platte verschiebt ein Ordner, auf einer anderen kopiert er (`⌥` kopiert immer, `⌘` verschiebt immer)
-* Zwei Reihen mit je bis zu fünf Aktionen
+* Zwei Reihen mit je bis zu fünf Aktionen; Namen bei allen Aktionen, nur bei Ordnern oder keinen
+* Der Papierkorb sieht voll oder leer aus wie der Papierkorb deines Mac
 * Auf Wunsch Ordner und Apps per Ziehen auf die Ablage anheften und Aktionen durch Herausziehen entfernen
 
 **Einstellungen**
+* Kurze Einführung beim ersten Start: wo die Ablage ist, Ablegen, Aktionen, Kurzbefehl und Öffnen mit dem Zeiger
+* Startet standardmäßig beim Anmelden
 * Englisch oder Deutsch, standardmäßig wie die Sprache des Systems
 * Kein Symbol in der Menüleiste: Rechtsklick in die Ablage für Einstellungen und Beenden
 
@@ -122,6 +125,8 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 ## Datenschutz
 
 BarDrop sammelt keine Daten und sendet nichts über dich. Die Ablage liegt nur auf deinem Mac unter `~/Library/Application Support/BarDrop`. BarDrop verbindet sich nur mit GitHub: für die Suche nach Updates, die sich abschalten lässt, und für „Was ist neu“, wenn du Einstellungen → Über BarDrop öffnest. Bilder und Links aus dem Web werden nur dann geladen, wenn du sie selbst in die Ablage ziehst.
+
+**Diagnoseprotokoll (nur Beta-Versionen, standardmäßig aus).** Wer Beta-Versionen nutzt, kann unter Einstellungen → Über BarDrop ein Diagnoseprotokoll einschalten, nach einem Hinweis, was es erfasst. Es hält ausführlich fest, was in der App passiert (Ablegen, Vorschaubilder, die Ablage am Rand, Aktionen, die Einführung, Fehler), dazu deine Einstellungen sowie Mac-Modell und macOS-Version. Datei- und Ordnernamen, Pfade und Inhalte werden nie erfasst; Dateien erscheinen nur als anonyme Kennung mit ihrem Typ. Das Protokoll bleibt auf deinem Mac unter `~/Library/Logs/BarDrop` und wird nirgendwohin geschickt. Erst „Protokoll sichern“ erstellt eine Textdatei, die du selbst weitergeben kannst, um bei der Fehlersuche zu helfen. Ausschalten löscht das Protokoll.
 
 ## Selbst bauen
 

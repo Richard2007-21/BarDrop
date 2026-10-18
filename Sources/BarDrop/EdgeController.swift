@@ -409,6 +409,7 @@ final class EdgeController: NSObject {
     private func setLevel(_ new: ShelfUIModel.Level) {
         let old = ui.level
         guard new != old else { return }
+        Diagnostics.shared.record("edge", "level \(old) → \(new) dragging=\(self.dragPasteboard.changeCount != self.dragBaseline) ownDrag=\(self.ui.ownDragActive) manual=\(self.logic.manualOpen) preview=\(self.previewUntil != nil ? String(describing: self.previewLevel) : "–") guide=\(self.guideActive ? String(describing: self.guideLevel) : "–") locked=\(self.ui.isLocked)")
         lastActivity = Date()
         let style = settings.animationStyle
         // Kleine Stufen haben ihre eigene, elastische Bewegung; die Ablage selbst die gewählte
@@ -508,6 +509,7 @@ final class EdgeController: NSObject {
     /// Einführung: den ersten Streifen in der eingestellten Größe dauerhaft zeigen, bis die
     /// Übung vorbei ist. Hinfahren, Hineinziehen und Öffnen funktionieren wie immer.
     func showGuide(_ level: ShelfUIModel.Level?) {
+        Diagnostics.shared.record("edge", "guide \(level.map { String(describing: $0) } ?? "off")")
         let on = level != nil
         if let level { guideLevel = level }
         guard on != guideActive else {
@@ -651,6 +653,10 @@ final class EdgeController: NSObject {
                 }
                 previewUntil = now.addingTimeInterval(1.5)
                 previewLevel = .expanded
+                // Ohne Fokus zeichnet macOS die Ablage sonst erst beim nächsten Öffnen neu:
+                // Symbolgröße und Namen der Aktionen ändern die Fenstergröße nicht
+                DispatchQueue.main.async { [weak self] in self?.redrawContent() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in self?.redrawContent() }
             } else {
                 previewUntil = now.addingTimeInterval(1.2)
                 previewLevel = .hint
@@ -774,6 +780,7 @@ final class EdgeController: NSObject {
         // Datei beim Loslassen in der App dahinter.
         // Nur im Bereich der Ablage selbst, damit Drops in Fenster daneben ungestört bleiben
         let catchesThrow = dragging && !ui.ownDragActive && settings.dragReveal != .off
+            && !config.exactPointer
             && onScreen && !innerEdge && dx < config.dragExpand.distance
             && expandedBody.insetBy(dx: 0, dy: -12).contains(loc)
         let accept = (ui.level == .expanded && (expandedBody.contains(loc) || locked))

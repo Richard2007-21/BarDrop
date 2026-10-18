@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Carbon
 import Combine
+import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settings = AppSettings.shared
@@ -59,12 +60,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 && self.settingsWindow?.isVisible != true && self.onboarding == nil
         }
         Updater.shared.start()
+        Diagnostics.shared.record("app", "launch \(Updater.shared.currentVersion) firstLaunch=\(!settings.didLaunchBefore) afterUpdate=\(Updater.launchedAfterUpdate)")
 
         // Erster Start: Einführung. Als erledigt gilt sie erst, wenn sie geschlossen
         // wurde; geht vorher etwas schief, erscheint sie beim nächsten Start wieder.
         // Sonst zeigt sich kurz der Streifen am Rand: Ohne Dock- und Menüleistensymbol
         // sähe man sonst gar nicht, dass BarDrop läuft.
         if !settings.didLaunchBefore {
+            // „Beim Anmelden öffnen“ ist Standard: gleich beim ersten Start anmelden
+            // (in der Einführung und in den Einstellungen lässt es sich ausschalten)
+            if SMAppService.mainApp.status != .enabled { try? SMAppService.mainApp.register() }
             DispatchQueue.main.async { [weak self] in self?.showOnboarding() }
         } else if !Updater.launchedAfterUpdate {
             // Nach einem stillen Update nicht zeigen: Davon soll man nichts merken
@@ -132,6 +137,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.onboarding = nil
                 self?.ui.forcesOutline = false
                 ShelfMenu.disabled = false
+                IntroGate.active = false
+                IntroGate.step = nil
             }
             onboarding.wakeShelf = { [weak self] in self?.controller.wake() }
             onboarding.showGuide = { [weak self] level in self?.controller.showGuide(level) }
@@ -144,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Auf dem abgedunkelten Bildschirm mit hellem Rahmen, damit man die Ablage sieht
         ui.forcesOutline = true
         ShelfMenu.disabled = true
+        IntroGate.active = true
         onboarding?.show()
     }
 

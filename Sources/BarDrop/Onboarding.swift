@@ -48,7 +48,9 @@ final class OnboardingModel: ObservableObject {
     static func loginItemChange(completed: Bool, wanted: Bool, isRerun: Bool, enabled: Bool) -> LoginItemChange? {
         guard completed else { return nil }
         if wanted && !enabled { return .register }
-        if !wanted && enabled && isRerun { return .unregister }
+        // Seit 1.30.0 Beta 21 ist BarDrop ab dem ersten Start angemeldet: Wer es in der
+        // Einführung ausschaltet und auf „Fertig“ klickt, wird abgemeldet
+        if !wanted && enabled { return .unregister }
         return nil
     }
 
@@ -78,6 +80,7 @@ final class OnboardingModel: ObservableObject {
 
     /// Ein Schritt wurde gemacht: abhaken, kurz stehen lassen, weiter.
     func complete(_ done: Step) {
+        Diagnostics.shared.record("intro", "complete \(done) current=\(step)")
         guard step == done, !completed.contains(done) else { return }
         Haptics.tap()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { _ = completed.insert(done) }
@@ -145,6 +148,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         showBackdrop()
         if let window { Self.centerExactly(window, on: shelfScreen()) }
         window?.makeKeyAndOrderFront(nil)
+        if let window { observeWindow(window) }
+        updateCutout()
         // Erst jetzt ist die Ablage verbunden: den aktuellen Schritt zeigen (Willkommen: offen)
         prepare(model.step)
     }
@@ -178,10 +183,12 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         bandShades = NSScreen.screens.map { screen in
             let shade = IntroBandShade(screen: screen, edge: settings.edge,
                                        shelfWidth: CGFloat(settings.shelfWidth))
+            shade.onMove = { [weak self] in self?.wakeShelf() }
             shade.alphaValue = fresh ? 0 : 1
             shade.orderFrontRegardless()
             return shade
         }
+        updateCutout()
         if fresh {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.25
@@ -214,6 +221,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         edgeSubscription = nil
+        windowObservers.forEach(NotificationCenter.default.removeObserver)
+        windowObservers = []
         let leaving: [NSWindow] = backdrops + bandShades
         backdrops = []
         bandShades = []
@@ -223,6 +232,22 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         }, completionHandler: {
             leaving.forEach { $0.orderOut(nil) }
         })
+    }
+
+    /// Hinter dem Fenster nicht abdunkeln (wandert mit, wenn man das Fenster verschiebt)
+    private func updateCutout() {
+        let rect = window?.isVisible == true ? window?.frame : nil
+        backdrops.forEach { $0.setCutout(rect) }
+    }
+
+    private var windowObservers: [NSObjectProtocol] = []
+
+    private func observeWindow(_ window: NSWindow) {
+        guard windowObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        windowObservers = [NSWindow.didMoveNotification, NSWindow.didResizeNotification].map {
+            center.addObserver(forName: $0, object: window, queue: .main) { [weak self] _ in self?.updateCutout() }
+        }
     }
 
     /// Klick daneben: zurück zur Einführung
@@ -266,6 +291,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     }
 
     private func prepare(_ step: OnboardingModel.Step) {
+        IntroGate.step = step
+        Diagnostics.shared.record("intro", "step \(step) sample=\(model.sampleURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false)")
         // Willkommen: Die Ablage steht offen am Rand, damit man sieht, wo sie ist.
         // Bei den Übungen bleibt dort der Streifen stehen.
         // Ab „Los geht’s“ steht die Ablage offen am Rand und bleibt beim Ablegen und bei den
@@ -303,6 +330,9 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     }
 
     private func entriesChanged(_ entries: [ShelfEntry]) {
+        if model.step == .drop || model.step == .retrieve {
+            Diagnostics.shared.record("intro", "entries=\(entries.count) new=\(entries.filter { !baseline.contains($0.id) }.count) step=\(model.step)")
+        }
         let name = model.sampleURL?.lastPathComponent
         for entry in entries where entry.files.contains(where: { $0.url.lastPathComponent == name }) {
             if !baseline.contains(entry.id) { sampleEntries.insert(entry.id) }
@@ -409,8 +439,10 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         })
         // Feste Größe: Die Ansicht darf das Fenster nicht verändern. Sonst übernimmt
         // NSHostingView Größenwünsche der Inhalte, und das Fenster kann wachsen.
-        let host = NSHostingView(rootView: root.frame(width: Self.size.width, height: Self.size.height)
-                                                  .ignoresSafeArea())
+        // Erster Klick zählt auch, wenn das Fenster gerade nicht vorn ist (sonst musste man
+        // z. B. beim Rand zweimal klicken, weil die Ablage beim Umziehen den Fokus abgab)
+        let host = FirstClickHostingView(rootView: AnyView(root.frame(width: Self.size.width, height: Self.size.height)
+                                                  .ignoresSafeArea()))
         host.sizingOptions = []
         window.contentView = host
         window.contentMinSize = Self.size
@@ -482,6 +514,11 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 
 /// Fenster der Einführung. Eigene Klasse, damit ⌘W sie wie mit dem Schließknopf beendet
 /// (siehe AppDelegate) und sie Tastatureingaben bekommt (Eingabetaste, Escape).
+/// Nimmt den ersten Klick an, auch wenn das Fenster nicht aktiv ist
+final class FirstClickHostingView: NSHostingView<AnyView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 final class IntroWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -530,6 +567,31 @@ final class IntroBackdrop: NSPanel {
         CATransaction.setDisableActions(true)
         shade.backgroundColor = NSColor.black.withAlphaComponent(Self.dim).cgColor
         CATransaction.commit()
+        setCutout(cutout)
+    }
+
+    /// Fenster der Einführung in Bildschirmkoordinaten: Dort ist nicht abgedunkelt, damit
+    /// es so durchscheint wie die Einstellungen über dem Schreibtisch
+    private var cutout: CGRect?
+
+    func setCutout(_ rect: CGRect?) {
+        cutout = rect
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        guard let rect, rect.intersects(frame) else {
+            shade.mask = nil
+            return
+        }
+        let local = CGRect(x: rect.minX - frame.minX, y: rect.minY - frame.minY, width: rect.width, height: rect.height)
+        let mask = CAShapeLayer()
+        let path = CGMutablePath()
+        path.addRect(CGRect(origin: .zero, size: frame.size))
+        path.addRoundedRect(in: local, cornerWidth: 16, cornerHeight: 16)
+        mask.path = path
+        mask.fillRule = .evenOdd
+        mask.frame = CGRect(origin: .zero, size: frame.size)
+        shade.mask = mask
     }
 
     override var canBecomeKey: Bool { false }
@@ -549,6 +611,17 @@ final class IntroBackdrop: NSPanel {
         }
 
         override func mouseMoved(with event: NSEvent) { onMove() }
+
+        // Gezogenes nimmt der Hintergrund an, legt es aber nirgends ab: Sonst fiele es in die
+        // App dahinter, und z. B. der Finder verschöbe das Übungsfoto dorthin
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            registerForDraggedTypes(ShelfStore.acceptedTypes)
+        }
+        override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { onMove(); return [] }
+        override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { onMove(); return [] }
+        override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { false }
+
         override func mouseDown(with event: NSEvent) { onClick() }
         override func rightMouseDown(with event: NSEvent) { onClick() }
         override func otherMouseDown(with event: NSEvent) { onClick() }
@@ -568,17 +641,52 @@ final class IntroBandShade: NSPanel {
                    backing: .buffered, defer: false)
         level = OnboardingController.backdropLevel
         isOpaque = false
-        backgroundColor = NSColor.black.withAlphaComponent(IntroBackdrop.dim)
+        backgroundColor = .clear
         hasShadow = false
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
-        ignoresMouseEvents = true
+        // Nimmt Mausereignisse an, damit nichts in die App dahinter gezogen werden kann.
+        // Die Ablage liegt darüber und bekommt ihre Ereignisse wie immer.
+        ignoresMouseEvents = false
+        let view = DropBlocker()
+        view.onMove = { [weak self] in self?.onMove() }
+        view.wantsLayer = true
+        shade.frame = CGRect(origin: .zero, size: screen.frame.size)
+        shade.backgroundColor = NSColor.black.withAlphaComponent(IntroBackdrop.dim).cgColor
+        view.layer?.addSublayer(shade)
+        contentView = view
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         update(edge: edge, shelfWidth: shelfWidth)
     }
 
+    var onMove: () -> Void = {}
+    private let shade = CALayer()
+
     func update(edge: ScreenEdge, shelfWidth: CGFloat) {
         setFrame(Self.frames(screen: screenFrame, edge: edge, shelfWidth: shelfWidth).band, display: true)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        shade.frame = CGRect(origin: .zero, size: frame.size)
+        CATransaction.commit()
+    }
+
+    /// Fängt Gezogenes ab, ohne es abzulegen, und meldet Zeigerbewegungen
+    private final class DropBlocker: NSView {
+        var onMove: () -> Void = {}
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            registerForDraggedTypes(ShelfStore.acceptedTypes)
+        }
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            trackingAreas.forEach(removeTrackingArea)
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeAlways, .inVisibleRect],
+                                           owner: self, userInfo: nil))
+        }
+        override func mouseMoved(with event: NSEvent) { onMove() }
+        override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { onMove(); return [] }
+        override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { onMove(); return [] }
+        override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { false }
     }
 
     /// Aufteilung eines Bildschirms: Streifen am Rand (so breit wie das Fenster der Ablage)
@@ -1029,17 +1137,12 @@ private struct FeaturesPage: View {
         let text: String
     }
 
-    /// Automatisches Entfernen, mit dem eingestellten Wert
-    private var cleanup: String {
-        let hours = Int(settings.autoRemoveAfter / 3_600)
-        if hours <= 0 { return L("Stays until you remove it", "Bleibt, bis du es entfernst") }
-        return hours == 1 ? L("Gone by itself after 1 hour", "Nach 1 Stunde von selbst weg")
-                          : L("Gone by itself after \(hours) hours", "Nach \(hours) Stunden von selbst weg")
-    }
-
     private var features: [Feature] {
         [
-            Feature(id: "actions", symbol: "paperplane.fill", tint: Color(red: 0.2, green: 0.47, blue: 1),
+            Feature(id: "keys", symbol: "command", tint: Color(red: 0.55, green: 0.35, blue: 0.95),
+                    title: L("Keys like in the Finder", "Tasten wie im Finder"),
+                    text: L("Space, ⌘⌫ and ⌘Z work as you know them", "Leertaste, ⌘⌫ und ⌘Z wie gewohnt")),
+            Feature(id: "pin", symbol: "pin.fill", tint: Color(red: 0.2, green: 0.47, blue: 1),
                     title: L("Pin", "Anheften"),
                     text: L("Drag a folder or app onto the action bar", "Ordner oder App auf die Aktionsleiste ziehen")),
             Feature(id: "convert", symbol: "arrow.triangle.2.circlepath", tint: Color(red: 0.2, green: 0.78, blue: 0.4),
@@ -1048,8 +1151,12 @@ private struct FeaturesPage: View {
             Feature(id: "stacks", symbol: "square.stack.fill", tint: Color(red: 0.18, green: 0.68, blue: 0.75),
                     title: L("Stacks", "Stapel"),
                     text: L("Several items at once stay together", "Mehrere auf einmal bleiben zusammen")),
+            Feature(id: "screenshots", symbol: "camera.viewfinder", tint: Color(red: 1, green: 0.58, blue: 0.1),
+                    title: L("Screenshots", "Bildschirmfotos"),
+                    text: L("Optional: new screenshots land in the shelf", "Auf Wunsch landen neue Bildschirmfotos in der Ablage")),
             Feature(id: "cleanup", symbol: "clock.fill", tint: Color(red: 0.92, green: 0.3, blue: 0.55),
-                    title: L("Cleanup", "Aufräumen"), text: cleanup)
+                    title: L("Cleanup", "Aufräumen"),
+                    text: L("Optional: items go away after 1 to 24 hours", "Auf Wunsch nach 1 bis 24 Stunden von selbst weg"))
         ]
     }
 
@@ -1060,8 +1167,7 @@ private struct FeaturesPage: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 46, weight: .regular))
                 .foregroundStyle(Color(nsColor: .controlAccentColor))
-                .frame(height: 70)
-                .padding(.top, 10)
+                .frame(height: 52)
             Text(L("And There’s More", "Und noch mehr"))
                 .font(.system(size: 24, weight: .semibold))
                 .padding(.top, 12)
@@ -1078,8 +1184,7 @@ private struct FeaturesPage: View {
                 ForEach(features) { feature in
                     HStack(spacing: 12) {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(LinearGradient(colors: [feature.tint.opacity(0.85), feature.tint],
-                                                 startPoint: .top, endPoint: .bottom))
+                            .fill(SettingsTheme.iconGradient(feature.tint))
                             .overlay(
                                 Image(systemName: feature.symbol)
                                     .font(.system(size: 18, weight: .semibold))
@@ -1336,3 +1441,24 @@ final class ReturnDropView: NSView {
     override func concludeDragOperation(_ sender: NSDraggingInfo?) { onTargeted(false) }
 }
 
+
+
+/// Was während der Einführung in der Ablage angenommen wird: Das Beispielfoto soll nur dort
+/// landen, wo die Übung es haben will (kein Stapel, keine falsche Aktion)
+enum IntroGate {
+    /// Die Einführung ist offen
+    static var active = false
+    /// Aktueller Schritt der Einführung
+    static var step: OnboardingModel.Step?
+
+    /// Darf etwas auf diese Aktion gelegt werden?
+    static func allowsDrop(on kind: QuickAction.Kind) -> Bool {
+        guard active else { return true }
+        guard step == .retrieve else { return false }
+        let hasTrash = AppSettings.shared.quickActions.contains { $0.kind == .trash }
+        return kind == .trash || !hasTrash
+    }
+
+    /// Darf ein Objekt auf eine Kachel gelegt werden (Stapel bilden)?
+    static var allowsMerge: Bool { !active }
+}

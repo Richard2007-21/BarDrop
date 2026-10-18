@@ -99,9 +99,11 @@ enum Thumbnails {
         // Wie der Finder in Stufen: erst ein schnelles Vorschaubild in niedriger Auflösung
         // (kommt oft sofort), dann das scharfe. So erscheint gleich das Bild der Datei statt
         // zuerst das allgemeine Symbol ihres Typs.
-        QLThumbnailGenerator.shared.generateRepresentations(for: request) { rep, type, _ in
+        let requested = Date()
+        QLThumbnailGenerator.shared.generateRepresentations(for: request) { rep, type, error in
             let image = rep?.nsImage
             DispatchQueue.main.async {
+                Diagnostics.shared.record("thumb", "\(Diagnostics.anon(url)) type=\(type.rawValue) image=\(image != nil) ms=\(Int(Date().timeIntervalSince(requested) * 1000)) error=\(error.map { ($0 as NSError).code } ?? 0)")
                 // Nur echte Vorschaubilder merken. Ein bloßes Symbol kommt z. B., solange
                 // eine frisch abgelegte Datei noch geschrieben wird; dann später erneut versuchen.
                 if let image, type != .icon {
@@ -213,6 +215,7 @@ struct ThumbnailView: View {
     private func reveal() {
         Thumbnails.shownOnce.insert(url.path)
         guard !ready else { return }
+        Diagnostics.shared.record("tile", "reveal \(Diagnostics.anon(url)) preview=\(isPreview) exists=\(FileManager.default.fileExists(atPath: url.path))")
         // Ohne Animation: Kommt die Datei erst nach einem Download an (Bilder aus dem
         // Web), hat die Ablage oft keinen Fokus mehr. Eine Einblendung bliebe dann bei
         // Deckkraft null hängen, und die Kachel wäre bis zum nächsten Öffnen unsichtbar.

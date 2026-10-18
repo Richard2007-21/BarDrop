@@ -1,23 +1,23 @@
 ### Changed behavior
-* Introduction: the shelf opens with “Let’s Go” and stays open while you practice
-* Introduction: a new step shows how to open the shelf with the pointer
+* BarDrop opens at login by default
+* All actions are in the lower row by default
+* “Small hit area” now also applies to dragged files
 
 ### Also new
-* Cleaner exercises without a box; the photo shows that it can be picked up
-* The Trash in the introduction looks full or empty like yours
-* The practice photo no longer disappears
-* Clearer texts in the introduction and the option “Small hit area for the pointer”
-* No right-click menus in the shelf during the introduction
+* Introduction: the shelf stays open while you drag, the window is see-through like Settings, files can’t get lost on the background, edge changes take one click, and the last page shows six features
+* Changing the size of the action icons shows live at the edge
+* Slight gradient on the icons in Settings and the introduction
+* Beta only: an optional, anonymous diagnostic log (off by default, stays on your Mac)
 
 <!-- de -->
 
 ### Geändertes Verhalten
-* Einführung: Die Ablage öffnet sich mit „Los geht’s“ und bleibt beim Üben offen
-* Einführung: Ein neuer Schritt zeigt, wie man die Ablage mit dem Zeiger öffnet
+* BarDrop startet standardmäßig beim Anmelden
+* Alle Aktionen stehen standardmäßig in der unteren Reihe
+* „Kleiner Trefferbereich“ gilt jetzt auch für gezogene Dateien
 
 ### Außerdem
-* Übungen ohne Kasten; das Foto zeigt, dass man es anfassen kann
-* Der Papierkorb in der Einführung sieht voll oder leer aus wie deiner
-* Das Übungsfoto verschwindet nicht mehr
-* Klarere Texte in der Einführung und die Option „Kleiner Trefferbereich für den Zeiger“
-* Während der Einführung keine Rechtsklickmenüs in der Ablage
+* Einführung: Die Ablage bleibt beim Ziehen offen, das Fenster ist durchscheinend wie die Einstellungen, auf dem Hintergrund gehen keine Dateien verloren, der Rand wechselt mit einem Klick, und die letzte Seite zeigt sechs Funktionen
+* Die Symbolgröße der Aktionen ist am Rand sofort zu sehen
+* Leichter Farbverlauf bei den Symbolen in Einstellungen und Einführung
+* Nur Beta: ein optionales, anonymes Diagnoseprotokoll (standardmäßig aus, bleibt auf deinem Mac)

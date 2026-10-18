@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.30.0-beta.21
+* **Changed:** BarDrop opens at login by default; it is turned on at the first launch (turn it off in the introduction or in Settings → General). Reset All Settings turns it back on
+* **Changed:** All actions are in the lower row by default (for everyone who never moved them)
+* **Changed:** Opening → When → “Small hit area”: when on, also dragged files must reach the strip itself before the shelf opens
+* Introduction: the shelf stays open the whole time you drag the photo, also while it is still far from the edge
+* Introduction: the dimmed background is cut out behind the window, so the window is as see-through as Settings; the cut-out moves with the window
+* Introduction: files can’t be dropped onto the dimmed background or the apps behind it, so the photo can’t get lost; actions only accept the photo in the step that asks for it (only the Trash), and no stacks are formed
+* Introduction: changing the screen edge takes one click (the first click was sometimes lost)
+* Introduction: And There’s More shows six features: Keys like in the Finder, Pin, Convert, Stacks, Screenshots and Cleanup (both marked as optional)
+* Changing the icon size of the actions shows the change live in the shelf at the edge
+* Icons in Settings and the introduction have a slight gradient, lighter at the top
+* Beta versions: optional diagnostic log in Settings → About BarDrop. Off by default; turning it on shows what it records. Detailed but anonymous (no file names, paths or contents), stays on your Mac, “Save Log” creates a text file you can pass on
+* README: privacy section explains the diagnostic log; features updated
+
 ## 1.30.0-beta.20
 * **Changed:** Introduction: the shelf opens when you click “Let’s Go” and stays open while you drop the photo and drag it onto the Trash
 * **Changed:** Introduction: new step “Open with the Pointer” near the end: a short scene shows how the shelf opens at the edge without a file, then you try it

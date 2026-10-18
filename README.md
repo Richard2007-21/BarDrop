@@ -71,7 +71,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 **Shelf**
 * Left or right edge, at a fixed height or wherever the pointer reaches the edge (whole edge or middle half)
 * Opens instantly or after 1 to 5 seconds at the edge, on click or with a keyboard shortcut; a click on the strip skips the wait
-* Generous hit area, so you don’t have to hit the strip exactly
+* Generous hit area, so you don’t have to hit the strip exactly, or optionally a small one that only reacts to the strip itself
 * Exclude apps in which the edge shouldn’t open the shelf, for example games, and optionally stay closed in full screen
 * Files flung quickly at the edge are still caught
 * Thin light outline so it stays visible on dark backgrounds
@@ -92,10 +92,13 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * AirDrop, Mail, Messages, Share, Trash, any folder or app
 * Drag items onto it, or select them and click
 * Folders and the Trash work like in the Finder: on the same disk a folder moves, on another disk it copies (`⌥` always copies, `⌘` always moves)
-* Two rows with up to five actions each
+* Two rows with up to five actions each; names for all actions, folders only, or none
+* The Trash looks full or empty like the Trash of your Mac
 * Optionally pin a folder or app by dragging it onto the shelf, and remove an action by dragging it out
 
 **Settings**
+* A short introduction on first launch: where the shelf is, dropping, actions, the shortcut and opening with the pointer
+* Opens at login by default
 * English or German, following the system language by default
 * No menu bar icon: right-click the shelf for Settings and Quit
 
@@ -122,6 +125,8 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 ## Privacy
 
 BarDrop collects no data and sends nothing about you. The shelf lives only on your Mac in `~/Library/Application Support/BarDrop`. BarDrop only connects to GitHub: to check for updates, which you can turn off, and to load “What’s new” when you open Settings → About BarDrop. Images and links from the web are only downloaded when you drag them into the shelf yourself.
+
+**Diagnostic log (beta versions only, off by default).** If you use beta versions, you can turn on a diagnostic log in Settings → About BarDrop, after a notice explaining what it records. It records in detail what happens in the app (drops, previews, the shelf at the edge, actions, the introduction, errors), your settings and your Mac model and macOS version. File and folder names, paths and contents are never recorded; files appear only as an anonymous code with their type. The log stays in `~/Library/Logs/BarDrop` on your Mac and is never sent anywhere. Only “Save Log” creates a text file, which you can pass on yourself to help fix bugs. Turning it off deletes the log.
 
 ## Build it yourself
 

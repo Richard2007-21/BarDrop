@@ -276,6 +276,7 @@ final class AppSettings: ObservableObject {
         static let generousHitArea = "generousHitArea"
         static let reopenWhereLeft = "reopenWhereLeft"
         static let exactPointer = "exactPointer"
+        static let diagnosticsEnabled = "diagnosticsEnabled"
         static let twoActionRows = "twoActionRows"
         static let actionRowSplit = "actionRowSplit"
         static let pinFromShelf = "pinFromShelf"
@@ -388,6 +389,8 @@ final class AppSettings: ObservableObject {
     /// Mit dem Zeiger allein öffnet nur der Streifen selbst (beim Ziehen von Dateien bleibt
     /// der Bereich großzügig)
     @Published var exactPointer: Bool { didSet { defaults.set(exactPointer, forKey: Key.exactPointer) } }
+    /// Ausführliches, anonymes Diagnoseprotokoll (nur Beta-Versionen, standardmäßig aus)
+    @Published var diagnosticsEnabled: Bool { didSet { defaults.set(diagnosticsEnabled, forKey: Key.diagnosticsEnabled) } }
     /// Beim Öffnen dort weitermachen, wo man aufgehört hat: offener Stapel und Scrollstand bleiben
     @Published var reopenWhereLeft: Bool { didSet { defaults.set(reopenWhereLeft, forKey: Key.reopenWhereLeft) } }
     /// Aktionsleiste in zwei Reihen mit je bis zu fünf Aktionen
@@ -520,6 +523,7 @@ final class AppSettings: ObservableObject {
             Key.language: AppLanguage.system.rawValue,
             Key.reopenWhereLeft: false,
             Key.exactPointer: false,
+            Key.diagnosticsEnabled: false,
             Key.twoActionRows: false,
             Key.pinFromShelf: true,
             Key.addScreenshots: false,
@@ -529,7 +533,8 @@ final class AppSettings: ObservableObject {
             Key.betaUpdates: false,
             Key.tileIconSize: ShelfDefaults.iconSize,
             Key.actionIconSize: ShelfDefaults.actionIconSize,
-            Key.actionRowSplit: QuickAction.perRow,
+            // Alle Aktionen standardmäßig in der unteren Reihe
+            Key.actionRowSplit: 0,
             Key.autoUpdateCheck: true,
             Key.hotKeyCode: Self.defaultHotKey.code,
             Key.hotKeyModifiers: Self.defaultHotKey.modifiers,
@@ -599,6 +604,7 @@ final class AppSettings: ObservableObject {
         defaults.removeObject(forKey: Key.generousHitArea)
         reopenWhereLeft = defaults.bool(forKey: Key.reopenWhereLeft)
         exactPointer = defaults.bool(forKey: Key.exactPointer)
+        diagnosticsEnabled = defaults.bool(forKey: Key.diagnosticsEnabled)
         // Zwei Reihen gibt es immer: Eine leere untere Reihe ist einfach nicht zu sehen
         twoActionRows = true
         actionRowSplit = defaults.integer(forKey: Key.actionRowSplit)
@@ -681,8 +687,9 @@ final class AppSettings: ObservableObject {
         openDelay = OpenDelay.instant
         reopenWhereLeft = false
         exactPointer = false
+        diagnosticsEnabled = false
         twoActionRows = true
-        actionRowSplit = QuickAction.perRow
+        actionRowSplit = 0
         pinFromShelf = true
         addScreenshots = false
         excludedApps = []

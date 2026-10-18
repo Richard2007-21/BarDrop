@@ -11,8 +11,8 @@ final class OnboardingTests: XCTestCase {
     func testFirstLaunchRegistersWhenWantedLikeBefore() {
         XCTAssertEqual(change(completed: true, wanted: true, rerun: false, enabled: false), .register)
         XCTAssertNil(change(completed: true, wanted: false, rerun: false, enabled: false))
-        XCTAssertNil(change(completed: true, wanted: false, rerun: false, enabled: true),
-                     "Beim ersten Start wird nie abgemeldet")
+        XCTAssertEqual(change(completed: true, wanted: false, rerun: false, enabled: true), .unregister,
+                       "Ab dem ersten Start angemeldet: in der Einführung ausgeschaltet heißt abmelden")
     }
 
     func testRerunUnregistersWhenSwitchedOff() {

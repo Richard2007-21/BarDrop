@@ -735,3 +735,14 @@ struct SettingsBackdrop: NSViewRepresentable {
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
+
+
+extension SettingsTheme {
+    /// Leichter Verlauf für farbige Symbolkacheln wie in den Systemeinstellungen: oben eine
+    /// Spur heller, unten die Farbe selbst
+    static func iconGradient(_ tint: Color) -> LinearGradient {
+        let base = NSColor(tint).usingColorSpace(.sRGB) ?? NSColor(tint)
+        let top = base.blended(withFraction: 0.18, of: .white) ?? base
+        return LinearGradient(colors: [Color(nsColor: top), tint], startPoint: .top, endPoint: .bottom)
+    }
+}
