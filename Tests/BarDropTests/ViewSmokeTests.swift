@@ -307,6 +307,10 @@ final class ViewSmokeTests: XCTestCase {
                         .background(Color(nsColor: NSColor(white: 0.17, alpha: 1))),
                      size: CGSize(width: SettingsWindowFactory.size.width, height: SettingsWindowFactory.size.height),
                      "Produkt Fenster \(name) \(lang)", dir: dir, appearance: .darkAqua)
+                shot(SettingsRoot(settings: settings, store: store, showOnboarding: {}, pane: pane)
+                        .background(Color(nsColor: NSColor(white: 0.93, alpha: 1))),
+                     size: CGSize(width: SettingsWindowFactory.size.width, height: SettingsWindowFactory.size.height),
+                     "Produkt Fenster \(name) \(lang) hell", dir: dir, appearance: .aqua)
             }
 
             // 4. Einführung
