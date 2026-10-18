@@ -1,0 +1,93 @@
+<html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:880px;height:550px;overflow:hidden;font-family:Inter,sans-serif;-webkit-font-smoothing:antialiased;background:#1d212b}
+.wall{position:absolute;inset:0;background:
+ radial-gradient(620px 360px at 50% -8%, rgba(120,135,165,.38) 0%, rgba(120,135,165,0) 70%),
+ linear-gradient(180deg,#434c5e 0%,#2e3543 55%,#1d212b 100%)}
+.menubar{position:absolute;top:0;left:0;right:0;height:24px;background:rgba(20,22,30,.55);color:#fff;font-size:11.5px;font-weight:500;display:flex;align-items:center;padding:0 14px;gap:16px;z-index:5}
+.menubar b{font-weight:700}.menubar .r{margin-left:auto}
+.space{position:absolute;left:0;top:0;width:880px;height:550px}
+.win{position:absolute;left:0;top:24px;width:880px;height:526px;background:#1e1e20;overflow:hidden;color:#e8e8ed;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12)}
+.bar{height:38px;display:flex;align-items:center;padding:0 12px;gap:7px;background:#2a2a2d;border-bottom:1px solid rgba(0,0,0,.5)}
+.tl{width:11px;height:11px;border-radius:50%}
+/* Erfundener Browser mit Bildersuche */
+.nav{display:flex;gap:10px;margin-left:14px;color:#8e8e93;font-size:15px}
+.addr{flex:1;margin:0 70px 0 40px;height:24px;border-radius:7px;background:#3a3a3d;display:flex;align-items:center;gap:7px;padding:0 10px;font-size:11.5px;color:#d1d1d6}
+.tabs{height:40px;display:flex;align-items:flex-end;gap:22px;padding:0 24px;font-size:12px;color:#8e8e93;border-bottom:1px solid rgba(255,255,255,.08)}
+.tabs span{padding-bottom:10px}
+.tabs .on{color:#fff;border-bottom:2px solid #0a84ff;padding-bottom:8px}
+.grid{position:absolute;left:24px;top:94px;display:grid;grid-template-columns:repeat(4,199px);grid-auto-rows:130px;gap:12px}
+.grid div{border-radius:8px;background-size:cover;background-position:center}
+/* Erfundene Präsentations-App */
+.side{position:absolute;left:0;top:38px;bottom:0;width:118px;background:#252528;border-right:1px solid rgba(0,0,0,.4);padding:14px 14px;display:flex;flex-direction:column;gap:12px}
+.th{height:50px;border-radius:3px;background:#fff;position:relative;overflow:hidden}
+.th.on{box-shadow:0 0 0 2px #2f6ff5}
+.th .t{position:absolute;left:7px;top:7px;width:40px;height:4px;background:#1d1d1f;border-radius:1px}
+.th .p{position:absolute;top:18px;width:38px;height:26px;border:1px dashed #c7c7cc;border-radius:2px}
+.th .ph{position:absolute;top:18px;width:38px;height:26px;border-radius:2px;background-size:cover;background-position:center;opacity:0}
+.stage{position:absolute;left:118px;top:38px;right:0;bottom:0;background:#1a1a1c}
+#slide{position:absolute;left:82px;top:52px;width:600px;height:338px;background:#fff;border-radius:2px;box-shadow:0 6px 18px rgba(0,0,0,.45);color:#1d1d1f}
+#slide h2{position:absolute;left:36px;top:30px;font-size:26px;font-weight:700;letter-spacing:-.3px}
+#slide .sub{position:absolute;left:36px;top:66px;font-size:12px;color:#6e6e73}
+.phx{position:absolute;top:110px;width:250px;height:188px;border:1.5px dashed #c7c7cc;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:11px;color:#8e8e93}
+.phx.hot{border-color:#2f6ff5;background:rgba(47,111,245,.08);color:#2f6ff5}
+.photo{position:absolute;top:110px;width:250px;height:188px;border-radius:3px;background-size:cover;background-position:center;opacity:0}
+/* Ablage */
+#shelf{position:absolute;right:0;top:30px;width:374px;height:510px;transform-origin:100% 50%;z-index:3}
+#shelf img{position:absolute;inset:0;width:100%;height:100%;opacity:0}
+#strip{position:absolute;right:0;width:7px;height:68px;background:#000;border-radius:6px 0 0 6px;top:251px;box-shadow:0 0 0 1px rgba(255,255,255,.2);z-index:2}
+#ghost{position:absolute;z-index:6;pointer-events:none}
+#pointer{position:absolute;width:20px;height:28px;z-index:8}
+#keys{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;gap:6px;z-index:9;opacity:0}
+#keys span{min-width:34px;height:34px;padding:0 9px;border-radius:8px;background:rgba(30,30,34,.85);color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 .5px rgba(255,255,255,.25),0 6px 16px rgba(0,0,0,.35)}
+</style></head><body>
+<div class="wall"></div>
+<div id="spaces" style="position:absolute;inset:0">
+  <div class="space" id="sp1">
+    <div class="win">
+      <div class="bar"><span class="tl" style="background:#ff5f57"></span><span class="tl" style="background:#febc2e"></span><span class="tl" style="background:#28c840"></span>
+        <div class="nav"><span>‹</span><span>›</span></div>
+        <div class="addr"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="5" cy="5" r="3.6" fill="none" stroke="#8e8e93" stroke-width="1.4"/><path d="M8 8 L11 11" stroke="#8e8e93" stroke-width="1.4" stroke-linecap="round"/></svg>mountain lakes</div></div>
+      <div class="tabs"><span>All</span><span class="on">Images</span><span>Videos</span><span>Maps</span><span>News</span></div>
+      <div class="grid">
+        <div style="background-image:url(GIF3_result-0.png)"></div><div style="background-image:url(GIF3_mountain-lake.png)"></div><div style="background-image:url(GIF3_result-1.png)"></div><div style="background-image:url(GIF3_result-2.png)"></div>
+        <div style="background-image:url(GIF3_result-3.png)"></div><div style="background-image:url(GIF3_result-4.png)"></div><div style="background-image:url(GIF3_alpine-dusk.png)"></div><div style="background-image:url(GIF3_result-5.png)"></div>
+        <div style="background-image:url(GIF3_result-2.png)"></div><div style="background-image:url(GIF3_result-5.png)"></div><div style="background-image:url(GIF3_result-0.png)"></div><div style="background-image:url(GIF3_result-3.png)"></div>
+      </div>
+    </div>
+  </div>
+  <div class="space" id="sp2" style="transform:translateX(900px)">
+    <div class="win">
+      <div class="bar"><span class="tl" style="background:#ff5f57"></span><span class="tl" style="background:#febc2e"></span><span class="tl" style="background:#28c840"></span><div style="flex:1;text-align:center;font-size:11.5px;font-weight:600;margin-right:46px">Mountain Trip</div></div>
+      <div class="side">
+        <div class="th"><div class="t" style="top:20px;left:14px;width:56px;height:5px"></div></div>
+        <div class="th on"><div class="t"></div><div class="p" style="left:7px"></div><div class="p" style="left:49px"></div>
+          <div class="ph" id="th1" style="left:7px;background-image:url(GIF3_mountain-lake.png)"></div><div class="ph" id="th2" style="left:49px;background-image:url(GIF3_alpine-dusk.png)"></div></div>
+        <div class="th"><div class="t"></div></div>
+      </div>
+      <div class="stage"><div id="slide">
+        <h2>Mountain Trip</h2><div class="sub">Two days in the Alps</div>
+        <div class="phx" id="ph1" style="left:36px"><svg width="26" height="21" viewBox="0 0 22 18"><rect x="1" y="1" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="15" cy="6" r="2" fill="currentColor"/><path d="M2 15 L8 9 L12 13 L15 10 L20 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Drop an image</div>
+        <div class="phx" id="ph2" style="left:314px"><svg width="26" height="21" viewBox="0 0 22 18"><rect x="1" y="1" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="15" cy="6" r="2" fill="currentColor"/><path d="M2 15 L8 9 L12 13 L15 10 L20 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Drop an image</div>
+        <div class="photo" id="p1" style="left:36px;background-image:url(GIF3_mountain-lake.png)"></div>
+        <div class="photo" id="p2" style="left:314px;background-image:url(GIF3_alpine-dusk.png)"></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+<div class="menubar"><b id="app">Browser</b><span>File</span><span>Edit</span><span>View</span><span id="m4">History</span><span>Window</span><span>Help</span><span class="r">9:41</span></div>
+<div id="strip"></div>
+<div id="shelf">
+  <img id="h0" src="GIF3_0.png"><img id="h0d" src="GIF3_0_drop.png"><img id="h1" src="GIF3_1.png"><img id="h1d" src="GIF3_1_drop.png">
+  <img id="h2" src="GIF3_2.png"><img id="h2l" src="GIF3_2_lake.png"><img id="h3" src="GIF3_3.png"><img id="h3d" src="GIF3_3_dusk.png">
+  <img id="h4" src="GIF3_4.png"><img id="h4a" src="GIF3_4_archive.png"><img id="h4t" src="GIF3_4_trash.png"><img id="h5" src="GIF3_5.png">
+</div>
+<div id="ghost"></div>
+<div id="keys"></div>
+<svg id="pointer" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12 27 L15.5 25.5 L11.5 17 L19 17 Z" fill="#000" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
+<script>
+const _at=(x,y)=>[506+x*374/880, 30+y*374/880];
+window.SLOTS={r1c1:_at(390,394), r1c2:_at(580,394), r2c1:_at(390,660), trash:_at(760,900)};
+</script>
+<script src="gif3.js"></script>
+</body></html>
