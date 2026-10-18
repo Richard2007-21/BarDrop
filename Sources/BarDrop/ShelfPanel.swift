@@ -16,13 +16,22 @@ final class ShelfPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        level = .statusBar
+        level = Self.shelfLevel
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         isFloatingPanel = true
         hidesOnDeactivate = false
         isMovable = false
         isReleasedWhenClosed = false
         animationBehavior = .none
+    }
+
+    /// Ebene der Ablage: wie die Menüleiste, aber immer über dem abgedunkelten Hintergrund
+    /// der Einführung. Der liegt eine Ebene über dem Dock, und dessen Ebene meldet macOS
+    /// je nach Version höher als die der Menüleiste; dann lag die Abdunklung über der Ablage.
+    static var shelfLevel: NSWindow.Level {
+        let above = OnboardingController.backdropLevel.rawValue + 2
+        let level = min(max(NSWindow.Level.statusBar.rawValue, above), NSWindow.Level.popUpMenu.rawValue - 1)
+        return NSWindow.Level(rawValue: level)
     }
 
     override var canBecomeKey: Bool { true }

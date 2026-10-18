@@ -294,12 +294,17 @@ struct PickerRow<Value: Hashable>: View {
     var info: String?
     @Binding var selection: Value
     let options: [(Value, String)]
+    /// Immer als Menü, auch bei zwei Möglichkeiten (lange Namen, die als Umschalter die
+    /// Beschriftung der Zeile zusammendrücken würden)
+    var menu = false
 
-    init(_ title: String, info: String? = nil, selection: Binding<Value>, options: [(Value, String)]) {
+    init(_ title: String, info: String? = nil, selection: Binding<Value>, options: [(Value, String)],
+         menu: Bool = false) {
         self.title = title
         self.info = info
         self._selection = selection
         self.options = options
+        self.menu = menu
     }
 
     /// Wenige, kurze Möglichkeiten stehen direkt in der Zeile (wie ein Umschalter),
@@ -308,6 +313,7 @@ struct PickerRow<Value: Hashable>: View {
     /// weil die deutschen Wörter länger sind); drei nur, wenn sie in beiden Sprachen kurz
     /// sind (Titel, Animation), sonst ein Menü.
     private var inline: Bool {
+        if menu { return false }
         switch options.count {
         case 2: return true
         case 3: return options.reduce(0) { $0 + $1.1.count } <= 26

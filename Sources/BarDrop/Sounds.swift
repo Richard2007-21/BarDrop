@@ -12,6 +12,17 @@ enum Sounds {
         .compactMap { NSSound(contentsOf: URL(fileURLWithPath: systemSounds + $0), byReference: true) }
         .first
 
+    /// Klang beim Ablegen in einen Ordner der Aktionsleiste (macOS: „Volume Mount“)
+    private static let folderSound: NSSound? =
+        NSSound(contentsOf: URL(fileURLWithPath: systemSounds + "system/Volume Mount.aif"), byReference: true)
+
+    /// Nach dem Verschieben oder Kopieren in einen Ordner der Aktionsleiste
+    static func folder() {
+        guard interfaceSoundsEnabled, let sound = folderSound else { return }
+        if sound.isPlaying { sound.stop() }
+        sound.play()
+    }
+
     /// Beim Entfernen aus der Ablage und beim Bewegen in den Papierkorb. Wie der Finder nur,
     /// wenn unter Systemeinstellungen → Ton „Toneffekte der Benutzeroberfläche“ an ist.
     static func trash() {

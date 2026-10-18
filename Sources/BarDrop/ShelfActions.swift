@@ -460,6 +460,8 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             var moves: [(URL, URL)] = []
             var used: [URL] = []
             var failed = false
+            /// Wirklich verschoben oder kopiert (für den Klang)
+            var filed = 0
             for url in urls {
                 if url.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL {
                     used.append(url)     // liegt schon dort, wie im Finder: nichts tun
@@ -470,9 +472,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                     if Self.folderOperation(for: url, into: folder, modifiers: modifiers) == .copy {
                         try fm.copyItem(at: url, to: target)
                         used.append(url)
+                        filed += 1
                     } else {
                         try fm.moveItem(at: url, to: target)
                         moves.append((url, target))
+                        filed += 1
                     }
                 } catch {
                     failed = true
@@ -482,6 +486,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             DispatchQueue.main.async {
                 guard let self else { return }
                 if failed { NSSound.beep() }
+                if filed > 0 { Sounds.folder() }
                 for (old, new) in moves { self.store.relocate(old, to: new) }
                 self.store.pruneMissingFiles()
                 completion(used + moves.map(\.1))

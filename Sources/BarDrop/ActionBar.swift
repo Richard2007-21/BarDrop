@@ -316,11 +316,16 @@ struct QuickActionButton: View {
                 .scaleEffect(targeted ? 1.1 : 1)
                 .opacity(draggingOut ? 0.3 : 1)
             if AppSettings.shared.showActionLabels {
+                // „Nur Ordner“: die übrigen Aktionen halten den Platz frei, damit alle
+                // Symbole auf einer Höhe stehen
+                let named = !AppSettings.shared.labelsOnlyFolders || action.kind == .folder
                 Text(action.title)
                     .font(.system(size: 10, weight: targeted ? .semibold : .medium))
                     .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                    .opacity(named ? 1 : 0)
+                    .accessibilityHidden(!named)
             }
         }
         .frame(maxWidth: .infinity)

@@ -282,6 +282,7 @@ final class AppSettings: ObservableObject {
         static let excludedApps = "excludedApps"
         static let openInFullScreen = "openInFullScreen"
         static let showActionLabels = "showActionLabels"
+        static let labelsOnlyFolders = "labelsOnlyFolders"
         static let betaUpdates = "betaUpdates"
         static let tileIconSize = "tileIconSize"
         static let actionIconSize = "actionIconSize"
@@ -400,6 +401,8 @@ final class AppSettings: ObservableObject {
     @Published var openInFullScreen: Bool { didSet { defaults.set(openInFullScreen, forKey: Key.openInFullScreen) } }
     /// Namen unter den Aktionen in der Ablage
     @Published var showActionLabels: Bool { didSet { defaults.set(showActionLabels, forKey: Key.showActionLabels) } }
+    /// Mit Namen: nur Ordner bekommen einen Namen (AirDrop, Papierkorb & Co. erkennt man am Symbol)
+    @Published var labelsOnlyFolders: Bool { didSet { defaults.set(labelsOnlyFolders, forKey: Key.labelsOnlyFolders) } }
     /// Auch Beta-Versionen installieren (Vorabversionen auf GitHub)
     @Published var betaUpdates: Bool { didSet { defaults.set(betaUpdates, forKey: Key.betaUpdates) } }
     /// Größe der Symbole und Vorschauen in der Ablage (pt)
@@ -517,6 +520,7 @@ final class AppSettings: ObservableObject {
             Key.addScreenshots: false,
             Key.openInFullScreen: false,
             Key.showActionLabels: true,
+            Key.labelsOnlyFolders: false,
             Key.betaUpdates: false,
             Key.tileIconSize: ShelfDefaults.iconSize,
             Key.actionIconSize: ShelfDefaults.actionIconSize,
@@ -597,6 +601,7 @@ final class AppSettings: ObservableObject {
         excludedApps = defaults.stringArray(forKey: Key.excludedApps) ?? []
         openInFullScreen = defaults.bool(forKey: Key.openInFullScreen)
         showActionLabels = defaults.bool(forKey: Key.showActionLabels)
+        labelsOnlyFolders = defaults.bool(forKey: Key.labelsOnlyFolders)
         betaUpdates = defaults.bool(forKey: Key.betaUpdates)
         tileIconSize = min(max(defaults.double(forKey: Key.tileIconSize), 40), 96)
         actionIconSize = min(max(defaults.double(forKey: Key.actionIconSize), 24), 48)
@@ -672,6 +677,7 @@ final class AppSettings: ObservableObject {
         excludedApps = []
         openInFullScreen = false
         showActionLabels = true
+        labelsOnlyFolders = false
         showOutline = true
         titleStyle = .bardrop
         removeAfterDragOut = true

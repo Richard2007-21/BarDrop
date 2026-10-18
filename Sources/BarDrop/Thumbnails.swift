@@ -137,10 +137,12 @@ struct ThumbnailView: View {
             .frame(width: size, height: size)
             .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
             .opacity(ready ? 1 : 0)
-            // Spätestens nach kurzer Zeit das Symbol zeigen, falls Quick Look länger braucht
+            // Spätestens nach kurzer Zeit das Symbol zeigen, falls Quick Look länger braucht.
+            // Bilder, PDFs und Videos bekommen fast immer gleich ein Vorschaubild: etwas länger
+            // darauf warten, statt erst das Symbol und dann das Bild zu zeigen (das flackerte)
             .task(id: url) {
                 guard !ready else { return }
-                try? await Task.sleep(nanoseconds: 350_000_000)
+                try? await Task.sleep(nanoseconds: Self.expectsPreview(url) ? 900_000_000 : 350_000_000)
                 reveal()
             }
             // Neu laden, wenn sich die Datei ändert (z. B. nach dem Verschieben)
@@ -150,7 +152,7 @@ struct ThumbnailView: View {
                 guard image == nil else { return reveal() }
                 // Frisch abgelegte Dateien werden eventuell noch geschrieben oder geladen:
                 // ein paar Mal nachsehen, bis Quick Look ein echtes Vorschaubild liefert.
-                for delay in [0.0, 0.3, 0.8, 1.5, 3.0, 6.0] {
+                for delay in [0.0, 0.15, 0.3, 0.6, 1.5, 3.0, 6.0] {
                     if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
                     if Task.isCancelled { return }
                     // Nur echte Vorschaubilder übernehmen; ein bloßes Symbol von Quick Look ist
@@ -165,10 +167,17 @@ struct ThumbnailView: View {
                         if wasShown { NotificationCenter.default.post(name: Thumbnails.didChange, object: nil) }
                         return
                     }
-                    // Erster Versuch ohne echtes Vorschaubild: Symbol zeigen
-                    if delay == 0 { reveal() }
+                    // Erster Versuch ohne echtes Vorschaubild: Symbol zeigen, außer bei Dateien,
+                    // für die gleich noch ein Vorschaubild kommt (siehe oben)
+                    if delay == 0 && !Self.expectsPreview(url) { reveal() }
                 }
             }
+    }
+
+    /// Dateien, für die Quick Look in aller Regel ein echtes Vorschaubild liefert
+    static func expectsPreview(_ url: URL) -> Bool {
+        guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
+        return [UTType.image, .pdf, .movie, .presentation].contains { type.conforms(to: $0) }
     }
 
     private func reveal() {

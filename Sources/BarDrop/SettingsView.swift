@@ -444,7 +444,8 @@ struct ItemSettings: View {
                           info: L("Use original: The shelf points to your file, so you always get the latest version when you drag it out. Keep a copy: The shelf stores its own copy. It stays as it was when you dropped it, even if you change or delete the original.",
                                   "Original verwenden: Die Ablage zeigt auf deine Datei. Beim Herausziehen bekommst du immer die aktuelle Fassung. Kopie behalten: Die Ablage speichert eine eigene Kopie. Sie bleibt so, wie sie beim Ablegen war, auch wenn du das Original änderst oder löschst."),
                           selection: finderFiles,
-                          options: FinderFiles.allCases.map { ($0, $0.title) })
+                          options: FinderFiles.allCases.map { ($0, $0.title) },
+                          menu: true)
                 ToggleRow(L("Save web images as PNG or JPEG", "Bilder aus dem Web als PNG oder JPEG speichern"), isOn: $settings.convertWebImages)
             }
 
@@ -471,12 +472,38 @@ struct ItemSettings: View {
 
 // MARK: Aktionen
 
+/// Namen unter den Aktionen: alle, nur Ordner oder keine
+private enum ActionLabelMode: String, CaseIterable, Identifiable {
+    case all, folders, none
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .all: return L("All", "Alle")
+        case .folders: return L("Folders Only", "Nur Ordner")
+        case .none: return L("None", "Keine")
+        }
+    }
+}
+
 struct ActionSettings: View {
     @ObservedObject var settings: AppSettings
     @State private var selection: QuickAction.ID?
     @State private var addButtonFrame: CGRect = .zero
 
     private var limit: Int { QuickAction.limit(twoRows: settings.twoActionRows) }
+
+    private var labelMode: Binding<ActionLabelMode> {
+        Binding(
+            get: {
+                guard settings.showActionLabels else { return .none }
+                return settings.labelsOnlyFolders ? .folders : .all
+            },
+            set: { mode in
+                settings.showActionLabels = mode != .none
+                settings.labelsOnlyFolders = mode == .folders
+            }
+        )
+    }
 
     var body: some View {
         SettingsPage {
@@ -498,7 +525,8 @@ struct ActionSettings: View {
             SettingsSection(L("Layout", "Darstellung")) {
                 SliderRow(L("Icon size", "Symbolgröße"), value: $settings.actionIconSize, range: 24...48, step: 2,
                           format: SliderRow.points)
-                ToggleRow(L("Show names", "Namen anzeigen"), isOn: $settings.showActionLabels)
+                PickerRow(L("Show names", "Namen anzeigen"), selection: labelMode,
+                          options: ActionLabelMode.allCases.map { ($0, $0.title) })
             }
 
             SettingsSection(L("In the shelf", "In der Ablage")) {

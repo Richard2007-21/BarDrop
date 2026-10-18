@@ -146,7 +146,13 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     /// Über dem Dock, damit auch dort kein Klick eine App öffnet. Das Fenster der Einführung
     /// liegt darüber, die Ablage (Statusleistenebene) noch höher: Ablegen und Herausziehen
     /// am Bildschirmrand funktionieren wie immer.
-    static let backdropLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)) + 1)
+    static let backdropLevel: NSWindow.Level = {
+        let dock = Int(CGWindowLevelForKey(.dockWindow))
+        // Nie über Menüs und nie so hoch, dass die Ablage nicht mehr darüber passt
+        let level = min(dock + 1, NSWindow.Level.popUpMenu.rawValue - 3)
+        Log.edge.info("Einführung: Dock-Ebene \(dock, privacy: .public), Hintergrund \(level, privacy: .public), Menüleiste \(NSWindow.Level.statusBar.rawValue, privacy: .public)")
+        return NSWindow.Level(rawValue: level)
+    }()
 
     private func showBackdrop() {
         let fresh = backdrops.isEmpty
