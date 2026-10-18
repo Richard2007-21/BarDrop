@@ -135,13 +135,10 @@ struct ShelfMetrics {
         case .peek:
             return peek(settings)
         case .hint:
-            // Automatisch: der Streifen bleibt, wie er ist, bis die Ablage aufgeht.
-            // „Per Klick“: ein etwas größerer Griff, den man treffen kann.
-            guard settings.openMode == .click else { return peek(settings) }
-            let t = CGFloat(settings.peekThickness)
-            let w = max(24, t + 14)
-            return ShelfMetrics(width: w, height: max(110, CGFloat(settings.peekLength) + 16),
-                                cornerRadius: w * 0.6, fillet: 14, filletStretch: 2.2, cornerStretch: 1.8)
+            // Der Streifen bleibt, wie er unter Aussehen → Streifen am Rand eingestellt ist,
+            // bis die Ablage aufgeht, auch beim Öffnen per Klick (der Klick zählt am Rand
+            // und mit größerem Trefferbereich auch knapp daneben)
+            return peek(settings)
         case .expanded:
             return ShelfMetrics(width: CGFloat(settings.shelfWidth),
                                 height: CGFloat(settings.shelfHeight),
