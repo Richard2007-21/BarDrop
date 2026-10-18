@@ -626,9 +626,11 @@ enum TileMetrics {
         (box(iconSize) * 0.093).rounded()
     }
 
-    /// Höchstbreite der Markierung des Namens
+    /// Höchstbreite der Markierung des Namens: wie im Finder etwas breiter als die Fläche,
+    /// aber nie schmaler als bisher, damit kurze Namen („Document.pdf“) nicht umbrechen
+    /// (die Schrift ist kleiner als im Finder)
     static func labelWidth(_ iconSize: CGFloat) -> CGFloat {
-        (box(iconSize) * 1.083).rounded()
+        max((box(iconSize) * 1.083).rounded(), iconSize + 2 * labelPadding + 20)
     }
 
     static let labelPadding: CGFloat = 6
