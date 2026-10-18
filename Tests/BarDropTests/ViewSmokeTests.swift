@@ -179,7 +179,7 @@ final class ViewSmokeTests: XCTestCase {
         store.add(Array(files.suffix(2)))
 
         ui.level = .expanded
-        for (variant, title) in [(false, ShelfTitle.shelf), (true, .bardrop), (true, .none)] {
+        for (variant, title) in [(false, ShelfTitle.shelf), (true, .bardrop), (true, .hidden)] {
             settings.twoActionRows = variant
             settings.titleStyle = title
             render(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),

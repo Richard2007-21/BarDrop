@@ -335,8 +335,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
                                  styleMask: [.titled, .closable, .fullSizeContentView],
                                  backing: .buffered, defer: false)
         // Ohne Minimieren: Der abgedunkelte Hintergrund bliebe sonst ohne Einführung stehen.
-        // Der Knopf bleibt sichtbar, aber
-        // ausgegraut, wie Vergrößern bei Fenstern mit fester Größe.
+        // Der Knopf bleibt sichtbar, aber ausgegraut, wie Vergrößern bei fester Größe.
         window.standardWindowButton(.miniaturizeButton)?.isEnabled = false
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
@@ -436,12 +435,12 @@ final class IntroBackdrop: NSPanel {
         shade.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         view.layer?.addSublayer(shade)
         contentView = view
-        update(edge: edge, shelfWidth: shelfWidth, animated: false)
+        update(edge: edge, shelfWidth: shelfWidth)
     }
 
     /// Der Streifen am Rand, an dem die Ablage erscheint, gehört nicht zu dieser Fläche:
     /// Dort verhalten sich Zeiger, Hinfahren und Ablegen genau wie sonst.
-    func update(edge: ScreenEdge, shelfWidth: CGFloat, animated: Bool = true) {
+    func update(edge: ScreenEdge, shelfWidth: CGFloat) {
         setFrame(IntroBandShade.frames(screen: screenFrame, edge: edge, shelfWidth: shelfWidth).rest, display: true)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -452,7 +451,7 @@ final class IntroBackdrop: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    fileprivate final class ClickCatcher: NSView {
+    private final class ClickCatcher: NSView {
         var onClick: () -> Void = {}
         var onMove: () -> Void = {}
 
@@ -848,6 +847,15 @@ struct KeyCaps: View {
     let keys: [(symbol: String, name: String)]
     let size: CGFloat
     let pressed: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Dunkel wie bisher, hell als weiße Tasten wie unter Einstellungen → Tastatur
+    private var keyFill: Color {
+        colorScheme == .dark ? Color.primary.opacity(0.1) : SettingsTheme.keyActive
+    }
+    private var keyBorder: Color {
+        colorScheme == .dark ? Color.primary.opacity(0.1) : SettingsTheme.keyBorder
+    }
 
     var body: some View {
         HStack(spacing: size * 0.13) {
@@ -869,12 +877,12 @@ struct KeyCaps: View {
                 .frame(width: key.name.isEmpty ? size : size * 1.2, height: size, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: size * 0.16, style: .continuous)
-                        .fill(pressed ? Color(nsColor: .controlAccentColor) : Color.primary.opacity(0.1))
+                        .fill(pressed ? Color(nsColor: .controlAccentColor) : keyFill)
                         .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1.5)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: size * 0.16, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                        .strokeBorder(keyBorder, lineWidth: 1)
                 )
                 .scaleEffect(pressed ? 0.96 : 1)
             }

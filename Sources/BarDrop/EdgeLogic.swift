@@ -155,6 +155,8 @@ enum EdgeLogic {
                     break
                 }
             } else if let preview = s.preview, s.onScreen {
+                // Zeiger hat den stehenden Streifen verlassen: beim nächsten Erreichen wieder ein Impuls
+                state.hapticGiven = false
                 result.target = preview
             } else if state.level != .hidden && !(s.onScreen && s.dx < 26 + slack.x && s.dy < 110 + slack.y) {
                 result.target = .hidden

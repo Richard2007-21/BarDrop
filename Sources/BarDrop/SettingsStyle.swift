@@ -12,14 +12,10 @@ enum SettingsTheme {
     // Dunkel: Farben von Klack abgenommen. Hell: Systemfarben von macOS, damit Kontraste,
     // Flächen und Linien wie in Apples eigenen Fenstern wirken. Seitenleiste und Inhalt
     // liegen leicht durchscheinend über dem Schreibtisch, Karten sind deckend.
-    /// Seitenleiste
-    static let sidebar = dynamic(dark: rgb(0.161, 0.165, 0.169), light: .windowBackgroundColor)
-    /// Inhalt rechts
-    static let content = dynamic(dark: rgb(0.192, 0.196, 0.2), light: .windowBackgroundColor)
     /// Deckkraft von Seitenleiste und Inhalt über dem Schreibtisch (dunkel): etwas
     /// durchscheinender als früher (70 %), aber Text und Karten bleiben auf jedem Hintergrund ruhig
     static let backdropOpacity = 0.64
-    /// Seitenleiste und Inhalt über dem Schreibtisch. Dunkel wie bisher zu 64 % deckend;
+    /// Seitenleiste und Inhalt über dem Schreibtisch (Farben von Klack). Dunkel wie bisher zu 64 % deckend;
     /// hell wie bei Apple: Seitenleiste leicht durchscheinend, Inhalt fast deckend, damit
     /// ein dunkler Schreibtisch die helle Fläche nicht grau eintrübt
     static let sidebarBackdrop = dynamic(dark: rgb(0.161, 0.165, 0.169, backdropOpacity),
@@ -52,8 +48,8 @@ enum SettingsTheme {
     static let segmentKnob = dynamic(dark: rgb(0.255, 0.259, 0.259), light: .controlColor)
     /// Graue Knöpfe hell: weiß mit feinem Rand wie macOS-Knöpfe (dunkel siehe KlackButtonStyle)
     static let buttonLight = Color(nsColor: .controlColor)
-    static let buttonLightHover = Color(nsColor: NSColor.controlColor.blended(withFraction: 0.04, of: .black) ?? .controlColor)
-    static let buttonLightPressed = Color(nsColor: NSColor.controlColor.blended(withFraction: 0.1, of: .black) ?? .controlColor)
+    static let buttonLightHover = Color(nsColor: rgb(0.96, 0.96, 0.96))
+    static let buttonLightPressed = Color(nsColor: rgb(0.9, 0.9, 0.9))
     /// Rand der Knöpfe: nur hell (dunkel ohne Rand wie bisher)
     static let buttonBorder = dynamic(dark: .clear, light: .separatorColor)
     /// Tasten (Kurzbefehl, Tastenkürzel): dunkel eingelassen, hell als weiße Taste

@@ -129,11 +129,12 @@ final class DragSourceNSView: NSView, NSDraggingSource {
         return item
     }
 
-    /// Vorschau im echten Seitenverhältnis (max. 64 pt), sonst das Dateisymbol. Fehlt die
+    /// Vorschau im echten Seitenverhältnis, so groß wie in der Kachel (wie im Finder: das
+    /// gezogene Bild hat die Größe, in der man die Datei gerade sieht), sonst das Dateisymbol. Fehlt die
     /// Vorschau noch (etwa bei gerade umgewandelten Bildern), wird sie hier schnell erzeugt,
     /// damit das gezogene Bild wie die Kachel aussieht und nicht wie ein Standardsymbol.
     private static func dragIcon(for url: URL) -> NSImage {
-        let box: CGFloat = 64
+        let box = TileLabel<EmptyView>.iconSize
         let source = Thumbnails.cached(url, size: TileLabel<EmptyView>.iconSize) ?? quickImagePreview(url) ?? Thumbnails.icon(url)
         let size = source.size
         guard size.width > 0, size.height > 0 else { return source }
@@ -329,7 +330,7 @@ enum ShelfMenu {
     /// Tasten bleiben in der Warteschlange.
     static func activate(timeout: TimeInterval = 0.25) {
         guard !NSApp.isActive else { return }
-        NSApp.activate()
+        NSApp.activate(ignoringOtherApps: true)
         let deadline = Date().addingTimeInterval(timeout)
         while !NSApp.isActive, Date() < deadline {
             guard let event = NSApp.nextEvent(matching: [.appKitDefined, .systemDefined], until: deadline,

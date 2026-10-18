@@ -180,6 +180,9 @@ extension ShelfActions {
         }
         var urls = currentSelectionURLs
         if urls.isEmpty { urls = Array(currentAllURLs.prefix(1)) }
+        // Mehrere ausgewählt: Die Übersicht blättert darin selbst. Sonst (auch bei einem
+        // Stapel) wechseln die Pfeiltasten wie im Finder zum nächsten Objekt der Ablage
+        quickLookPagesSelection = (isInStack ? selectedMembers.count : selectedEntries.count) > 1
         quickLook(urls: urls)
     }
 }

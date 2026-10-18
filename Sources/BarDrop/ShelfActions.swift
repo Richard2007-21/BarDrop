@@ -11,6 +11,8 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     weak var panel: NSPanel?
 
     private var previewURLs: [URL] = []
+    /// Die Übersicht zeigt mehrere ausgewählte Objekte: Dann blättert sie selbst darin
+    var quickLookPagesSelection = false
 
     init(store: ShelfStore, ui: ShelfUIModel, settings: AppSettings) {
         self.store = store
@@ -270,7 +272,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// und die Ablage scrollt mit. Zeigt die Übersicht mehrere ausgewählte Objekte, blättert
     /// sie wie im Finder selbst darin.
     func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
-        guard let event, event.type == .keyDown, previewURLs.count <= 1 else { return false }
+        guard let event, event.type == .keyDown, !quickLookPagesSelection else { return false }
         let step: Int
         switch event.keyCode {
         case 123: step = -1                      // ←

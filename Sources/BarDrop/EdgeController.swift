@@ -34,6 +34,9 @@ final class EdgeController: NSObject {
     private var previewLevel: ShelfUIModel.Level = .hint
     /// Einführung: Der Streifen bleibt zu sehen, damit man weiß, wohin man ziehen soll
     private var guideActive = false
+    /// Die Vorschau nach dem Verstellen der Symbolgröße läuft noch (nicht `previewUntil`:
+    /// In der Einführung folgt darauf gleich wieder der Streifen)
+    private var samplePreviewRunning = false
     /// Neu anordnen, sobald die Ablage ganz verborgen ist
     private var relayoutWhenHidden = false
     private var lastPeekSignature = ""
@@ -202,9 +205,11 @@ final class EdgeController: NSObject {
     /// Klick neben Übersicht und Ablage: beide schließen. Klicks in anderen Apps kommen
     /// über den globalen Beobachter, Klicks in eigene Fenster (Einstellungen) über den lokalen.
     private func clickedWhileQuickLook(_ event: NSEvent, global: Bool) {
-        guard actions.isQuickLookVisible else { return }
+        guard actions.isQuickLookVisible, !ui.isLocked, NSApp.modalWindow == nil else { return }
         if !global {
+            // Eigene Ablage, Übersicht und Menüs (liegen über den normalen Fenstern)
             if event.window === panel || event.window is QLPreviewPanel { return }
+            if let level = event.window?.level, level.rawValue >= NSWindow.Level.popUpMenu.rawValue { return }
         }
         closeQuickLookAndShelf()
     }
@@ -499,9 +504,21 @@ final class EdgeController: NSObject {
     func showGuide(_ on: Bool) {
         guard on != guideActive else { return }
         guideActive = on
-        // Die Höhe am Rand ändert sich (Mitte bzw. wieder wie eingestellt): erst umziehen,
-        // wenn die Ablage ganz verborgen ist, damit nichts sichtbar springt
-        relayoutWhenHidden = true
+        // Die Höhe am Rand ändert sich (Mitte bzw. wieder wie eingestellt). Ist die Ablage
+        // offen, erst umziehen, wenn sie ganz verborgen ist, damit nichts sichtbar springt.
+        // Sonst gleich: Ein kleiner Streifen verschwindet ohne Animation und erscheint an
+        // der neuen Stelle (in der Einführung bleibt er stehen und würde nie verborgen).
+        if ui.level == .expanded {
+            relayoutWhenHidden = true
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { ui.level = .hidden }
+            logic.level = .hidden
+            logic.levelSince = .distantPast
+            logic.outsideSince = nil
+            layoutPanel()
+        }
         if on {
             previewLevel = .peek
             previewUntil = .distantFuture
@@ -613,6 +630,7 @@ final class EdgeController: NSObject {
                 if settings.tileIconSize != lastTileIconSize {
                     lastTileIconSize = settings.tileIconSize
                     if !ui.showSampleTile { ui.showSampleTile = true }
+                    samplePreviewRunning = true
                 }
                 previewUntil = now.addingTimeInterval(1.5)
                 previewLevel = .expanded
@@ -681,6 +699,7 @@ final class EdgeController: NSObject {
 
         if let until = previewUntil, until <= now {
             previewUntil = nil
+            samplePreviewRunning = false
             // Nach einer kurzen Vorschau zurück zum Streifen der Einführung
             if guideActive {
                 previewLevel = .peek
@@ -690,7 +709,7 @@ final class EdgeController: NSObject {
 
         // Beispieldateien der Symbolgröße erst ausblenden, wenn die Vorschau vorbei und
         // die Ablage ganz zu ist: Beim Zuklappen sieht man sie noch, wie beim Verstellen
-        if ui.showSampleTile && previewUntil == nil && fullyHidden { ui.showSampleTile = false }
+        if ui.showSampleTile && !samplePreviewRunning && fullyHidden { ui.showSampleTile = false }
 
         // Rand zu einem Bildschirm daneben, der selbst eine Ablage hat: Dort gehört sie nicht hin.
         // Darf nur dieser Bildschirm eine Ablage haben, bleibt sie wie bisher an diesem Rand.

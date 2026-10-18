@@ -146,14 +146,14 @@ enum DragReveal: String, CaseIterable, Identifiable {
 
 /// Titel oben in der offenen Ablage.
 enum ShelfTitle: String, CaseIterable, Identifiable {
-    case bardrop, shelf, none
+    case bardrop, shelf, hidden
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .bardrop: return "BarDrop"
         case .shelf: return L("Shelf", "Ablage")
-        case .none: return L("None", "Ohne")
+        case .hidden: return L("None", "Ohne")
         }
     }
 
@@ -162,7 +162,7 @@ enum ShelfTitle: String, CaseIterable, Identifiable {
         switch self {
         case .bardrop: return "BarDrop"
         case .shelf: return L("Shelf", "Ablage")
-        case .none: return nil
+        case .hidden: return nil
         }
     }
 }

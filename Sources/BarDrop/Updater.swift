@@ -91,6 +91,7 @@ final class Updater: ObservableObject {
     /// wenn es eine neue Version gibt (auch ohne „Automatisch aktualisieren“). Nie ein
     /// Fenster; höchstens alle 30 Minuten.
     func checkQuietly() {
+        guard AppSettings.shared.autoUpdateCheck else { return }
         if case .available = state { return }
         if let lastCheck, Date().timeIntervalSince(lastCheck) < 30 * 60 { return }
         check(interactive: false)
@@ -122,7 +123,8 @@ final class Updater: ObservableObject {
               let link = asset["browser_download_url"] as? String,
               let dmg = URL(string: link) else {
             Log.edge.error("Update-Suche fehlgeschlagen: \(error?.localizedDescription ?? "keine Antwort", privacy: .public)")
-            state = .failed(L("Couldn’t reach GitHub.", "Keine Verbindung zu GitHub."))
+            // Eine Suche ohne Zutun meldet nichts: kein Fehlerhinweis in den Einstellungen
+            state = interactive ? .failed(L("Couldn’t reach GitHub.", "Keine Verbindung zu GitHub.")) : .idle
             if interactive {
                 showMessage(L("Update check failed", "Suche nach Updates fehlgeschlagen"),
                             L("Couldn’t reach GitHub. Please try again later.", "Keine Verbindung zu GitHub. Versuch es später noch einmal."))
@@ -193,7 +195,7 @@ final class Updater: ObservableObject {
     /// Im Hintergrund: jede Minute nachsehen, ob BarDrop gerade unbenutzt ist, und dann
     /// ohne Rückfrage installieren. Die neue Version startet unbemerkt an derselben Stelle.
     private func installWhenIdle() {
-        guard idleTimer == nil else { return }
+        guard idleTimer == nil, AppSettings.shared.autoUpdateCheck else { return }
         let timer = Timer(timeInterval: 60, repeats: true) { [weak self] timer in
             guard let self else { return timer.invalidate() }
             guard case .available = self.state else {

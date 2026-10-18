@@ -477,8 +477,10 @@ struct ShelfContent: View {
         let id = request.id
         let tileHeight = tileFrames[id]?.height ?? tileFrames.values.first?.height
             ?? CGFloat(settings.tileIconSize) + 60
-        let top: CGFloat = 8
-        let bottom = viewport - barHeight - 4
+        // Außerhalb der weichen Übergänge oben und über der Leiste (die Kachel hat selbst
+        // 6 pt Rand oben und unten)
+        let top = Self.barFade - 6
+        let bottom = viewport - barHeight - Self.barFade + 6
         let span = viewport - tileHeight
         guard span > 0, bottom - top >= tileHeight else {
             proxy.scrollTo(id, anchor: .top)
@@ -619,7 +621,8 @@ private struct SizeGuideTile: View {
 enum TileMetrics {
     /// Seitenlänge der grauen Fläche um das Symbol
     static func box(_ iconSize: CGFloat) -> CGFloat {
-        iconSize + 2 * max(6, (iconSize * 0.12).rounded())
+        // Höchstens so breit wie die schmalste Spalte des Rasters (Symbol + 22 pt)
+        iconSize + 2 * min(11, max(6, (iconSize * 0.12).rounded()))
     }
 
     static func boxRadius(_ iconSize: CGFloat) -> CGFloat {
