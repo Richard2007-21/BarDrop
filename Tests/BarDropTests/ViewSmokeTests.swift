@@ -273,7 +273,13 @@ final class ViewSmokeTests: XCTestCase {
                 let gifActions = ShelfActions(store: gifStore, ui: ui, settings: settings)
                 let byName = Dictionary((examples.singles + examples.stack).map { ($0.lastPathComponent, $0) },
                                         uniquingKeysWith: { a, _ in a })
-                let old = ["Notes.txt", "Trip.pdf", "Chart.png"].compactMap { byName[$0] }
+                // Verschiedene Arten wie bei den Beispielen zur Symbolgröße: Ordner, Text, Video, Archiv, PDF
+                for name in ["Video.mov", "Archive.zip"] {
+                    FileManager.default.createFile(atPath: files.appendingPathComponent(name).path, contents: Data())
+                }
+                let named = byName.merging(["Video.mov": files.appendingPathComponent("Video.mov"),
+                                            "Archive.zip": files.appendingPathComponent("Archive.zip")]) { a, _ in a }
+                let old = ["Project", "Notes.txt", "Video.mov", "Archive.zip", "Trip.pdf"].compactMap { named[$0] }
                 let photos = examples.stack
                 for url in photos {
                     try? FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: dir)
