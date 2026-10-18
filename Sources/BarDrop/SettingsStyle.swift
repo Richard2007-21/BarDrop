@@ -9,39 +9,75 @@ import AppKit
 // Auswahlmenüs mit ⌃⌄. Maße und Farben sind von Klack abgenommen.
 
 enum SettingsTheme {
-    // Farben von Klack abgenommen (dunkel). Seitenleiste und Inhalt liegen leicht
-    // durchscheinend über dem Schreibtisch, Karten sind deckend.
+    // Dunkel: Farben von Klack abgenommen. Hell: Systemfarben von macOS, damit Kontraste,
+    // Flächen und Linien wie in Apples eigenen Fenstern wirken. Seitenleiste und Inhalt
+    // liegen leicht durchscheinend über dem Schreibtisch, Karten sind deckend.
     /// Seitenleiste
-    static let sidebar = dynamic(dark: (0.161, 0.165, 0.169), light: (0.905, 0.905, 0.91))
+    static let sidebar = dynamic(dark: rgb(0.161, 0.165, 0.169), light: .windowBackgroundColor)
     /// Inhalt rechts
-    static let content = dynamic(dark: (0.192, 0.196, 0.2), light: (0.94, 0.94, 0.945))
-    /// Deckkraft von Seitenleiste und Inhalt über dem Schreibtisch: etwas durchscheinender
-    /// als früher (70 %), aber Text und Karten bleiben auf jedem Hintergrund ruhig
+    static let content = dynamic(dark: rgb(0.192, 0.196, 0.2), light: .windowBackgroundColor)
+    /// Deckkraft von Seitenleiste und Inhalt über dem Schreibtisch (dunkel): etwas
+    /// durchscheinender als früher (70 %), aber Text und Karten bleiben auf jedem Hintergrund ruhig
     static let backdropOpacity = 0.64
+    /// Seitenleiste und Inhalt über dem Schreibtisch. Dunkel wie bisher zu 64 % deckend;
+    /// hell wie bei Apple: Seitenleiste leicht durchscheinend, Inhalt fast deckend, damit
+    /// ein dunkler Schreibtisch die helle Fläche nicht grau eintrübt
+    static let sidebarBackdrop = dynamic(dark: rgb(0.161, 0.165, 0.169, backdropOpacity),
+                                         light: NSColor.windowBackgroundColor.withAlphaComponent(0.8))
+    static let contentBackdrop = dynamic(dark: rgb(0.192, 0.196, 0.2, backdropOpacity),
+                                         light: NSColor.windowBackgroundColor.withAlphaComponent(0.96))
     /// Karten
-    static let card = dynamic(dark: (0.184, 0.188, 0.188), light: (0.99, 0.99, 0.99))
+    static let card = dynamic(dark: rgb(0.184, 0.188, 0.188), light: .controlBackgroundColor)
     /// Gewählter Eintrag der Seitenleiste
-    static let selectedRow = dynamic(dark: (0.212, 0.212, 0.216), light: (0.84, 0.84, 0.85))
+    static let selectedRow = dynamic(dark: rgb(0.212, 0.212, 0.216), light: .unemphasizedSelectedContentBackgroundColor)
     /// Rand der Karten
-    static let cardBorder = dynamic(dark: (0.255, 0.259, 0.263), light: (0.86, 0.86, 0.86))
+    static let cardBorder = dynamic(dark: rgb(0.255, 0.259, 0.263), light: .separatorColor)
     /// Trennlinien zwischen Zeilen, Leiste der Regler
-    static let separator = dynamic(dark: (0.267, 0.271, 0.271), light: (0.89, 0.89, 0.89))
+    static let separator = dynamic(dark: rgb(0.267, 0.271, 0.271), light: .separatorColor)
     /// Senkrechte Linie zwischen Seitenleiste und Inhalt
-    static let divider = dynamic(dark: (0.247, 0.251, 0.255), light: (0.85, 0.85, 0.85))
-    /// Ausgeschalteter Schalter
-    static let switchOff = dynamic(dark: (0.255, 0.259, 0.259), light: (0.82, 0.82, 0.83))
+    static let divider = dynamic(dark: rgb(0.247, 0.251, 0.255), light: .separatorColor)
+    /// Ausgeschalteter Schalter, Mulde der Regler
+    static let switchOff = dynamic(dark: rgb(0.255, 0.259, 0.259), light: .quaternaryLabelColor)
     /// Rasterpunkte unter den Reglern
-    static let tick = dynamic(dark: (0.388, 0.388, 0.392), light: (0.7, 0.7, 0.7))
+    static let tick = dynamic(dark: rgb(0.388, 0.388, 0.392), light: .tertiaryLabelColor)
+
+    // Bedienelemente (dunkel unverändert, hell mit Systemfarben)
+    /// Knopf der Schalter und Regler: hell weiß wie bei macOS
+    static let knob = dynamic(dark: rgb(0.9, 0.9, 0.9), light: .white)
+    static let knobOn = dynamic(dark: rgb(0.86, 0.91, 0.99), light: .white)
+    static let sliderKnob = dynamic(dark: rgb(0.92, 0.92, 0.92), light: .white)
+    /// Mulde der Umschalter
+    static let segmentTrough = dynamic(dark: NSColor.black.withAlphaComponent(0.18), light: .quaternaryLabelColor)
+    /// Gewählte Möglichkeit eines Umschalters: hell weiß wie bei macOS
+    static let segmentKnob = dynamic(dark: rgb(0.255, 0.259, 0.259), light: .controlColor)
+    /// Graue Knöpfe hell: weiß mit feinem Rand wie macOS-Knöpfe (dunkel siehe KlackButtonStyle)
+    static let buttonLight = Color(nsColor: .controlColor)
+    static let buttonLightHover = Color(nsColor: NSColor.controlColor.blended(withFraction: 0.04, of: .black) ?? .controlColor)
+    static let buttonLightPressed = Color(nsColor: NSColor.controlColor.blended(withFraction: 0.1, of: .black) ?? .controlColor)
+    /// Rand der Knöpfe: nur hell (dunkel ohne Rand wie bisher)
+    static let buttonBorder = dynamic(dark: .clear, light: .separatorColor)
+    /// Tasten (Kurzbefehl, Tastenkürzel): dunkel eingelassen, hell als weiße Taste
+    static let keyActive = dynamic(dark: NSColor.black.withAlphaComponent(0.42), light: .controlColor)
+    static let keyInactive = dynamic(dark: NSColor.black.withAlphaComponent(0.24), light: .quaternaryLabelColor)
+    static let keyHover = dynamic(dark: NSColor.black.withAlphaComponent(0.2),
+                                  light: NSColor.black.withAlphaComponent(0.06))
+    static let keyBorder = dynamic(dark: NSColor.white.withAlphaComponent(0.06), light: .separatorColor)
+    static let keyBorderInactive = dynamic(dark: NSColor.white.withAlphaComponent(0.04), light: .clear)
+    static let shortcutKey = dynamic(dark: NSColor.black.withAlphaComponent(0.22), light: NSColor.black.withAlphaComponent(0.05))
+    /// Schatten der Knöpfe: nur hell, wie bei macOS
+    static let controlShadow = dynamic(dark: .clear, light: NSColor.black.withAlphaComponent(0.12))
 
     static let rowHeight: CGFloat = 45
     static let cardRadius: CGFloat = 11
     static let rowPadding: CGFloat = 12
 
-    private static func dynamic(dark: (Double, Double, Double), light: (Double, Double, Double)) -> Color {
+    private static func rgb(_ r: Double, _ g: Double, _ b: Double, _ a: Double = 1) -> NSColor {
+        NSColor(srgbRed: r, green: g, blue: b, alpha: a)
+    }
+
+    private static func dynamic(dark: NSColor, light: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            let c = isDark ? dark : light
-            return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
         })
     }
 }
@@ -229,7 +265,7 @@ struct KlackSwitch: View {
                 Capsule()
                     .fill(isOn ? Color(nsColor: .controlAccentColor) : SettingsTheme.switchOff)
                 Capsule()
-                    .fill(isOn ? Color(red: 0.86, green: 0.91, blue: 0.99) : Color(white: 0.9))
+                    .fill(isOn ? SettingsTheme.knobOn : SettingsTheme.knob)
                     .frame(width: 27, height: 18)
                     .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
                     .padding(.horizontal, 3)
@@ -311,7 +347,7 @@ struct SegmentedValue<Value: Hashable>: View {
                         .background {
                             if selected {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(SettingsTheme.switchOff)
+                                    .fill(SettingsTheme.segmentKnob)
                                     .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
                                     .matchedGeometryEffect(id: "knob", in: knob)
                             }
@@ -324,7 +360,7 @@ struct SegmentedValue<Value: Hashable>: View {
         .padding(2)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.black.opacity(0.18))
+                .fill(SettingsTheme.segmentTrough)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -507,7 +543,7 @@ struct KlackSlider: View {
                     .offset(y: (knobHeight - track) / 2)
                 // Knopf
                 Capsule()
-                    .fill(Color(white: 0.92))
+                    .fill(SettingsTheme.sliderKnob)
                     .frame(width: knobWidth, height: knobHeight)
                     .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
                     .offset(x: x)
@@ -559,7 +595,17 @@ struct KlackButtonStyle: ButtonStyle {
         let prominent: Bool
         let destructive: Bool
         @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.colorScheme) private var colorScheme
         @State private var hovering = false
+
+        /// Dunkel wie bei Klack (unverändert), hell wie die Knöpfe von macOS
+        private var background: Color {
+            if colorScheme == .dark {
+                return Color.primary.opacity(configuration.isPressed ? 0.2 : hovering ? 0.15 : 0.11)
+            }
+            return configuration.isPressed ? SettingsTheme.buttonLightPressed
+                : hovering ? SettingsTheme.buttonLightHover : SettingsTheme.buttonLight
+        }
 
         var body: some View {
             configuration.label
@@ -569,8 +615,12 @@ struct KlackButtonStyle: ButtonStyle {
                 .frame(height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(prominent ? Color(nsColor: .controlAccentColor)
-                              : Color.primary.opacity(configuration.isPressed ? 0.2 : hovering ? 0.15 : 0.11))
+                        .fill(prominent ? Color(nsColor: .controlAccentColor) : background)
+                        .shadow(color: prominent ? .clear : SettingsTheme.controlShadow, radius: 0.5, y: 0.5)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(prominent ? Color.clear : SettingsTheme.buttonBorder, lineWidth: 0.5)
                 )
                 .opacity(isEnabled ? (configuration.isPressed && prominent ? 0.85 : 1) : 0.45)
                 .onHover { hovering = $0 }

@@ -549,7 +549,7 @@ struct OnboardingView: View {
                 .frame(height: 64)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SettingsTheme.content.opacity(SettingsTheme.backdropOpacity))
+        .background(SettingsTheme.contentBackdrop)
         .background(SettingsBackdrop().ignoresSafeArea())
         .ignoresSafeArea()
     }

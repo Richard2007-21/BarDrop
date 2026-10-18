@@ -110,13 +110,13 @@ struct SettingsRoot: View {
             sidebar
                 .frame(width: 244)
                 .frame(maxHeight: .infinity)
-                .background(SettingsTheme.sidebar.opacity(SettingsTheme.backdropOpacity))
+                .background(SettingsTheme.sidebarBackdrop)
             Rectangle()
                 .fill(SettingsTheme.divider)
                 .frame(width: 1)
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(SettingsTheme.content.opacity(SettingsTheme.backdropOpacity))
+                .background(SettingsTheme.contentBackdrop)
         }
         // Füllt das ganze Fenster, auch den Bereich unter der Titelleiste. Eine feste
         // Höhe würde nach oben verschoben und ließe unten einen leeren Streifen frei.
@@ -520,11 +520,12 @@ private struct SettingsKeyCap: View {
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(highlighted ? Color.accentColor.opacity(0.3)
-                          : Color.black.opacity(active ? 0.42 : hovering ? 0.2 : 0.24))
+                          : active ? SettingsTheme.keyActive : hovering ? SettingsTheme.keyHover : SettingsTheme.keyInactive)
+                    .shadow(color: active ? SettingsTheme.controlShadow : .clear, radius: 0.5, y: 0.5)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .strokeBorder(Color.white.opacity(active ? 0.06 : 0.04), lineWidth: 1)
+                    .strokeBorder(active ? SettingsTheme.keyBorder : SettingsTheme.keyBorderInactive, lineWidth: 1)
             )
             .contentShape(Rectangle())
         }

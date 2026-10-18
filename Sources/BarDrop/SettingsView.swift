@@ -137,7 +137,7 @@ struct ShortcutRow: View {
                         .padding(.horizontal, key.count > 1 ? 5 : 0)
                         .background(
                             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(Color.black.opacity(0.22))
+                                .fill(SettingsTheme.shortcutKey)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 5, style: .continuous)
