@@ -286,6 +286,11 @@ final class ViewSmokeTests: XCTestCase {
                         .appendingPathComponent("GIF2 " + url.lastPathComponent).deletingPathExtension()
                         .appendingPathExtension("jpg"))
                 }
+                // Alle Kacheln gleich sichtbar, wie in einer Ablage, die schon eine Weile benutzt wird
+                for url in old + photos {
+                    _ = await Thumbnails.load(url, size: 64)
+                    Thumbnails.shownOnce.insert(url.path)
+                }
                 settings.stackMultiple = false
                 gifStore.add(old.reversed().map { ShelfFile(url: $0, owned: false) })
                 settings.stackMultiple = true
@@ -321,10 +326,12 @@ final class ViewSmokeTests: XCTestCase {
                     gif("4 trash")
                     ui.previewTargetedAction = nil
                     let withoutNotes = ShelfStore(baseDirectory: base.appendingPathComponent("GIF2b"))
-                    settings.stackMultiple = false
-                    withoutNotes.add(gifStore.entries.reversed().filter { $0.urls.first?.lastPathComponent != "Notes.txt" && !$0.isStack }.flatMap(\.files))
+                    // Gleiche Reihenfolge wie vorher, nur ohne die Notiz: vom ältesten zum neuesten einfügen
+                    for entry in gifStore.entries.reversed() where entry.urls.first?.lastPathComponent != "Notes.txt" {
+                        settings.stackMultiple = entry.isStack
+                        withoutNotes.add(entry.files)
+                    }
                     settings.stackMultiple = true
-                    withoutNotes.add(gifStore.entries.filter(\.isStack).flatMap(\.files))
                     TrashState.shared.isFull = true
                     shot(ShelfRootView(ui: ui, store: withoutNotes, settings: settings,
                                        actions: ShelfActions(store: withoutNotes, ui: ui, settings: settings)),
