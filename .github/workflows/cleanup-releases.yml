@@ -1,0 +1,28 @@
+name: Alte Releases entfernen
+
+# Einmalig: löscht die Releases und Tags, die in .github/cleanup-releases.txt stehen.
+# Datei und Workflow werden danach wieder entfernt.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/cleanup-releases.txt']
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Releases und Tags löschen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          while read -r tag; do
+            [ -z "$tag" ] && continue
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes && echo "Release gelöscht: $tag"
+            fi
+            git push origin ":refs/tags/$tag" && echo "Tag gelöscht: $tag" || echo "Tag nicht vorhanden: $tag"
+          done < .github/cleanup-releases.txt
