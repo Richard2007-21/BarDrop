@@ -33,6 +33,8 @@ final class EdgeController: NSObject {
     private var previewLevel: ShelfUIModel.Level = .hint
     /// Einführung: Der Streifen bleibt zu sehen, damit man weiß, wohin man ziehen soll
     private var guideActive = false
+    /// Neu anordnen, sobald die Ablage ganz verborgen ist
+    private var relayoutWhenHidden = false
     private var lastPeekSignature = ""
     private var lastSizeSignature = ""
     /// Adaptive Höhe: Zeigerhöhe, an der die Ablage erscheinen soll.
@@ -299,6 +301,9 @@ final class EdgeController: NSObject {
     /// Wunschhöhe: feste Position oder (adaptiv) die Zeigerhöhe.
     private func desiredY(on screen: NSScreen) -> CGFloat {
         let vf = screen.visibleFrame
+        // Einführung: Streifen und Ablage genau in der Mitte des Rands, unabhängig von
+        // fester Höhe oder Zeigerhöhe, damit man sie neben dem Fenster sofort findet
+        if guideActive { return vf.midY }
         let fixed = vf.minY + vf.height * CGFloat(settings.verticalPosition)
         guard settings.adaptivePosition, let y = adaptiveY else { return fixed }
         if let zone = settings.adaptiveZoneFraction {
@@ -467,6 +472,9 @@ final class EdgeController: NSObject {
     func showGuide(_ on: Bool) {
         guard on != guideActive else { return }
         guideActive = on
+        // Die Höhe am Rand ändert sich (Mitte bzw. wieder wie eingestellt): erst umziehen,
+        // wenn die Ablage ganz verborgen ist, damit nichts sichtbar springt
+        relayoutWhenHidden = true
         if on {
             previewLevel = .peek
             previewUntil = .distantFuture
@@ -610,6 +618,10 @@ final class EdgeController: NSObject {
 
         // Bildschirm wechseln: nur wenn die Ablage verborgen und fertig animiert ist
         let fullyHidden = ui.level == .hidden && now.timeIntervalSince(logic.levelSince) > collapseDuration
+        if fullyHidden && relayoutWhenHidden {
+            relayoutWhenHidden = false
+            layoutPanel()
+        }
         if fullyHidden, !logic.manualOpen, let s = mouseScreen, !Self.same(s, screen) {
             screen = s
             layoutPanel()
