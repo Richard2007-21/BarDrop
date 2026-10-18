@@ -172,6 +172,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+        // Neue Version? Dann zeigt „Über BarDrop“ einen dezenten Hinweis, ohne eigenes Fenster
+        Updater.shared.checkQuietly()
     }
 
     func windowWillClose(_ notification: Notification) {

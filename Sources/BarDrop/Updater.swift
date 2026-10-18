@@ -84,6 +84,18 @@ final class Updater: ObservableObject {
         check(interactive: false)
     }
 
+    /// Zeitpunkt der letzten Suche (Hauptthread)
+    private var lastCheck: Date?
+
+    /// Beim Öffnen der Einstellungen: still nachsehen, damit dort ein Hinweis erscheint,
+    /// wenn es eine neue Version gibt (auch ohne „Automatisch aktualisieren“). Nie ein
+    /// Fenster; höchstens alle 30 Minuten.
+    func checkQuietly() {
+        if case .available = state { return }
+        if let lastCheck, Date().timeIntervalSince(lastCheck) < 30 * 60 { return }
+        check(interactive: false)
+    }
+
     // MARK: Suchen
 
     /// `interactive`: vom Nutzer ausgelöst; dann gibt es auch eine Antwort, wenn alles aktuell ist.
@@ -91,6 +103,7 @@ final class Updater: ObservableObject {
         if case .installing = state { return }
         if case .checking = state { return }
         state = .checking
+        lastCheck = Date()
         // Beta-Kanal: auch Vorabversionen; sonst nur reguläre Versionen
         var request = URLRequest(url: AppSettings.shared.betaUpdates ? listURL : latestURL)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")

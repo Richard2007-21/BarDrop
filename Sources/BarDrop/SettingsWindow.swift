@@ -157,7 +157,17 @@ struct SettingsRoot: View {
     }
 
     private func row(_ item: SettingsPane) -> some View {
-        SidebarRow(item: item, selected: pane == item) { pane = item }
+        SidebarRow(item: item, selected: pane == item,
+                   badge: item == .about && updateAvailable) { pane = item }
+    }
+
+    @ObservedObject private var updater = Updater.shared
+
+    /// Neue Version verfügbar (regulär oder, mit Beta-Versionen, Beta): dezenter Hinweis
+    /// an „Über BarDrop“ wie bei Softwareupdate in den Systemeinstellungen
+    private var updateAvailable: Bool {
+        if case .available = updater.state { return true }
+        return false
     }
 
     // MARK: Inhalt
@@ -196,6 +206,8 @@ struct SettingsRoot: View {
 private struct SidebarRow: View {
     let item: SettingsPane
     let selected: Bool
+    /// Rote Plakette wie in den Systemeinstellungen (Update verfügbar)
+    var badge = false
     let action: () -> Void
     @State private var hovering = false
 
@@ -207,6 +219,15 @@ private struct SidebarRow: View {
                     .font(.system(size: 14))
                     .foregroundStyle(.primary)
                 Spacer(minLength: 0)
+                if badge {
+                    Text("1")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 18, minHeight: 18)
+                        .background(Circle().fill(Color(nsColor: .systemRed)))
+                        .accessibilityLabel(L("Update available", "Update verfügbar"))
+                        .help(L("Update available", "Update verfügbar"))
+                }
             }
             .padding(.horizontal, 9)
             .frame(height: 42)
