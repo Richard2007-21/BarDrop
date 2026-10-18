@@ -272,8 +272,8 @@ struct AppearanceSettings: View {
             SettingsSection(L("Style", "Stil")) {
                 ToggleRow(L("Light outline", "Heller Rahmen"),
                           isOn: $settings.showOutline)
-                PickerRow(L("Title", "Titel"), selection: $settings.showTitle,
-                          options: [(true, "BarDrop"), (false, L("Shelf", "Ablage"))])
+                PickerRow(L("Title", "Titel"), selection: $settings.titleStyle,
+                          options: ShelfTitle.allCases.map { ($0, $0.title) })
                 PickerRow(L("Animation", "Animation"),
                           // Nur wenn die Auswahl gesperrt ist, braucht es eine Erklärung
                           info: AnimationStyle.reduceMotion

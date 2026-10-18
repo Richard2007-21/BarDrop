@@ -280,9 +280,9 @@ struct ShelfContent: View {
 
     // MARK: Kopfbereich
 
-    /// Titel oben: „BarDrop“ oder „Ablage“ (Aussehen → Titel)
-    private var title: String {
-        settings.showTitle ? "BarDrop" : L("Shelf", "Ablage")
+    /// Titel oben: „BarDrop“, „Ablage“ oder keiner (Aussehen → Titel)
+    private var title: String? {
+        settings.titleStyle.text
     }
 
     @ViewBuilder
@@ -295,8 +295,10 @@ struct ShelfContent: View {
                     HStack(spacing: 3) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 11, weight: .semibold))
-                        Text(title)
-                            .font(.system(size: 13, weight: .semibold))
+                        if let title {
+                            Text(title)
+                                .font(.system(size: 13, weight: .semibold))
+                        }
                     }
                     .foregroundStyle(.white.opacity(0.92))
                     .contentShape(Rectangle())
@@ -308,10 +310,12 @@ struct ShelfContent: View {
                 status(selected > 0 ? L("\(selected) of \(stack.files.count) selected", "\(selected) von \(stack.files.count) ausgewählt")
                                     : L("\(stack.files.count) items in stack", "\(stack.files.count) Objekte im Stapel"))
             } else {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .allowsHitTesting(false)
+                if let title {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .allowsHitTesting(false)
+                }
                 Spacer(minLength: 8)
                 let count = store.entries.reduce(0) { $0 + $1.files.count }
                 let selected = actions.selectedEntries.reduce(0) { $0 + $1.files.count }

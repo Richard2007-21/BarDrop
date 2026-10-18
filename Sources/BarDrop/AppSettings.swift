@@ -144,6 +144,29 @@ enum DragReveal: String, CaseIterable, Identifiable {
     }
 }
 
+/// Titel oben in der offenen Ablage.
+enum ShelfTitle: String, CaseIterable, Identifiable {
+    case bardrop, shelf, none
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .bardrop: return "BarDrop"
+        case .shelf: return L("Shelf", "Ablage")
+        case .none: return L("None", "Ohne")
+        }
+    }
+
+    /// Text oben in der Ablage, nil ohne Titel
+    var text: String? {
+        switch self {
+        case .bardrop: return "BarDrop"
+        case .shelf: return L("Shelf", "Ablage")
+        case .none: return nil
+        }
+    }
+}
+
 /// Reihenfolge der Objekte in der Ablage.
 enum SortOrder: String, CaseIterable, Identifiable {
     case newestFirst, oldestFirst
@@ -247,6 +270,7 @@ final class AppSettings: ObservableObject {
         static let sortOrder = "sortOrder"
         static let showOutline = "showOutline"
         static let showTitle = "showTitle"
+        static let titleStyle = "titleStyle"
         static let openDelay = "openDelay"
         static let language = "language"
         static let generousHitArea = "generousHitArea"
@@ -343,8 +367,8 @@ final class AppSettings: ObservableObject {
     @Published var autoUpdateCheck: Bool { didSet { defaults.set(autoUpdateCheck, forKey: Key.autoUpdateCheck) } }
     /// Feiner heller Rahmen um die schwarze Form (sichtbar auf dunklem Hintergrund).
     @Published var showOutline: Bool { didSet { defaults.set(showOutline, forKey: Key.showOutline) } }
-    /// Name „BarDrop“ oben in der offenen Ablage
-    @Published var showTitle: Bool { didSet { defaults.set(showTitle, forKey: Key.showTitle) } }
+    /// Titel oben in der offenen Ablage: „BarDrop“, „Ablage“ oder keiner
+    @Published var titleStyle: ShelfTitle { didSet { defaults.set(titleStyle.rawValue, forKey: Key.titleStyle) } }
     /// So lange (Sekunden) muss der Zeiger am Streifen bleiben, bis die Ablage aufgeht.
     @Published var openDelay: Double { didSet { defaults.set(openDelay, forKey: Key.openDelay) } }
 
@@ -545,7 +569,9 @@ final class AppSettings: ObservableObject {
             store.set(false, forKey: Key.showOutline)
         }
         showOutline = defaults.bool(forKey: Key.showOutline)
-        showTitle = defaults.bool(forKey: Key.showTitle)
+        // Bis 1.30.0 Beta 13 nur „BarDrop“ oder „Ablage“ (showTitle): einmalig übernehmen
+        titleStyle = ShelfTitle(rawValue: defaults.string(forKey: Key.titleStyle) ?? "")
+            ?? (defaults.bool(forKey: Key.showTitle) ? .bardrop : .shelf)
         // Auf eine der wählbaren Wartezeiten runden (ältere Versionen hatten andere)
         let storedDelay = defaults.double(forKey: Key.openDelay)
         openDelay = OpenDelay.choices.min { abs($0 - storedDelay) < abs($1 - storedDelay) } ?? OpenDelay.instant
@@ -637,7 +663,7 @@ final class AppSettings: ObservableObject {
         openInFullScreen = true
         showActionLabels = true
         showOutline = true
-        showTitle = true
+        titleStyle = .bardrop
         removeAfterDragOut = true
         stackMultiple = true
         stackThreshold = 2

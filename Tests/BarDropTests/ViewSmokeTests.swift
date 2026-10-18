@@ -10,7 +10,7 @@ import AppKit
 final class ViewSmokeTests: XCTestCase {
     private var base: URL!
     private var saved: [String: Any] = [:]
-    private let keys = ["language", "twoActionRows", "pinFromShelf", "excludedApps", "openMode", "showTitle"]
+    private let keys = ["language", "twoActionRows", "pinFromShelf", "excludedApps", "openMode", "titleStyle"]
 
     override func setUp() async throws {
         try await super.setUp()
@@ -28,7 +28,7 @@ final class ViewSmokeTests: XCTestCase {
         s.pinFromShelf = saved["pinFromShelf"] as? Bool ?? false
         s.excludedApps = saved["excludedApps"] as? [String] ?? []
         s.openMode = (saved["openMode"] as? String).flatMap(OpenMode.init(rawValue:)) ?? .automatic
-        s.showTitle = saved["showTitle"] as? Bool ?? true
+        s.titleStyle = (saved["titleStyle"] as? String).flatMap(ShelfTitle.init(rawValue:)) ?? .bardrop
         try? FileManager.default.removeItem(at: base)
         try await super.tearDown()
     }
@@ -64,7 +64,7 @@ final class ViewSmokeTests: XCTestCase {
             for variant in [false, true] {
                 settings.twoActionRows = variant
                 settings.pinFromShelf = variant
-                settings.showTitle = !variant
+                settings.titleStyle = variant ? .shelf : .bardrop
                 settings.openMode = variant ? .click : .automatic
                 settings.excludedApps = variant ? ["com.apple.finder", "example.missing.app"] : []
                 let tag = "\(language.rawValue) \(variant)"
@@ -171,11 +171,11 @@ final class ViewSmokeTests: XCTestCase {
         store.add(Array(files.suffix(2)))
 
         ui.level = .expanded
-        for variant in [false, true] {
+        for (variant, title) in [(false, ShelfTitle.shelf), (true, .bardrop), (true, .none)] {
             settings.twoActionRows = variant
-            settings.showTitle = variant
+            settings.titleStyle = title
             render(ShelfRootView(ui: ui, store: store, settings: settings, actions: actions),
-                   size: CGSize(width: 420, height: 720), "Ablage \(variant)")
+                   size: CGSize(width: 420, height: 720), "Ablage \(variant) \(title.rawValue)")
         }
         // Geöffneter Stapel
         if let stack = store.entries.first(where: \.isStack) {
