@@ -118,8 +118,9 @@ final class OnboardingController: NSObject, NSWindowDelegate {
     var wakeShelf: () -> Void = {} {
         didSet { model.onSampleDragStarted = wakeShelf }
     }
-    /// Zeigt den Streifen am Rand, solange eine Übung ihn braucht.
-    var showGuide: (Bool) -> Void = { _ in }
+    /// Zeigt die Ablage am Rand, solange die Einführung sie braucht: offen (Willkommen,
+    /// damit man sieht, wo sie ist), als Streifen (Übungen) oder gar nicht (nil).
+    var showGuide: (ShelfUIModel.Level?) -> Void = { _ in }
 
     var isVisible: Bool { window?.isVisible == true }
 
@@ -139,6 +140,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         showBackdrop()
         window?.center()
         window?.makeKeyAndOrderFront(nil)
+        // Erst jetzt ist die Ablage verbunden: den aktuellen Schritt zeigen (Willkommen: offen)
+        prepare(model.step)
     }
 
     // MARK: Hintergrund
@@ -240,11 +243,26 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             .sink { [weak self] entries in self?.entriesChanged(entries) }
             .store(in: &subscriptions)
 
+        // Übung „Aktionen“: das Foto auf eine Aktion der Leiste gezogen (normal der Papierkorb)
+        NotificationCenter.default.publisher(for: ShelfActions.didPerformAction)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] note in
+                guard let self, let urls = note.userInfo?["urls"] as? [URL] else { return }
+                let name = self.model.sampleURL?.lastPathComponent
+                if urls.contains(where: { $0.lastPathComponent == name }) { self.model.complete(.retrieve) }
+            }
+            .store(in: &subscriptions)
+
     }
 
     private func prepare(_ step: OnboardingModel.Step) {
-        // Beim Ablegen und Herausziehen: zeigen, wo die Ablage wartet
-        showGuide(step == .drop || step == .retrieve)
+        // Willkommen: Die Ablage steht offen am Rand, damit man sieht, wo sie ist.
+        // Bei den Übungen bleibt dort der Streifen stehen.
+        switch step {
+        case .welcome: showGuide(.expanded)
+        case .drop, .retrieve: showGuide(.peek)
+        default: showGuide(nil)
+        }
         switch step {
         case .drop:
             baseline = Set(store.entries.map(\.id))
@@ -315,7 +333,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             break
         }
         subscriptions.removeAll()
-        showGuide(false)
+        showGuide(nil)
         hideBackdrop()
         window?.delegate = nil
         window?.close()
@@ -830,39 +848,42 @@ private struct DropPage: View {
     }
 }
 
-// MARK: Herausziehen
+// MARK: Aktionen
 
 private struct RetrievePage: View {
     @ObservedObject var model: OnboardingModel
     @ObservedObject var settings: AppSettings
-    @State private var targeted = false
+
+    /// Der Papierkorb liegt in der Leiste (Standard); sonst irgendeine Aktion
+    private var hasTrash: Bool { settings.quickActions.contains { $0.kind == .trash } }
 
     /// Wie man die Ablage öffnet, passend zu den Einstellungen
     private var howToOpen: String {
-        if settings.openMode == .click {
-            return L("Move the pointer to the \(edgeWord(settings)) edge and click the strip. Then drag out what you need.",
-                     "Fahr an den \(edgeWord(settings)) Rand und klick auf den Streifen. Dann ziehst du heraus, was du brauchst.")
-        }
-        return L("Move the pointer to the \(edgeWord(settings)) edge. The shelf opens, and you drag out what you need.",
-                 "Fahr mit dem Zeiger an den \(edgeWord(settings)) Rand. Die Ablage öffnet sich, und du ziehst heraus, was du brauchst.")
+        settings.openMode == .click
+            ? L("click the strip at the \(edgeWord(settings)) edge", "klick auf den Streifen am \(edgeWord(settings)) Rand")
+            : L("move the pointer to the \(edgeWord(settings)) edge", "fahr an den \(edgeWord(settings)) Rand")
     }
 
     var body: some View {
-        PresentationPage(title: L("Drag Out", "Herausziehen"), text: howToOpen) {
+        PresentationPage(title: L("Actions", "Aktionen"),
+                         text: L("Drag an item onto an action at the bottom of the shelf: AirDrop, a folder, the Trash and more.",
+                                 "Zieh ein Objekt auf eine Aktion unten in der Ablage: AirDrop, einen Ordner, den Papierkorb und mehr.")) {
             ShelfStage(scene: .dragOut)
         } practice: {
             TaskCard(done: model.stepDone,
-                     instruction: L("Open the shelf and drag the photo onto this box.",
-                                    "Öffne die Ablage und zieh das Foto auf dieses Feld."),
-                     confirmation: L("Works with any app.", "Klappt mit jeder App."),
-                     dashed: true, targeted: targeted) {
-                DropWell(targeted: targeted)
+                     instruction: hasTrash
+                        ? L("To open the shelf, \(howToOpen). Then drag the photo onto the Trash.",
+                            "Zum Öffnen \(howToOpen). Dann zieh das Foto auf den Papierkorb.")
+                        : L("To open the shelf, \(howToOpen). Then drag the photo onto an action.",
+                            "Zum Öffnen \(howToOpen). Dann zieh das Foto auf eine Aktion."),
+                     confirmation: hasTrash ? L("In the Trash. ⌘Z brings it back.", "Im Papierkorb. ⌘Z holt es zurück.")
+                                            : L("Done. Actions work with any item.", "Erledigt. Aktionen gehen mit jedem Objekt.")) {
+                Image(nsImage: NSImage(named: hasTrash ? NSImage.trashEmptyName : NSImage.folderName) ?? NSImage())
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 60, height: 60)
             }
-            .overlay(
-                ReturnDropTarget(enabled: !model.stepDone, targeted: $targeted) {
-                    model.complete(.retrieve)
-                }
-            )
         }
     }
 }

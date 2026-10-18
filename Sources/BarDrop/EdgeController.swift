@@ -34,6 +34,8 @@ final class EdgeController: NSObject {
     private var previewLevel: ShelfUIModel.Level = .hint
     /// Einführung: Der Streifen bleibt zu sehen, damit man weiß, wohin man ziehen soll
     private var guideActive = false
+    /// Stufe, die die Einführung zeigen lässt: offen oder nur der Streifen
+    private var guideLevel: ShelfUIModel.Level = .peek
     /// Die Vorschau nach dem Verstellen der Symbolgröße läuft noch (nicht `previewUntil`:
     /// In der Einführung folgt darauf gleich wieder der Streifen)
     private var samplePreviewRunning = false
@@ -503,8 +505,19 @@ final class EdgeController: NSObject {
 
     /// Einführung: den ersten Streifen in der eingestellten Größe dauerhaft zeigen, bis die
     /// Übung vorbei ist. Hinfahren, Hineinziehen und Öffnen funktionieren wie immer.
-    func showGuide(_ on: Bool) {
-        guard on != guideActive else { return }
+    func showGuide(_ level: ShelfUIModel.Level?) {
+        let on = level != nil
+        if let level { guideLevel = level }
+        guard on != guideActive else {
+            // Nur die Stufe wechselt (offen ↔ Streifen): Die Ablage schließt dann wie sonst
+            // und lässt den Streifen stehen
+            if on {
+                previewLevel = guideLevel
+                previewUntil = .distantFuture
+                wake()
+            }
+            return
+        }
         guideActive = on
         // Die Höhe am Rand ändert sich (Mitte bzw. wieder wie eingestellt). Ist die Ablage
         // offen, erst umziehen, wenn sie ganz verborgen ist, damit nichts sichtbar springt.
@@ -522,7 +535,7 @@ final class EdgeController: NSObject {
             layoutPanel()
         }
         if on {
-            previewLevel = .peek
+            previewLevel = guideLevel
             previewUntil = .distantFuture
         } else if previewUntil == .distantFuture {
             previewUntil = Date()
@@ -704,7 +717,7 @@ final class EdgeController: NSObject {
             samplePreviewRunning = false
             // Nach einer kurzen Vorschau zurück zum Streifen der Einführung
             if guideActive {
-                previewLevel = .peek
+                previewLevel = guideLevel
                 previewUntil = .distantFuture
             }
         }

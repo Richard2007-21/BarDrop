@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.30.0-beta.19
+* **Changed:** Introduction: on the first page the shelf opens at the edge, so you see where it is. On the next page it closes, the strip stays, and you drag the photo in
+* **Changed:** Introduction: instead of dragging the photo back out, you drag it onto the Trash in the action bar (or onto any action if the Trash isn’t there). This puts the sample photo in the Trash of your Mac; ⌘Z brings it back
+* Right-click menu: “Remove from Shelf” instead of “Remove”, so it is clear the file itself stays
+
 ## 1.30.0-beta.18
 * Introduction: the file to drag is a photo (“Photo.jpg”), the same sample file that appears when changing the icon size, instead of the app icon
 * README: “Screenshots” link at the top and its own section; the preview loop moves the file from the desktop into the shelf and back, more smoothly

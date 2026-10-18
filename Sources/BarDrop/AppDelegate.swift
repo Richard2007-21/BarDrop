@@ -133,7 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.ui.forcesOutline = false
             }
             onboarding.wakeShelf = { [weak self] in self?.controller.wake() }
-            onboarding.showGuide = { [weak self] on in self?.controller.showGuide(on) }
+            onboarding.showGuide = { [weak self] level in self?.controller.showGuide(level) }
             onboarding.openSettings = { [weak self] in
                 DispatchQueue.main.async { self?.showSettings() }
             }

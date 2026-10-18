@@ -94,6 +94,13 @@ final class DemoShelf: ObservableObject {
     /// das gezogene Bild ist
     private var others: [URL] { scene == .drop ? Array(otherURLs.prefix(2)) : otherURLs }
 
+    /// Mitte der Aktion „Papierkorb“ in der Leiste (ohne Papierkorb: die letzte Aktion)
+    private var trashAction: CGPoint {
+        let all = settings.quickActions
+        let index = all.firstIndex { $0.kind == .trash } ?? max(0, all.count - 1)
+        return layout.actionCenter(index, count: max(1, min(all.count, QuickAction.perRow)))
+    }
+
     private var sampleTile: CGPoint {
         let index = actions.orderedEntries.firstIndex { $0.files.contains { $0.url == sampleURL } } ?? 0
         return layout.tileCenter(index)
@@ -167,8 +174,7 @@ final class DemoShelf: ObservableObject {
             fill(withSample: true)
             set(level: .expanded, animation: nil)
             dragging = true
-            folderTargeted = true
-            pointer = l.folder
+            pointer = trashAction
         case .shortcut:
             fill(withSample: true)
             set(level: .expanded, animation: nil)
@@ -261,7 +267,7 @@ final class DemoShelf: ObservableObject {
             after(4.8) { self.set(level: .hidden, animation: style.close) }
 
         case .dragOut:
-            // Zeiger an den Rand, Ablage öffnet sich, Bild auf einen Ordner ziehen
+            // Zeiger an den Rand, Ablage öffnet sich, Foto auf den Papierkorb der Leiste ziehen
             period = 6.6
             fill(withSample: true)
             set(level: .hidden, animation: nil)
@@ -273,12 +279,15 @@ final class DemoShelf: ObservableObject {
             after(click ? 1.75 : 1.6) { self.set(level: .expanded, animation: style.open) }
             after(2.0) { self.move(to: self.sampleTile, duration: 0.6) }
             after(2.8) { self.click(); self.dragging = true }
-            after(2.9) { self.move(to: l.folder, duration: 1.2) }
-            after(3.4) { self.set(level: .hidden, animation: style.close) }
-            after(3.9) { withAnimation(.easeOut(duration: 0.12)) { self.folderTargeted = true } }
-            after(4.3) {
-                withAnimation(.easeOut(duration: 0.15)) { self.dragging = false; self.folderTargeted = false }
+            after(2.9) { self.move(to: self.trashAction, duration: 0.9) }
+            after(3.9) {
+                withAnimation(.easeOut(duration: 0.15)) { self.dragging = false }
+                // Das Foto ist im Papierkorb und damit nicht mehr in der Ablage
+                let ids = Set(self.store.entries.filter { $0.files.contains { $0.url == self.sampleURL } }.map(\.id))
+                self.store.discard(ids)
             }
+            after(5.0) { self.move(to: l.away(l.full.width + 250, y: l.size.height * 0.64), duration: 0.6) }
+            after(5.3) { self.set(level: .hidden, animation: style.close) }
 
         case .shortcut:
             // Kurzbefehl öffnet die Ablage, noch einmal schließt sie
@@ -408,6 +417,17 @@ struct DemoLayout {
         max(1, Int((full.width - 24 + 8) / (iconSize + 22 + 8)))
     }
 
+    /// Mitte der Aktion an Stelle `index` in der Leiste unten (eine Reihe, gleich breite Plätze
+    /// wie QuickActionBar)
+    func actionCenter(_ index: Int, count: Int) -> CGPoint {
+        let frame = shelfFrame
+        let inner = full.width - 2 * 10 - 2 * 6
+        let slot = inner / CGFloat(count)
+        let x = frame.minX + 10 + 6 + slot * (CGFloat(min(index, count - 1)) + 0.5)
+        let y = frame.maxY - full.fillet - 8 - 2 - 6 - 17
+        return CGPoint(x: x, y: y)
+    }
+
     func tileCenter(_ index: Int) -> CGPoint {
         let available = full.width - 24
         let maximum = iconSize + 40, spacing: CGFloat = 8
@@ -456,10 +476,6 @@ struct ShelfStage: View {
             if demo.scene == .drop, let url = demo.sampleURL {
                 DesktopIcon(url: url, selected: demo.iconSelected)
                     .position(x: l.sample.x, y: l.sample.y + 14)
-            }
-            if demo.scene == .dragOut {
-                DesktopFolder(targeted: demo.folderTargeted)
-                    .position(x: l.folder.x, y: l.folder.y + 14)
             }
 
             ShelfRootView(ui: demo.ui, store: demo.store, settings: settings, actions: demo.actions)

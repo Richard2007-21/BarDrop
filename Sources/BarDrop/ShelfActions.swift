@@ -316,8 +316,15 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     // MARK: Aktionsleiste
 
     /// `modifiers`: beim Klick bzw. Loslassen gedrückte Tasten (⌥ kopiert, ⌘ verschiebt)
+    /// Eine Aktion der Leiste wurde mit Objekten ausgeführt (userInfo: "urls", "kind")
+    static let didPerformAction = Notification.Name("BarDropDidPerformAction")
+
     func perform(_ action: QuickAction, urls: [URL], anchor: NSView,
                  modifiers: NSEvent.ModifierFlags = NSEvent.modifierFlags) {
+        if !urls.isEmpty {
+            NotificationCenter.default.post(name: Self.didPerformAction, object: self,
+                                            userInfo: ["urls": urls, "kind": action.kind.rawValue])
+        }
         guard !urls.isEmpty else {
             // Ohne Objekte: Ordner bzw. App öffnen
             if action.kind == .folder || action.kind == .app, let url = action.url {
@@ -631,7 +638,8 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             })
         }
         menu.addItem(.separator())
-        let title = multiple ? L("Remove \(targets.count) Items", "\(targets.count) Objekte entfernen") : L("Remove", "Entfernen")
+        let title = multiple ? L("Remove \(targets.count) Items from Shelf", "\(targets.count) Objekte aus der Ablage entfernen")
+                             : L("Remove from Shelf", "Aus der Ablage entfernen")
         menu.addItem(ClosureMenuItem(title, key: "\u{8}", modifiers: []) { [weak self] in self?.remove(targets) })
         menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
             self?.moveToTrash(urls)
@@ -649,7 +657,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         menu.addItem(ClosureMenuItem(files.count > 1 ? L("Take \(files.count) Items Out of Stack", "\(files.count) Objekte aus Stapel lösen") : L("Take Out of Stack", "Aus Stapel lösen")) { [weak self] in
             self?.detachMembers(files)
         })
-        menu.addItem(ClosureMenuItem(files.count > 1 ? L("Remove \(files.count) Items", "\(files.count) Objekte entfernen") : L("Remove", "Entfernen"), key: "\u{8}", modifiers: []) { [weak self] in
+        menu.addItem(ClosureMenuItem(files.count > 1 ? L("Remove \(files.count) Items from Shelf", "\(files.count) Objekte aus der Ablage entfernen") : L("Remove from Shelf", "Aus der Ablage entfernen"), key: "\u{8}", modifiers: []) { [weak self] in
             self?.removeMembers(files)
         })
         menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
