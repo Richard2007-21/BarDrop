@@ -24,7 +24,7 @@ const DUR=16.5;
 const P=[[0,430,470],[0.5,430,470],[0.9,30,80,20],[1.8,118,338],[2.0,118,338],[2.25,74,206,10],[2.35,74,206],
   [3.55,858,290,40],[3.8,858,290],[4.35,SLOT.s1[0],SLOT.s1[1]+2,15],[4.6,SLOT.s1[0],SLOT.s1[1]+2],
   [4.8,SLOT.s2[0],SLOT.s2[1]+2,8],[4.9,SLOT.s2[0],SLOT.s2[1]+2],[6.15,PH[0],PH[1],30],[6.45,PH[0],PH[1]],
-  [7.2,872,285,25],[7.95,SLOT.s3[0],SLOT.s3[1]+2,20],[8.45,SLOT.s3[0],SLOT.s3[1]+2],[9.25,SLOT.trash[0],SLOT.trash[1],15],[9.5,SLOT.trash[0],SLOT.trash[1]],
+  [7.2,872,285,25],[7.95,SLOT.notes[0],SLOT.notes[1]+2,20],[8.45,SLOT.notes[0],SLOT.notes[1]+2],[9.25,SLOT.trash[0],SLOT.trash[1],15],[9.5,SLOT.trash[0],SLOT.trash[1]],
   [10.6,720,330,15],[11.0,SLOT.s1[0],SLOT.s1[1]+2,10],[11.5,SLOT.s1[0],SLOT.s1[1]+2],[12.3,700,340,10],
   [12.6,600,336],[13.3,420,330,20],[14.4,420,330],[15.1,140,440,25],[15.4,140,440],[16.2,430,470,15],[16.5,430,470]];
 
@@ -102,13 +102,13 @@ window.render=function(t){
     go=.85*(1-seg(t,6.25,6.35));
     const sc=lerp(1,2.2,u);
     html=`<div style="position:absolute;left:${-27*sc}px;top:${-20*sc}px;width:${54*sc}px;height:${40*sc}px;background:url(GIF2_Sunset_2.jpg) center/cover;border-radius:3px;box-shadow:0 3px 8px rgba(0,0,0,.45)"></div>`+
-      (u<0.01?`<div style="position:absolute;left:-36px;top:24px;width:72px;text-align:center"><span style="font-size:10.5px;font-weight:600;color:#fff;background:#2f6ff5;padding:1px 5px;border-radius:4px">Sunset 2.jpg</span></div>`:'');
+      (u<0.01?`<div style="position:absolute;left:-36px;top:24px;width:72px;text-align:center"><span style="font-size:10.5px;font-weight:600;color:#fff;background:#2f6ff5;padding:1px 5px;border-radius:4px;white-space:nowrap">Sunset 2.jpg</span></div>`:'');
     gx=lerp(px,PH[0],u); gy=lerp(py,PH[1],u);
   } else if(t>=8.5&&t<9.38){
     let u=0; if(t>=9.3) u=out(seg(t,9.3,9.38));
     go=.85*(1-u);
-    html=`<div style="position:absolute;left:-29px;top:-23px;width:58px;height:46px;background:url(GIF2_4.png) ${-(SLOT.s3[0]-OX)/SX*SX*2+29*2 - 0}px 0/748px 1020px"></div>`;
-    html=`<div style="position:absolute;left:-29px;top:-23px;width:58px;height:46px;background-image:url(GIF2_4.png);background-size:${880*SX}px ${1200*SX}px;background-position:${-(SLOT.s3[0]-OX-29)}px ${-(SLOT.s3[1]-OY-23)}px;transform:scale(${1-u*.6})"></div>`;
+    html=`<img src="GIF2_notes_icon.png" style="position:absolute;left:-27px;top:-27px;width:54px;height:54px;transform:scale(${1-u*.6})">`+
+      (u<0.01?`<div style="position:absolute;left:-40px;top:30px;width:80px;text-align:center"><span style="font-size:10.5px;font-weight:600;color:#fff;background:#2f6ff5;padding:1px 5px;border-radius:4px;white-space:nowrap">Notes.txt</span></div>`:'');
   }
   g.innerHTML=html; g.style.opacity=go; g.style.left=gx+'px'; g.style.top=gy+'px';
 
@@ -120,7 +120,7 @@ window.render=function(t){
   for(const el of sh.querySelectorAll('img')) el.style.opacity = el.id===img ? 1 : 0;
   // Herausgezogenes bleibt an seinem Platz blass, solange die Ablage es zeigt
   const dim=$('dim'); let dimAt=null;
-  if(t>=4.9&&t<LEAVE+0.3) dimAt=SLOT.s2; if(t>=8.5&&t<9.3) dimAt=SLOT.s3;
+  if(t>=4.9&&t<LEAVE+0.3) dimAt=SLOT.s2; if(t>=8.5&&t<9.3) dimAt=SLOT.notes;
   if(dimAt){dim.style.opacity=o; dim.style.left=(dimAt[0]-29)+'px'; dim.style.top=(dimAt[1]-23)+'px'} else dim.style.opacity=0;
   const s=$('strip'), st=strip(t); s.style.opacity=st; s.style.width=(6*st)+'px';
 

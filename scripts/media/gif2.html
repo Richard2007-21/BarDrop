@@ -1,4 +1,4 @@
-<html><head><style>
+<html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:880px;height:550px;overflow:hidden;font-family:Inter,sans-serif;-webkit-font-smoothing:antialiased}
 .wall{position:absolute;inset:0;background:
@@ -81,5 +81,10 @@ html,body{width:880px;height:550px;overflow:hidden;font-family:Inter,sans-serif;
 <div id="ghost"></div>
 <div id="keys"></div>
 <svg id="pointer" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12 27 L15.5 25.5 L11.5 17 L19 17 Z" fill="#000" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
+<script>
+// Mitten der Kacheln in den Aufnahmen (Pixel bei doppelter Auflösung) auf die Seite umgerechnet
+const _at=(x,y)=>[506+x*374/880, 30+y*374/880];
+window.SLOTS={s1:_at(390,394), s2:_at(580,394), notes:_at(580,660), trash:_at(760,900)};
+</script>
 <script src="gif2.js"></script>
 </body></html>
