@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.30.0
+Everything since 1.29.0:
+
+### New
+* New introduction: a short presentation with one scene per step and small exercises (drop, actions, shortcut, opening with the pointer)
+* Move to Trash like in the Finder: ⌘⌫, the Trash action and the right-click menu. ⌘Z puts the files back where they were and into the shelf
+* Items → Storage → Files from the Finder: “Use original” (new default) or “Keep a copy”
+* Icon size for the files in the shelf (Appearance) and for the action bar (Actions)
+* Appearance → Title: “BarDrop”, “Shelf” or “None”; Actions → Show names: “All”, “Folders Only” or “None”
+* Items → Order → “Open where you left off” and Opening → When → “Small hit area”
+* Language “System”: BarDrop follows macOS (German or English, otherwise English)
+* Sounds like in the Finder for removing, the Trash and folder actions
+* Red badge next to About BarDrop when an update is available
+* Beta versions: optional, anonymous diagnostic log in Settings → About BarDrop
+
+### Improved
+* Folder actions work like dropping onto a folder in the Finder: on the same disk they move, on another disk they copy; ⌥ always copies, ⌘ always moves
+* New defaults for everyone who never changed them: language follows the system, Remove automatically “Never”, height 340 pt, all actions in the lower row, not over full-screen apps. Values you set yourself stay. New installations open at login
+* Previews appear right away, a quick one first and then the sharp one, instead of the file icon
+* Selection like in the Finder; the selection rectangle scrolls the shelf, and arrow keys keep the selected item visible and move through items in Quick Look
+* The Trash action looks full or empty like the Trash in the Dock
+* Settings: light mode in the macOS system colors, short choices right in the row, keyboard shortcuts as key caps, all panes in one group
+* Width can be set from 220 pt; Reset All Settings resets everything, including language, updates and beta versions
+* Silent updates wait until a release is two days old; Install still updates right away
+* Files from Photos, Mail and browsers are waited for as long as they are still being written, up to 30 minutes
+* Web images keep their original format when “Save web images as PNG or JPEG” is off
+
+### Fixed
+* After unplugging an external display, the shelf works at the edge again and Settings open fully on screen
+* Images from the web no longer disappear right after dropping them
+* Items that can’t be read are kept instead of being lost on the next save
+* Right-click menus keep their highlight and no longer lose the pointer
+* New screenshots are also added when Spotlight can’t be used
+* Diagnostic log: the report shows the full version, and the scenes of the introduction no longer appear as removed items
+
 ## 1.30.0-beta.23
 * **Fixed:** After unplugging an external display (or unlocking the Mac with a changed arrangement), the shelf no longer reacted at the edge and Settings opened half off screen. BarDrop now always works with the current position of each display and checks it again after waking, unlocking and switching users
 * Settings open centered again whenever their window no longer fits completely on a display
