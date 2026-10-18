@@ -201,7 +201,8 @@ final class Diagnostics {
     func report(store: ShelfStore?) -> String {
         var out: [String] = []
         let info = Bundle.main.infoDictionary
-        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        // Volle Version mit Beta-Zusatz (CFBundleShortVersionString hat nur die Zahlen)
+        let version = Updater.shared.currentVersion
         let build = info?["CFBundleVersion"] as? String ?? "?"
         out.append("BarDrop Diagnose / Diagnostics")
         out.append("Erstellt / Created: \(formatter.string(from: Date()))")
