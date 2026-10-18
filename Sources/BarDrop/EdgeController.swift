@@ -501,6 +501,10 @@ final class EdgeController: NSObject {
         if !mouseDown { dragBaseline = dragCount }
         let dragging = mouseDown && dragCount != dragBaseline && (ui.ownDragActive || hasDroppableContent())
 
+        // Auswahlrahmen: Ist die Maustaste los, ohne dass die Ablage das gemerkt hat
+        // (z. B. außerhalb losgelassen), ist er vorbei
+        if ui.bandActive && !mouseDown { ui.bandActive = false }
+
         if pendingResignFocus && !ui.ownDragActive {
             resignFocus()
         }

@@ -29,6 +29,9 @@ final class ShelfUIModel: ObservableObject {
     var sharingOpen = false
     /// Gerade wird ein Objekt aus der Ablage herausgezogen.
     var ownDragActive = false
+    /// Ein Auswahlrahmen (Lasso) wird gerade gezogen: Die Ablage bleibt offen, auch wenn
+    /// der Zeiger sie dabei verlässt.
+    var bandActive = false
     /// Einträge, die gerade aus der Ablage gezogen werden (für Ablegen auf Stapel).
     var draggedEntryIDs: Set<UUID> = []
     /// Gespeicherte Orte der Dateien, die gerade aus der Ablage gezogen werden.
@@ -78,7 +81,7 @@ final class ShelfUIModel: ObservableObject {
     }
     @Published var notice: Notice?
 
-    var isLocked: Bool { menuOpen || sharingOpen }
+    var isLocked: Bool { menuOpen || sharingOpen || bandActive }
 }
 
 /// Maße der schwarzen Form je Zustand.

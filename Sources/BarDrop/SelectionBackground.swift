@@ -38,6 +38,7 @@ final class SelectionBackgroundNSView: NSView {
         let p = CGPoint(x: min(max(raw.x, area.minX), area.maxX),
                         y: min(max(raw.y, area.minY), area.maxY))
         if !banding && hypot(p.x - start.x, p.y - start.y) < 3 { return }
+        if !banding { ui?.bandActive = true }
         banding = true
         let rect = CGRect(x: min(start.x, p.x), y: min(start.y, p.y),
                           width: abs(p.x - start.x), height: abs(p.y - start.y))
@@ -47,6 +48,7 @@ final class SelectionBackgroundNSView: NSView {
     override func mouseUp(with event: NSEvent) {
         if banding {
             onBandChanged(nil, modifiers)
+            ui?.bandActive = false
         } else if start != nil {
             onClick()
         }
