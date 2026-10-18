@@ -64,8 +64,24 @@ function keys(t){
   return [[],0];
 }
 let lastKeys='';
-window.render=function(t){
-  t=((t%DUR)+DUR)%DUR;
+// Ruhiger ablaufen lassen: alles etwas langsamer, und nach jedem wichtigen Schritt kurz innehalten
+const SLOW=1.3;
+const HOLDS=[[1.85,0.6],[3.75,0.9],[4.55,0.6],[6.45,1.0],[7.9,0.5],[9.45,0.9],[10.35,0.8],[11.35,0.4],[12.3,0.8],[14.4,0.9],[15.4,0.5]];
+function sceneTime(real){
+  let r=real, s=0, last=0;
+  for(const [at,hold] of HOLDS){
+    const span=(at-last)*SLOW;
+    if(r<span) return last+r/SLOW;
+    r-=span;
+    if(r<hold) return at;
+    r-=hold; last=at;
+  }
+  return Math.min(DUR,last+r/SLOW);
+}
+const REAL=DUR*SLOW+HOLDS.reduce((a,h)=>a+h[1],0);
+window.render=function(real){
+  real=((real%REAL)+REAL)%REAL;
+  let t=sceneTime(real);
   const [px,py]=path(t,P);
   const pt=$('pointer'); pt.style.left=(px-2)+'px'; pt.style.top=(py-2)+'px';
 
@@ -138,5 +154,5 @@ window.render=function(t){
   let press=0; for(const c of clicks) if(t>=c&&t<c+0.12) press=1;
   pt.style.transform=`scale(${press?0.88:1})`;
 };
-window.DURATION=DUR;
+window.DURATION=REAL;
 render(0);
