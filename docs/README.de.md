@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="preview.gif" width="640" alt="BarDrop wächst aus dem Bildschirmrand, nimmt eine Datei auf und gibt sie in einer anderen App wieder heraus">
+  <img src="preview.gif" width="640" alt="Eine Datei wird an den Bildschirmrand gezogen, die Ablage öffnet sich und nimmt sie auf; später wird sie in einen Ordner herausgezogen">
 </p>
 
 ---
@@ -56,6 +56,13 @@ Bilder aus dem Browser, Links und Text funktionieren genauso wie Dateien. Beim e
 Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht benutzt, jeweils zwei Tage nach dem Erscheinen einer Version. Das und frühe Beta-Versionen stellst du unter Einstellungen → Über BarDrop ein.
 
 ## Funktionen
+
+<p align="center">
+  <img src="images/hero-de.jpg" width="49%" alt="Die Ablage offen am rechten Bildschirmrand mit sechs Dateien">
+  <img src="images/actions-de.jpg" width="49%" alt="Die Aktionsleiste mit AirDrop, Downloads und Papierkorb">
+  <img src="images/stacks-de.jpg" width="49%" alt="Mehrere Dateien als Stapel">
+  <img src="images/settings-de.jpg" width="49%" alt="Einstellungen im dunklen und hellen Modus">
+</p>
 
 **Ablage**
 * Links oder rechts, feste Höhe oder dort, wo der Zeiger den Rand erreicht (ganzer Rand oder mittlere Hälfte)

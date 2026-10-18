@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.30.0-beta.16
+* **Changed:** Reset All Settings really resets everything, including the language (back to “System”), updates and beta versions; only the items in the shelf are kept
+* **Changed:** Remove automatically no longer goes into ⌘Z (it did in beta 15); copies are still deleted only after 15 minutes
+* **Changed:** Two sounds: removing from the shelf (⌫, Remove, Remove All) plays the Finder sound used until beta 14, moving to the Trash (⌘⌫, Trash action, Move to Trash) the macOS sound for dragging to the Trash
+* Actions → Show names: “All”, “Folders Only” or “None”; with Folders Only the other actions keep the space so all icons stay level
+* Dropping into a folder of the action bar plays the macOS sound for a mounted volume
+* Clicking an action inside an open stack uses the files selected in the stack (it used the selection of the shelf)
+* Files dragged straight from the Finder onto the Trash action can be put back with ⌘Z and then appear in the shelf
+* Introduction: the shelf stays above the dimmed background (the background could cover it when macOS reports the Dock above the menu bar)
+* New screenshots: BarDrop also watches the screenshot folder itself instead of relying on Spotlight only
+* Images, PDFs and videos wait briefly for their preview instead of showing the file icon first (less flicker when dropping)
+* Items → Storage: “Files from the Finder” is a menu, so the row is no longer squeezed
+* A copy moved out by a folder action no longer leaves an empty storage folder behind
+* README: new product pictures and a new preview loop, rendered from the app itself
+
 ## 1.30.0-beta.15
 * **Changed:** ⌘⌫ moves the selected items to the Trash, like in the Finder, instead of only removing them from the shelf. ⌫ still only removes. The right-click menu has “Move to Trash” (⌘⌫) under “Remove” (⌫)
 * **Changed:** Folder actions work like dropping onto a folder in the Finder: on the same disk they move, on another disk they copy and the original stays; ⌥ always copies, ⌘ always moves. This applies to clicking, dragging items out of the shelf and dragging files straight from the Finder. Before, folder actions always moved
