@@ -266,6 +266,113 @@ final class ViewSmokeTests: XCTestCase {
                 }
             }
 
+            // Drittes Vorschau-GIF: zwei Bilder aus dem Browser ablegen, auf eine Folie ziehen,
+            // ein Archiv in den Papierkorb und alles zurück. Platzhalter wie bei der Symbolgröße.
+            if language == .english {
+                let g3 = base.appendingPathComponent("GIF3", isDirectory: true)
+                try FileManager.default.createDirectory(at: g3, withIntermediateDirectories: true)
+                func empty(_ name: String) -> URL {
+                    let url = g3.appendingPathComponent(name)
+                    FileManager.default.createFile(atPath: url.path, contents: Data())
+                    return url
+                }
+                let photo = empty("Photo.jpg"), document = empty("Document.pdf")
+                let notes = empty("Notes.txt"), video = empty("Video.mov"), archive = empty("Archive.zip")
+                let project = g3.appendingPathComponent("Project", isDirectory: true)
+                try? FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+                // Bilder aus der Bildersuche: auch als PNG für den Browser im GIF
+                func landscape(_ name: String, _ top: NSColor, _ bottom: NSColor, sun: NSColor, far: NSColor, near: NSColor) -> URL {
+                    let image = NSImage(size: NSSize(width: 800, height: 600), flipped: false) { rect in
+                        NSGradient(starting: top, ending: bottom)?.draw(in: rect, angle: -90)
+                        sun.setFill(); NSBezierPath(ovalIn: NSRect(x: 520, y: 360, width: 110, height: 110)).fill()
+                        far.setFill()
+                        let m = NSBezierPath(); m.move(to: NSPoint(x: 0, y: 200)); m.line(to: NSPoint(x: 220, y: 420))
+                        m.line(to: NSPoint(x: 380, y: 300)); m.line(to: NSPoint(x: 560, y: 460)); m.line(to: NSPoint(x: 800, y: 240))
+                        m.line(to: NSPoint(x: 800, y: 0)); m.line(to: .zero); m.close(); m.fill()
+                        near.setFill()
+                        let w = NSBezierPath(); w.move(to: .zero); w.curve(to: NSPoint(x: 800, y: 120), controlPoint1: NSPoint(x: 260, y: 220),
+                                                                         controlPoint2: NSPoint(x: 520, y: 40))
+                        w.line(to: NSPoint(x: 800, y: 0)); w.close(); w.fill()
+                        return true
+                    }
+                    let url = g3.appendingPathComponent(name)
+                    if let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) {
+                        try? rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9])?.write(to: url)
+                        try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: dir)
+                            .appendingPathComponent("GIF3_" + url.deletingPathExtension().lastPathComponent + ".png"))
+                    }
+                    return url
+                }
+                let lake = landscape("mountain-lake.jpg", NSColor(red: 0.42, green: 0.66, blue: 0.95, alpha: 1),
+                                     NSColor(red: 0.86, green: 0.93, blue: 1, alpha: 1), sun: NSColor(red: 1, green: 0.96, blue: 0.75, alpha: 1),
+                                     far: NSColor(red: 0.45, green: 0.52, blue: 0.66, alpha: 1), near: NSColor(red: 0.16, green: 0.42, blue: 0.62, alpha: 1))
+                let dusk = landscape("alpine-dusk.jpg", NSColor(red: 0.98, green: 0.6, blue: 0.42, alpha: 1),
+                                     NSColor(red: 1, green: 0.86, blue: 0.62, alpha: 1), sun: NSColor(red: 1, green: 0.97, blue: 0.85, alpha: 1),
+                                     far: NSColor(red: 0.55, green: 0.36, blue: 0.48, alpha: 1), near: NSColor(red: 0.28, green: 0.2, blue: 0.36, alpha: 1))
+                // Weitere Suchergebnisse, nur für den Browser
+                for (i, c) in [(0.3, 0.55, 0.45), (0.55, 0.45, 0.8), (0.2, 0.35, 0.55), (0.75, 0.5, 0.35), (0.35, 0.6, 0.7), (0.6, 0.3, 0.4)].enumerated() {
+                    _ = landscape("result-\(i).jpg", NSColor(red: c.0, green: c.1, blue: c.2, alpha: 1),
+                                  NSColor(red: min(1, c.0 + 0.4), green: min(1, c.1 + 0.4), blue: min(1, c.2 + 0.35), alpha: 1),
+                                  sun: NSColor(white: 1, alpha: 0.85), far: NSColor(red: c.0 * 0.6, green: c.1 * 0.6, blue: c.2 * 0.7, alpha: 1),
+                                  near: NSColor(red: c.0 * 0.35, green: c.1 * 0.4, blue: c.2 * 0.45, alpha: 1))
+                }
+                let all = [photo, document, notes, video, archive, project, lake, dusk]
+                for url in all {
+                    _ = await Thumbnails.load(url, size: 64)
+                    Thumbnails.shownOnce.insert(url.path)
+                }
+                let s3 = ShelfStore(baseDirectory: base.appendingPathComponent("GIF3Store"))
+                let a3 = ShelfActions(store: s3, ui: ui, settings: settings)
+                ui.selection = []; ui.openStack = nil; ui.memberSelection = []
+                TrashState.shared.isFull = false
+                // Ältestes zuerst: Archiv, Video, Notiz, Projekt, dann die Gruppe (oben)
+                settings.stackMultiple = false
+                s3.add([archive, video, notes, project].map { ShelfFile(url: $0, owned: false) })
+                settings.stackMultiple = true
+                settings.stackThreshold = 2
+                s3.add([photo, document].map { ShelfFile(url: $0, owned: false) })
+                settings.stackMultiple = false
+                func g(_ name: String, _ store: ShelfStore? = nil) {
+                    let st = store ?? s3
+                    shot(ShelfRootView(ui: ui, store: st, settings: settings,
+                                       actions: store == nil ? a3 : ShelfActions(store: st, ui: ui, settings: settings)),
+                         size: CGSize(width: 440, height: 600), "GIF3 \(name)", dir: dir)
+                }
+                func pick(_ name: String, in st: ShelfStore) -> Set<UUID> {
+                    Set(st.entries.filter { $0.urls.first?.lastPathComponent == name && !$0.isStack }.map(\.id))
+                }
+                g("0")
+                ui.isDropTargeted = true; g("0 drop"); ui.isDropTargeted = false
+                s3.add([ShelfFile(url: lake, owned: false)])
+                g("1")
+                ui.isDropTargeted = true; g("1 drop"); ui.isDropTargeted = false
+                s3.add([ShelfFile(url: dusk, owned: false)])
+                g("2")
+                // Ziehen auf die Folie: erst der See, dann die Dämmerung
+                ui.selection = pick("mountain-lake.jpg", in: s3); g("2 lake")
+                ui.selection = []
+                s3.forgetFiles(at: [lake])
+                g("3")
+                ui.selection = pick("alpine-dusk.jpg", in: s3); g("3 dusk")
+                ui.selection = []
+                s3.forgetFiles(at: [dusk])
+                g("4")
+                ui.selection = pick("Archive.zip", in: s3); g("4 archive")
+                ui.previewTargetedAction = settings.quickActions.first { $0.kind == .trash }?.id
+                g("4 trash")
+                ui.previewTargetedAction = nil
+                ui.selection = []
+                let without = ShelfStore(baseDirectory: base.appendingPathComponent("GIF3b"))
+                for entry in s3.entries.reversed() where entry.urls.first?.lastPathComponent != "Archive.zip" {
+                    settings.stackMultiple = entry.isStack
+                    without.add(entry.files)
+                }
+                settings.stackMultiple = false
+                TrashState.shared.isFull = true
+                g("5", without)
+                TrashState.shared.isFull = false
+            }
+
             // Zweites Vorschau-GIF: Fotos als Stapel ablegen, eines in eine Präsentation ziehen,
             // eine Notiz in den Papierkorb und alles zurück (echter Kreislauf)
             if language == .english {
