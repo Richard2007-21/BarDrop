@@ -325,9 +325,10 @@ final class ViewSmokeTests: XCTestCase {
                 let a3 = ShelfActions(store: s3, ui: ui, settings: settings)
                 ui.selection = []; ui.openStack = nil; ui.memberSelection = []
                 TrashState.shared.isFull = false
-                // Ältestes zuerst: Archiv, Video, Notiz, Projekt, dann die Gruppe (oben)
+                // Ältestes zuerst: Archiv, Video, Notiz, dann die Gruppe (oben). Mit den zwei Bildern
+                // sind es sechs Kacheln, die ohne Rollen in die Ablage passen
                 settings.stackMultiple = false
-                s3.add([archive, video, notes, project].map { ShelfFile(url: $0, owned: false) })
+                s3.add([archive, video, notes].map { ShelfFile(url: $0, owned: false) })
                 settings.stackMultiple = true
                 settings.stackThreshold = 2
                 s3.add([photo, document].map { ShelfFile(url: $0, owned: false) })
