@@ -236,7 +236,9 @@ struct ShelfContent: View {
                                 ui: ui,
                                 onBandChanged: updateBand,
                                 onClick: { actions.clearCurrentSelection() },
-                                menu: { actions.backgroundMenu() }
+                                menu: { actions.backgroundMenu() },
+                                // Der Rahmen endet über der Aktionsleiste und ihrem Übergang
+                                bottomInset: barHeight + Self.barFade / 2
                             )
                         } })
                         .overlay(alignment: .topLeading) { bandOverlay }
@@ -250,7 +252,11 @@ struct ShelfContent: View {
                             .animation(.easeOut(duration: 0.15), value: scroll.scrolled)
                     }
                     .coordinateSpace(name: "viewport")
-                    .onAppear { viewportHeight = geo.size.height }
+                    .onAppear {
+                        viewportHeight = geo.size.height
+                        restoreScroll(proxy: proxy, viewport: geo.size.height)
+                    }
+                    .onDisappear { saveScroll() }
                     .onChange(of: geo.size.height) { _, height in viewportHeight = height }
                     .onPreferenceChange(ScrollOffsetKey.self) { scroll.offset = $0 }
                     // Pfeiltasten: Die ausgewählte Kachel bleibt ganz zu sehen, wie im Finder
@@ -260,10 +266,11 @@ struct ShelfContent: View {
                     }
                 }
 
+                // Flach gehalten: so viel Schwarz wie nötig unter den Symbolen, nicht mehr
                 QuickActionBar(settings: settings, ui: ui, store: store, actions: actions)
                     .padding(.horizontal, 10)
-                    .padding(.bottom, 12)
-                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+                    .padding(.top, 2)
                     .background(alignment: .bottom) { barBackdrop }
                     .background(
                         GeometryReader { g in
@@ -466,6 +473,38 @@ struct ShelfContent: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+
+    // MARK: An letzter Stelle öffnen
+
+    /// Beim Schließen: oberste sichtbare Kachel und ihre Lage merken
+    private func saveScroll() {
+        guard !shelfDemo else { return }
+        guard settings.reopenWhereLeft, scroll.scrolled else {
+            ui.savedScroll = nil
+            return
+        }
+        let offset = scroll.offset
+        let visible = tileFrames.filter { $0.value.maxY + offset > 0 }
+        guard let top = visible.min(by: { ($0.value.minY, $0.value.minX) < ($1.value.minY, $1.value.minX) }) else {
+            ui.savedScroll = nil
+            return
+        }
+        ui.savedScroll = (top.key, top.value.minY + offset, top.value.height)
+    }
+
+    /// Beim Öffnen: dieselbe Kachel wieder an dieselbe Stelle scrollen, ohne Bewegung
+    private func restoreScroll(proxy: ScrollViewProxy, viewport: CGFloat) {
+        guard !shelfDemo, settings.reopenWhereLeft, let saved = ui.savedScroll else { return }
+        let ids = stack.map { $0.files.map(\.id) } ?? actions.orderedEntries.map(\.id)
+        guard ids.contains(saved.id) else { return }
+        let span = viewport - saved.height
+        let anchor = UnitPoint(x: 0.5, y: span > 0 ? min(max(saved.top / span, 0), 1) : 0)
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { proxy.scrollTo(saved.id, anchor: anchor) }
+        }
     }
 
     // MARK: Mitscrollen

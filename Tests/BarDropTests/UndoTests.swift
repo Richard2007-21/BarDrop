@@ -80,12 +80,62 @@ final class UndoTests: XCTestCase {
         wait(for: [gone], timeout: 3)
     }
 
-    func testAutomaticRemovalIsNotUndoable() {
-        _ = addFiles()
+    /// Seit 1.30.0 Beta 15 lässt sich auch automatisches Entfernen widerrufen; eigene
+    /// Dateien bleiben dafür 15 Minuten erhalten
+    func testAutomaticRemovalIsUndoable() {
+        let (owned, _) = addFiles()
+        let order = store.entries.map(\.id)
         Thread.sleep(forTimeInterval: 0.05)
         store.removeExpired(olderThan: 0.01)    // alles gilt als abgelaufen
         XCTAssertTrue(store.entries.isEmpty)
-        XCTAssertFalse(store.undoManager.canUndo)
+        XCTAssertTrue(store.undoManager.canUndo)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: owned.url.path), "Eigene Datei bleibt erhalten")
+        store.undoManager.undo()
+        XCTAssertEqual(store.entries.map(\.id), order)
+        // Zurückgeholt zählt wie neu abgelegt: nicht gleich wieder entfernt
+        store.removeExpired(olderThan: 60)
+        XCTAssertEqual(store.entries.count, 2)
+    }
+
+    /// Papierkorb wie im Finder: ⌘Z legt die Datei an ihren alten Ort und in die Ablage zurück
+    func testTrashIsUndoable() throws {
+        let (_, user) = addFiles()
+        let trashed = expectation(description: "Papierkorb")
+        var count = 0
+        store.moveToTrash([user.url]) { n in
+            count = n
+            trashed.fulfill()
+        }
+        wait(for: [trashed], timeout: 15)
+        try XCTSkipIf(count == 0, "Kein Papierkorb in dieser Umgebung")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: user.url.path), "Datei liegt im Papierkorb")
+        XCTAssertFalse(store.entries.flatMap(\.files).contains { $0.id == user.id })
+        XCTAssertTrue(store.undoManager.canUndo)
+
+        let restored = store.undoLast()
+        XCTAssertTrue(restored.contains(user.id))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: user.url.path), "Datei wieder an ihrem Ort")
+        XCTAssertTrue(store.entries.flatMap(\.files).contains { $0.id == user.id })
+    }
+
+    func testFolderOperationLikeFinder() {
+        let (_, user) = addFiles()
+        let folder = base.appendingPathComponent("Ziel")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        XCTAssertEqual(ShelfActions.folderOperation(for: user.url, into: folder, modifiers: []), .move,
+                       "Dieselbe Platte: verschieben")
+        XCTAssertEqual(ShelfActions.folderOperation(for: user.url, into: folder, modifiers: .option), .copy,
+                       "⌥ kopiert immer")
+        XCTAssertEqual(ShelfActions.folderOperation(for: user.url, into: folder, modifiers: .command), .move,
+                       "⌘ verschiebt immer")
+    }
+
+    func testSystemLanguageFallsBackToEnglish() {
+        XCTAssertEqual(AppLanguage.systemLanguage(preferred: ["de-DE", "en-US"]), .german)
+        XCTAssertEqual(AppLanguage.systemLanguage(preferred: ["fr-FR"]), .english)
+        XCTAssertEqual(AppLanguage.systemLanguage(preferred: ["fr-FR", "de-AT"]), .german, "Wie macOS: erste Sprache, die BarDrop kann")
+        XCTAssertEqual(AppLanguage.systemLanguage(preferred: []), .english)
+        XCTAssertNotEqual(AppLanguage.system.resolved, .system)
     }
 
     func testOldestFirstReversesDisplayOrder() {

@@ -414,7 +414,8 @@ final class EdgeController: NSObject {
         else { animation = new > old ? style.peekIn : style.peekOut }
         withAnimation(animation) {
             ui.level = new
-            if new == .hidden { ui.openStack = nil }   // nächstes Öffnen zeigt wieder die ganze Ablage
+            // Nächstes Öffnen zeigt wieder die ganze Ablage, außer „An letzter Stelle öffnen“ ist an
+            if new == .hidden && !settings.reopenWhereLeft { ui.openStack = nil }
         }
         logic.level = new
         logic.levelSince = Date()
@@ -596,7 +597,7 @@ final class EdgeController: NSObject {
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 ui.level = .hidden
-                ui.openStack = nil
+                if !settings.reopenWhereLeft { ui.openStack = nil }
             }
             if wasExpanded && !ui.ownDragActive { resignFocus() }
             logic.level = .hidden

@@ -18,10 +18,12 @@ enum SettingsTheme {
     /// Seitenleiste und Inhalt über dem Schreibtisch (Farben von Klack). Dunkel wie bisher zu 64 % deckend;
     /// hell wie bei Apple: Seitenleiste leicht durchscheinend, Inhalt fast deckend, damit
     /// ein dunkler Schreibtisch die helle Fläche nicht grau eintrübt
+    /// Hell erst beim Zeichnen auflösen: `withAlphaComponent` auf einer Systemfarbe legt sie
+    /// sonst auf das Aussehen beim Start fest, und im hellen Modus blieb der Hintergrund dunkel.
     static let sidebarBackdrop = dynamic(dark: rgb(0.161, 0.165, 0.169, backdropOpacity),
-                                         light: NSColor.windowBackgroundColor.withAlphaComponent(0.8))
+                                         light: systemColor(.windowBackgroundColor, alpha: 0.8))
     static let contentBackdrop = dynamic(dark: rgb(0.192, 0.196, 0.2, backdropOpacity),
-                                         light: NSColor.windowBackgroundColor.withAlphaComponent(0.96))
+                                         light: systemColor(.windowBackgroundColor, alpha: 0.96))
     /// Karten
     static let card = dynamic(dark: rgb(0.184, 0.188, 0.188), light: .controlBackgroundColor)
     /// Gewählter Eintrag der Seitenleiste
@@ -69,6 +71,15 @@ enum SettingsTheme {
 
     private static func rgb(_ r: Double, _ g: Double, _ b: Double, _ a: Double = 1) -> NSColor {
         NSColor(srgbRed: r, green: g, blue: b, alpha: a)
+    }
+
+    /// Systemfarbe mit eigener Deckkraft, im hellen Aussehen aufgelöst
+    private static func systemColor(_ color: NSColor, alpha: CGFloat) -> NSColor {
+        var resolved = color
+        NSAppearance(named: .aqua)?.performAsCurrentDrawingAppearance {
+            resolved = color.usingColorSpace(.sRGB) ?? color
+        }
+        return resolved.withAlphaComponent(alpha)
     }
 
     private static func dynamic(dark: NSColor, light: NSColor) -> Color {
@@ -509,10 +520,12 @@ struct KlackSlider: View {
         let unit = step > 0 ? step : span / 10
         let count = Int((span / unit).rounded())
         guard count > 0 else { return [] }
+        // Gleichmäßig verteilt wie bei macOS: bei vielen Schritten weniger Punkte, aber nie
+        // ein zusätzlicher Punkt dicht am Ende (60 bis 200 in 4er-Schritten ergab zwei enge
+        // Punkte rechts)
         let every = max(1, Int((Double(count) / Double(maxTicks)).rounded(.up)))
-        var result = stride(from: 0, through: count, by: every).map { CGFloat(Double($0) / Double(count)) }
-        if result.last != 1 { result.append(1) }
-        return result
+        let intervals = every == 1 ? count : max(1, Int((Double(count) / Double(every)).rounded()))
+        return (0...intervals).map { CGFloat(Double($0) / Double(intervals)) }
     }
 
     var body: some View {

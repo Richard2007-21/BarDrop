@@ -58,9 +58,9 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 ## Funktionen
 
 **Ablage**
-* Links oder rechts, feste Höhe oder dort, wo der Zeiger den Rand erreicht (ganzer Rand, mittlere Hälfte oder mittleres Drittel)
+* Links oder rechts, feste Höhe oder dort, wo der Zeiger den Rand erreicht (ganzer Rand oder mittlere Hälfte)
 * Öffnet sofort oder nach 1 bis 5 Sekunden am Rand, per Klick oder per Kurzbefehl; ein Klick auf den Streifen überspringt die Wartezeit
-* Auf Wunsch größerer Trefferbereich, falls du den Streifen knapp verfehlst
+* Großzügiger Trefferbereich, du musst den Streifen nicht genau treffen
 * Apps ausnehmen, in denen der Rand die Ablage nicht öffnen soll, zum Beispiel Spiele, und auf Wunsch im Vollbild geschlossen bleiben
 * Auch schnell an den Rand geworfene Dateien werden sicher aufgenommen
 * Feiner heller Rahmen, damit sie auch auf dunklem Hintergrund zu sehen ist
@@ -72,18 +72,20 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Neue Bildschirmfotos landen auf Wunsch automatisch in der Ablage
 * Umwandeln per Rechtsklick: Bilder, PDF-Seiten, Textdokumente, Audio und Video, nur mit dem, was macOS mitbringt
 * Neueste oder älteste zuerst, Stapel, Auswahl wie im Finder
-* Versehentlich entfernt? `⌘Z` holt es zurück
+* Dateien aus dem Finder als Original oder als eigene Kopie
+* Versehentlich entfernt oder in den Papierkorb gelegt? `⌘Z` holt es zurück
 * Verschobene oder umbenannte Dateien bleiben in der Ablage, Dateien aus iCloud werden bei Bedarf geladen, Dateien von getrennten Laufwerken bleiben ausgegraut erhalten
-* Inhalt bleibt nach einem Neustart erhalten, auf Wunsch nach 1 bis 24 Stunden automatisch aufgeräumt
+* Inhalt bleibt nach einem Neustart erhalten, auf Wunsch nach 1 bis 24 Stunden automatisch aufgeräumt; auf Wunsch öffnet die Ablage an der letzten Stelle
 
 **Aktionsleiste**
 * AirDrop, Mail, Nachrichten, Teilen, Papierkorb, beliebige Ordner und Apps
 * Objekte darauf ziehen oder auswählen und anklicken
+* Ordner und Papierkorb wie im Finder: auf derselben Platte verschiebt ein Ordner, auf einer anderen kopiert er (`⌥` kopiert immer, `⌘` verschiebt immer)
 * Zwei Reihen mit je bis zu fünf Aktionen
 * Auf Wunsch Ordner und Apps per Ziehen auf die Ablage anheften und Aktionen durch Herausziehen entfernen
 
 **Einstellungen**
-* Englisch oder Deutsch
+* Englisch oder Deutsch, standardmäßig wie die Sprache des Systems
 * Kein Symbol in der Menüleiste: Rechtsklick in die Ablage für Einstellungen und Beenden
 
 ## Tastatur
@@ -98,7 +100,8 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 | `⌘X` | Ausschneiden: in die Zwischenablage und aus der Ablage |
 | `⌘C`, `⌥⌘C` | Kopieren, Pfad kopieren |
 | `⌘V` | Aus der Zwischenablage einfügen |
-| `⌫` | Auswahl entfernen, danach ist das nächste Objekt ausgewählt |
+| `⌫` | Auswahl aus der Ablage entfernen, danach ist das nächste Objekt ausgewählt |
+| `⌘⌫` | Auswahl in den Papierkorb legen |
 | `⌘Z`, `⇧⌘Z` | Widerrufen, wiederholen |
 | `⌘↑` | Zurück aus einem Stapel |
 | `⌘,` | Einstellungen |

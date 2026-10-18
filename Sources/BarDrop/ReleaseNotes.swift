@@ -18,7 +18,7 @@ final class ReleaseNotes: ObservableObject {
 
         /// Notizen in der gewählten Sprache, sonst in der anderen
         var lines: [String] {
-            AppSettings.shared.language == .german ? (notesGerman ?? notesEnglish ?? [])
+            AppSettings.shared.language.resolved == .german ? (notesGerman ?? notesEnglish ?? [])
                                                     : (notesEnglish ?? notesGerman ?? [])
         }
     }

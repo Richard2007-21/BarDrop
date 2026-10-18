@@ -105,8 +105,8 @@ final class ShelfPanel: NSPanel {
         case "q":
             NSApp.terminate(nil)
         default:
-            if event.keyCode == 51 { // ⌘⌫
-                if !event.isARepeat { actions.removeCurrentSelection() }
+            if event.keyCode == 51 || event.keyCode == 117 { // ⌘⌫: in den Papierkorb, wie im Finder
+                if !event.isARepeat { actions.trashCurrentSelection() }
                 return true
             }
             if event.keyCode == 126, actions.ui.openStack != nil { // ⌘↑: Stapel verlassen

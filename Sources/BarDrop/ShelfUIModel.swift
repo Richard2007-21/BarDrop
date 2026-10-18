@@ -35,6 +35,10 @@ final class ShelfUIModel: ObservableObject {
         scrollRequest = ScrollRequest(id: id, serial: (scrollRequest?.serial ?? 0) + 1)
     }
 
+    /// Scrollstand beim letzten Schließen („An letzter Stelle öffnen“): oberste sichtbare
+    /// Kachel und ihr Abstand zur Oberkante des sichtbaren Bereichs
+    var savedScroll: (id: UUID, top: CGFloat, height: CGFloat)?
+
     /// Ein Kontextmenü der Ablage ist geöffnet.
     var menuOpen = false
     /// Ein Teilen-Fenster (Picker) ist geöffnet.

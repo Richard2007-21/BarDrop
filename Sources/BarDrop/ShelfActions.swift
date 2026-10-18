@@ -315,7 +315,9 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     // MARK: Aktionsleiste
 
-    func perform(_ action: QuickAction, urls: [URL], anchor: NSView) {
+    /// `modifiers`: beim Klick bzw. Loslassen gedrückte Tasten (⌥ kopiert, ⌘ verschiebt)
+    func perform(_ action: QuickAction, urls: [URL], anchor: NSView,
+                 modifiers: NSEvent.ModifierFlags = NSEvent.modifierFlags) {
         guard !urls.isEmpty else {
             // Ohne Objekte: Ordner bzw. App öffnen
             if action.kind == .folder || action.kind == .app, let url = action.url {
@@ -338,22 +340,33 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             finishAction(urls)
         case .folder:
             guard let folder = action.url else { return }
-            move(urls, to: folder) { [weak self] moved in self?.finishAction(moved) }
+            file(urls, into: folder, modifiers: modifiers) { [weak self] used in self?.finishAction(used) }
         case .convert:
             break   // gibt es nicht mehr als Aktion
         case .trash:
-            // Wie im Finder: in den Papierkorb, von dort lässt es sich zurücklegen.
-            // Danach immer aus der Ablage, denn die Dateien sind dort nicht mehr.
-            NSWorkspace.shared.recycle(urls) { [weak self] trashed, error in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    if error != nil { NSSound.beep() }
-                    if !trashed.isEmpty { Sounds.trash() }
-                    self.ui.selection = []
-                    self.store.forgetFiles(at: Array(trashed.keys))
-                    self.store.pruneMissingFiles()
-                }
+            ui.selection = []
+            moveToTrash(urls)
+        }
+    }
+
+    /// Wie im Finder in den Papierkorb (Aktion, ⌘⌫ und Kontextmenü). Danach sind die
+    /// Dateien nicht mehr in der Ablage; ⌘Z legt sie zurück, auch an ihren alten Ort.
+    func moveToTrash(_ urls: [URL], then: @escaping () -> Void = {}) {
+        guard !urls.isEmpty else { return }
+        store.moveToTrash(urls) { [weak self] count in
+            defer { then() }
+            guard let self else { return }
+            if count < urls.count { NSSound.beep() }
+            guard count > 0 else { return }
+            Sounds.trash()
+            self.ui.selection.formIntersection(Set(self.store.entries.map(\.id)))
+            self.ui.memberSelection.formIntersection(Set(self.store.entries.flatMap(\.files).map(\.id)))
+            if let open = self.ui.openStack, !self.store.entries.contains(where: { $0.id == open }) {
+                self.closeStack()
             }
+            self.announce(count == 1 ? L("1 item moved to the Trash", "1 Objekt in den Papierkorb gelegt")
+                                     : L("\(count) items moved to the Trash", "\(count) Objekte in den Papierkorb gelegt"),
+                          canUndo: true)
         }
     }
 
@@ -417,26 +430,53 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         return true
     }
 
-    /// Verschiebt Dateien im Hintergrund in einen Ordner (über Laufwerksgrenzen hinweg
-    /// kann das dauern) und meldet ihre neuen Adressen auf dem Hauptthread.
-    private func move(_ urls: [URL], to folder: URL, completion: @escaping ([URL]) -> Void) {
+    /// Was die Ordner-Aktion mit einer Datei macht, wie beim Ablegen auf einen Ordner im
+    /// Finder: auf derselben Platte verschieben, sonst kopieren; ⌥ kopiert immer, ⌘
+    /// verschiebt immer.
+    static func folderOperation(for url: URL, into folder: URL,
+                                modifiers: NSEvent.ModifierFlags) -> NSDragOperation {
+        if modifiers.contains(.option) { return .copy }
+        if modifiers.contains(.command) { return .move }
+        return sameVolume(url, folder) ? .move : .copy
+    }
+
+    static func sameVolume(_ a: URL, _ b: URL) -> Bool {
+        let key: Set<URLResourceKey> = [.volumeIdentifierKey]
+        guard let va = (try? a.resourceValues(forKeys: key))?.volumeIdentifier,
+              let vb = (try? b.resourceValues(forKeys: key))?.volumeIdentifier else {
+            // Unbekannt: wie der Finder bei getrennten Platten lieber kopieren
+            return false
+        }
+        return va.isEqual(vb)
+    }
+
+    /// Legt Dateien im Hintergrund in einen Ordner (über Laufwerksgrenzen hinweg kann das
+    /// dauern) und meldet auf dem Hauptthread die verwendeten Objekte der Ablage:
+    /// verschobene unter ihrer neuen Adresse, kopierte unter ihrer alten.
+    private func file(_ urls: [URL], into folder: URL, modifiers: NSEvent.ModifierFlags,
+                      completion: @escaping ([URL]) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager()
             var moves: [(URL, URL)] = []
-            var unchanged: [URL] = []
+            var used: [URL] = []
             var failed = false
             for url in urls {
                 if url.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL {
-                    unchanged.append(url)
+                    used.append(url)     // liegt schon dort, wie im Finder: nichts tun
                     continue
                 }
                 let target = Self.uniqueURL(for: url.lastPathComponent, in: folder)
                 do {
-                    try fm.moveItem(at: url, to: target)
-                    moves.append((url, target))
+                    if Self.folderOperation(for: url, into: folder, modifiers: modifiers) == .copy {
+                        try fm.copyItem(at: url, to: target)
+                        used.append(url)
+                    } else {
+                        try fm.moveItem(at: url, to: target)
+                        moves.append((url, target))
+                    }
                 } catch {
                     failed = true
-                    Log.export.error("Verschieben fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+                    Log.export.error("Ablegen im Ordner fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
                 }
             }
             DispatchQueue.main.async {
@@ -444,7 +484,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 if failed { NSSound.beep() }
                 for (old, new) in moves { self.store.relocate(old, to: new) }
                 self.store.pruneMissingFiles()
-                completion(unchanged + moves.map(\.1))
+                completion(used + moves.map(\.1))
             }
         }
     }
@@ -584,7 +624,10 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         }
         menu.addItem(.separator())
         let title = multiple ? L("Remove \(targets.count) Items", "\(targets.count) Objekte entfernen") : L("Remove", "Entfernen")
-        menu.addItem(ClosureMenuItem(title, key: "\u{8}") { [weak self] in self?.remove(targets) })
+        menu.addItem(ClosureMenuItem(title, key: "\u{8}", modifiers: []) { [weak self] in self?.remove(targets) })
+        menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
+            self?.moveToTrash(urls)
+        })
         return menu
     }
 
@@ -598,8 +641,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         menu.addItem(ClosureMenuItem(files.count > 1 ? L("Take \(files.count) Items Out of Stack", "\(files.count) Objekte aus Stapel lösen") : L("Take Out of Stack", "Aus Stapel lösen")) { [weak self] in
             self?.detachMembers(files)
         })
-        menu.addItem(ClosureMenuItem(files.count > 1 ? L("Remove \(files.count) Items", "\(files.count) Objekte entfernen") : L("Remove", "Entfernen"), key: "\u{8}") { [weak self] in
+        menu.addItem(ClosureMenuItem(files.count > 1 ? L("Remove \(files.count) Items", "\(files.count) Objekte entfernen") : L("Remove", "Entfernen"), key: "\u{8}", modifiers: []) { [weak self] in
             self?.removeMembers(files)
+        })
+        menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
+            self?.moveToTrash(urls)
         })
         return menu
     }

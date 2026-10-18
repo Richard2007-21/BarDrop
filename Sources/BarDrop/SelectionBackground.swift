@@ -9,11 +9,16 @@ final class SelectionBackgroundNSView: NSView {
     var menuProvider: () -> NSMenu? = { nil }
     /// false: nur Klick und Rechtsklick, kein Auswahlrahmen (z. B. Kopfbereich)
     var allowsBand = true
+    /// So viel ist unten vom sichtbaren Bereich verdeckt (Aktionsleiste): Der Rahmen endet darüber
+    var bottomInset: CGFloat = 0
     weak var ui: ShelfUIModel?
 
     private var start: CGPoint?
     private var modifiers: NSEvent.ModifierFlags = []
     private var banding = false
+    /// Letzte Zeigerposition im Fenster, für das Weiterscrollen ohne Mausbewegung
+    private var lastWindowPoint: CGPoint?
+    private var scrollTimer: Timer?
 
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -30,11 +35,25 @@ final class SelectionBackgroundNSView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let start, allowsBand else { return }
-        autoscroll(with: event)
-        // Der Rahmen bleibt in der sichtbaren Ablage, auch wenn der Zeiger darüber hinausgeht
-        let raw = convert(event.locationInWindow, from: nil)
-        let area = visibleRect.insetBy(dx: 8, dy: 2)
+        guard start != nil, allowsBand else { return }
+        lastWindowPoint = event.locationInWindow
+        updateBand()
+        if banding { startScrollTimer() }
+    }
+
+    /// Sichtbarer Teil der Ablage, in dem der Rahmen bleibt: ohne die Aktionsleiste unten
+    private var bandArea: CGRect {
+        var area = visibleRect.insetBy(dx: 8, dy: 2)
+        area.size.height = max(0, area.height - bottomInset)
+        return area
+    }
+
+    /// Rahmen bis zum Zeiger, aber nie über den sichtbaren Bereich hinaus. Liegt der
+    /// Zeiger darüber oder darunter, scrollt die Ablage mit, wie im Finder.
+    private func updateBand() {
+        guard let start, let windowPoint = lastWindowPoint else { return }
+        let raw = convert(windowPoint, from: nil)
+        let area = bandArea
         let p = CGPoint(x: min(max(raw.x, area.minX), area.maxX),
                         y: min(max(raw.y, area.minY), area.maxY))
         if !banding && hypot(p.x - start.x, p.y - start.y) < 3 { return }
@@ -45,7 +64,47 @@ final class SelectionBackgroundNSView: NSView {
         onBandChanged(rect, modifiers)
     }
 
+    /// Scrollt, solange der Zeiger über oder unter dem sichtbaren Bereich steht
+    private func startScrollTimer() {
+        guard scrollTimer == nil else { return }
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            self?.scrollTowardsPointer()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        scrollTimer = timer
+    }
+
+    private func stopScrollTimer() {
+        scrollTimer?.invalidate()
+        scrollTimer = nil
+    }
+
+    private func scrollTowardsPointer() {
+        guard banding, let windowPoint = lastWindowPoint,
+              let clip = enclosingScrollView?.contentView, let document = clip.documentView else {
+            return stopScrollTimer()
+        }
+        let raw = convert(windowPoint, from: nil)
+        let area = bandArea
+        let overshoot: CGFloat
+        if raw.y > area.maxY { overshoot = raw.y - area.maxY }
+        else if raw.y < area.minY { overshoot = raw.y - area.minY }
+        else { return }
+        // Je weiter darüber hinaus, desto schneller, höchstens 18 pt pro Bild
+        let step = max(-18, min(18, overshoot / 3))
+        var origin = clip.bounds.origin
+        let maxY = max(0, document.frame.height - clip.bounds.height)
+        let flipped = clip.isFlipped
+        origin.y = min(max(origin.y + (flipped ? step : -step), 0), maxY)
+        guard origin != clip.bounds.origin else { return }
+        clip.scroll(to: origin)
+        enclosingScrollView?.reflectScrolledClipView(clip)
+        updateBand()
+    }
+
     override func mouseUp(with event: NSEvent) {
+        stopScrollTimer()
+        lastWindowPoint = nil
         if banding {
             onBandChanged(nil, modifiers)
             ui?.bandActive = false
@@ -74,6 +133,7 @@ struct SelectionBackground: NSViewRepresentable {
     var onClick: () -> Void
     var menu: () -> NSMenu?
     var allowsBand = true
+    var bottomInset: CGFloat = 0
 
     func makeNSView(context: Context) -> SelectionBackgroundNSView {
         let view = SelectionBackgroundNSView()
@@ -91,6 +151,7 @@ struct SelectionBackground: NSViewRepresentable {
         view.onClick = onClick
         view.menuProvider = menu
         view.allowsBand = allowsBand
+        view.bottomInset = bottomInset
     }
 }
 

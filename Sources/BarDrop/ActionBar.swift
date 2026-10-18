@@ -9,6 +9,8 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     var onDrop: (NSPasteboard, NSView) -> Void = { _, _ in }
     var onOwnDrop: ([URL], NSView) -> Void = { _, _ in }
     var onClick: (NSView) -> Void = { _ in }
+    /// Vorgang, den der Zeiger beim Drüberziehen zeigt (Ordner: verschieben oder kopieren)
+    var operation: (NSDraggingInfo) -> NSDragOperation = { _ in .copy }
     /// Herausziehen entfernt die Aktion (nur mit „Anheften in der Ablage“): Bild und Entfernen
     var dragOut: (image: () -> NSImage, remove: () -> Void)?
     /// Die Aktion wird gerade herausgezogen (ihr Platz in der Leiste wird blass)
@@ -95,12 +97,20 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         ui?.holdPinCandidate()
         onTargeted(true)
         Haptics.tap()
-        return .copy
+        return Self.allowed(operation(sender), by: sender.draggingSourceOperationMask)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         ui?.holdPinCandidate()
-        return .copy
+        return Self.allowed(operation(sender), by: sender.draggingSourceOperationMask)
+    }
+
+    /// Nur Vorgänge anzeigen, die die Quelle erlaubt. Verschieben ohne Erlaubnis zeigt
+    /// den Zeiger ohne Zeichen, wie der Finder beim Verschieben.
+    static func allowed(_ wanted: NSDragOperation, by mask: NSDragOperation) -> NSDragOperation {
+        if mask.contains(wanted) { return wanted }
+        if wanted == .move, mask.contains(.generic) { return .generic }
+        return mask.contains(.copy) ? .copy : .generic
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -134,6 +144,7 @@ struct ActionDropTarget: NSViewRepresentable {
     var onDrop: (NSPasteboard, NSView) -> Void
     var onOwnDrop: ([URL], NSView) -> Void
     var onClick: (NSView) -> Void
+    var operation: (NSDraggingInfo) -> NSDragOperation = { _ in .copy }
     var dragOut: (image: () -> NSImage, remove: () -> Void)? = nil
     var onDraggingOut: (Bool) -> Void = { _ in }
 
@@ -151,6 +162,7 @@ struct ActionDropTarget: NSViewRepresentable {
         view.onDrop = onDrop
         view.onOwnDrop = onOwnDrop
         view.onClick = onClick
+        view.operation = operation
         view.dragOut = dragOut
         view.onDraggingOut = onDraggingOut
     }
@@ -181,8 +193,7 @@ struct QuickActionIcon: View {
         // unten, ein Glanz an der Oberkante und ein leichter Schatten wie bei App-Symbolen
         let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
         return shape
-            .fill(LinearGradient(colors: [Color(red: 0.42, green: 0.78, blue: 1.0),
-                                          Color(red: 0.04, green: 0.46, blue: 0.98)],
+            .fill(LinearGradient(colors: AirDropColors.shared.gradient,
                                  startPoint: .top, endPoint: .bottom))
             .overlay(
                 shape.fill(LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0)],
@@ -202,6 +213,56 @@ struct QuickActionIcon: View {
     }
 }
 
+/// Farben des AirDrop-Symbols des Systems, oben und unten gemessen. Die Teilen-Kachel
+/// übernimmt sie, damit beide nebeneinander wie aus einem Guss aussehen, auch wenn
+/// Apple das Symbol mit einer neuen macOS-Version umfärbt.
+final class AirDropColors {
+    static let shared = AirDropColors()
+
+    /// Verlauf von oben nach unten
+    let gradient: [Color]
+
+    /// Ohne lesbares Symbol: das bisherige Blau von AirDrop
+    private static let fallback = [Color(red: 0.42, green: 0.78, blue: 1.0),
+                                   Color(red: 0.04, green: 0.46, blue: 0.98)]
+
+    private init() {
+        gradient = NSSharingService(named: .sendViaAirDrop)?.image
+            .flatMap(Self.measure) ?? Self.fallback
+    }
+
+    /// Mittlere Farbe der deckenden, farbigen Bildpunkte im oberen und unteren Viertel
+    /// (weiße Wellen und Glanz zählen nicht)
+    static func measure(_ image: NSImage) -> [Color]? {
+        let size = 48
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: NSRect(x: 0, y: 0, width: size, height: size))
+        NSGraphicsContext.restoreGraphicsState()
+
+        func average(rows: Range<Int>) -> Color? {
+            var r = 0.0, g = 0.0, b = 0.0, n = 0.0
+            for y in rows {
+                for x in 0..<size {
+                    guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB),
+                          c.alphaComponent > 0.9, c.saturationComponent > 0.35 else { continue }
+                    r += c.redComponent; g += c.greenComponent; b += c.blueComponent; n += 1
+                }
+            }
+            guard n > 20 else { return nil }
+            return Color(red: r / n, green: g / n, blue: b / n)
+        }
+        // colorAt zählt von oben
+        guard let top = average(rows: 0..<size / 4),
+              let bottom = average(rows: size * 3 / 4..<size) else { return nil }
+        return [top, bottom]
+    }
+}
+
 struct QuickActionButton: View {
     let action: QuickAction
     @ObservedObject var ui: ShelfUIModel
@@ -215,6 +276,20 @@ struct QuickActionButton: View {
     @State private var targeted = false
     /// Wird gerade herausgezogen: blass an ihrem Platz, wie ein Symbol im Dock
     @State private var draggingOut = false
+
+    /// Ordner: wie der Finder verschieben oder kopieren, sonst immer „Kopieren“
+    private func dropOperation(_ info: NSDraggingInfo) -> NSDragOperation {
+        guard action.kind == .folder, let folder = action.url else { return .copy }
+        let urls: [URL]
+        if info.draggingSource is DragSourceNSView {
+            urls = ui.draggedFileURLs
+        } else {
+            urls = (info.draggingPasteboard.readObjects(forClasses: [NSURL.self],
+                                                         options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+        }
+        guard let first = urls.first else { return .copy }
+        return ShelfActions.folderOperation(for: first, into: folder, modifiers: NSEvent.modifierFlags)
+    }
 
     /// Herausziehen entfernt die Aktion, wenn Anheften in der Ablage eingeschaltet ist
     private var dragOut: (image: () -> NSImage, remove: () -> Void)? {
@@ -260,16 +335,20 @@ struct QuickActionButton: View {
                 ui: ui,
                 onTargeted: { targeted = $0 },
                 onDrop: { pb, anchor in
+                    // Tasten beim Loslassen: ⌥ kopiert, ⌘ verschiebt (Ordner-Aktion)
+                    let modifiers = NSEvent.modifierFlags
                     let files = (pb.readObjects(forClasses: [NSURL.self],
                                                 options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
                     if !files.isEmpty && files.allSatisfy(ContentImporter.isUserFile) {
                         // Dateien aus dem Finder direkt verwenden
-                        DispatchQueue.main.async { actions.perform(action, urls: files, anchor: anchor) }
+                        DispatchQueue.main.async {
+                            actions.perform(action, urls: files, anchor: anchor, modifiers: modifiers)
+                        }
                     } else {
                         // Bilder aus dem Web, temporäre Dateien, Links, Text: zuerst in die
                         // Ablage übernehmen, dann ausführen
                         store.ingest(from: pb) { urls in
-                            actions.perform(action, urls: urls, anchor: anchor)
+                            actions.perform(action, urls: urls, anchor: anchor, modifiers: modifiers)
                         }
                     }
                 },
@@ -279,6 +358,7 @@ struct QuickActionButton: View {
                 onClick: { anchor in
                     actions.perform(action, urls: actions.selectedEntries.flatMap(\.urls), anchor: anchor)
                 },
+                operation: { info in dropOperation(info) },
                 dragOut: dragOut,
                 onDraggingOut: { value in
                     withAnimation(.easeOut(duration: 0.15)) { draggingOut = value }
@@ -332,7 +412,7 @@ struct QuickActionBar: View {
             }
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
         .onChange(of: ui.level) { _, level in
             if level != .expanded { ui.setPinCandidate(nil) }
         }

@@ -127,6 +127,37 @@ extension ShelfActions {
         }
     }
 
+    /// ⌘⌫ wie im Finder: Auswahl in den Papierkorb. Danach ist wie bei ⌫ das Objekt
+    /// dahinter ausgewählt.
+    func trashCurrentSelection() {
+        let urls = currentSelectionURLs
+        guard !urls.isEmpty else { return NSSound.beep() }
+        let removedIDs: Set<UUID>
+        let ids: [UUID]
+        if isInStack {
+            removedIDs = Set(selectedMembers.map(\.id))
+            ids = stackFiles.map(\.id)
+        } else {
+            removedIDs = Set(selectedEntries.map(\.id))
+            ids = orderedEntries.map(\.id)
+        }
+        let next = Self.neighbor(of: removedIDs, in: ids)
+        let inStack = isInStack
+        // Erst nachdem der Papierkorb geantwortet hat, steht fest, was noch da ist
+        moveToTrash(urls) { [weak self] in
+            guard let self, let next else { return }
+            if inStack {
+                guard self.stackFiles.contains(where: { $0.id == next }), self.ui.memberSelection.isEmpty else { return }
+                self.ui.memberSelection = [next]
+                self.ui.memberAnchor = next
+            } else {
+                guard self.orderedEntries.contains(where: { $0.id == next }), self.ui.selection.isEmpty else { return }
+                self.ui.selection = [next]
+                self.ui.selectionAnchor = next
+            }
+        }
+    }
+
     /// ⌘X wie Strg+X unter Windows: in die Zwischenablage und aus der Ablage nehmen.
     /// Eigene Dateien (Bilder aus dem Web, Kopien) bleiben erhalten, solange sich das
     /// Entfernen mit ⌘Z widerrufen lässt, damit das Einfügen im Finder klappt.

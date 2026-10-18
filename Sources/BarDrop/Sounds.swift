@@ -2,12 +2,15 @@ import AppKit
 
 /// Klänge wie im Finder.
 enum Sounds {
-    /// Klang des Finders beim Bewegen in den Papierkorb. Liegt bei macOS; fehlt er, bleibt
-    /// es still.
-    private static let trashURL = URL(fileURLWithPath:
-        "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/finder/move to trash.aif")
+    private static let systemSounds = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/"
 
-    private static let trashSound: NSSound? = NSSound(contentsOf: trashURL, byReference: true)
+    /// Klang von macOS beim Ziehen auf den Papierkorb und bei ⌘⌫ (kurz, aus dem Dock).
+    /// Der längere „move to trash“ des Finders ist nur der Rückfall, falls er fehlt;
+    /// fehlen beide, bleibt es still.
+    private static let trashSound: NSSound? = ["dock/drag to trash.aif", "finder/move to trash.aif"]
+        .lazy
+        .compactMap { NSSound(contentsOf: URL(fileURLWithPath: systemSounds + $0), byReference: true) }
+        .first
 
     /// Beim Entfernen aus der Ablage und beim Bewegen in den Papierkorb. Wie der Finder nur,
     /// wenn unter Systemeinstellungen → Ton „Toneffekte der Benutzeroberfläche“ an ist.

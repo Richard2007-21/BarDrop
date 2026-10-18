@@ -130,30 +130,21 @@ struct SettingsRoot: View {
     private var sidebar: some View {
         ZStack(alignment: .top) {
             Color.clear
+            // Alle Bereiche in einer Gruppe, „Über BarDrop“ ganz unten ohne eigene Überschrift
             VStack(alignment: .leading, spacing: 0) {
                 row(.general)
-                header(L("Settings", "Einstellungen"))
                 row(.opening)
                 row(.appearance)
                 row(.items)
                 row(.actions)
                 row(.keyboard)
-                header("BarDrop")
+                Spacer(minLength: 12)
                 row(.about)
-                Spacer()
             }
             .padding(.horizontal, 13)
             .padding(.top, 56)
+            .padding(.bottom, 13)
         }
-    }
-
-    private func header(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.leading, 8)
-            .padding(.top, 21)
-            .padding(.bottom, 7)
     }
 
     private func row(_ item: SettingsPane) -> some View {

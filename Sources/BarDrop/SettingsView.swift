@@ -151,16 +151,15 @@ struct ShortcutRow: View {
 
 // MARK: Öffnen
 
-/// Wo am Rand die Ablage erscheint (fasst „adaptiv“ und „mittleres Drittel“ zusammen)
+/// Wo am Rand die Ablage erscheint (fasst „adaptiv“ und „mittlere Hälfte“ zusammen)
 private enum HeightMode: String, CaseIterable, Identifiable {
-    case fixed, adaptive, middleHalf, middleThird
+    case fixed, adaptive, middleHalf
     var id: String { rawValue }
     var title: String {
         switch self {
         case .fixed: return L("Fixed", "Fest")
         case .adaptive: return L("Follows pointer", "Am Zeiger")
         case .middleHalf: return L("Follows pointer, middle half", "Am Zeiger, nur mittlere Hälfte")
-        case .middleThird: return L("Follows pointer, middle third", "Am Zeiger, nur mittleres Drittel")
         }
     }
 }
@@ -173,13 +172,12 @@ struct OpeningSettings: View {
         Binding(
             get: {
                 guard settings.adaptivePosition else { return .fixed }
-                guard settings.adaptiveMiddleThird else { return .adaptive }
-                return settings.adaptiveZoneHalf ? .middleHalf : .middleThird
+                return settings.adaptiveMiddleThird ? .middleHalf : .adaptive
             },
             set: { mode in
                 settings.adaptivePosition = mode != .fixed
-                settings.adaptiveMiddleThird = mode == .middleHalf || mode == .middleThird
-                if mode == .middleHalf || mode == .middleThird { settings.adaptiveZoneHalf = mode == .middleHalf }
+                settings.adaptiveMiddleThird = mode == .middleHalf
+                if mode == .middleHalf { settings.adaptiveZoneHalf = true }
             }
         )
     }
@@ -211,8 +209,6 @@ struct OpeningSettings: View {
                                   "Mit Wartezeit öffnet ein Klick auf den Streifen die Ablage sofort."),
                           selection: $settings.openChoice,
                           options: OpenChoice.all.map { ($0, $0.title) })
-                ToggleRow(L("Larger hit area", "Größerer Trefferbereich"),
-                          isOn: $settings.generousHitArea)
                 PickerRow(L("While dragging files", "Beim Ziehen von Dateien"), selection: $settings.dragReveal,
                           options: DragReveal.allCases.map { ($0, $0.title) })
                 ToggleRow(L("Open in full screen", "Im Vollbild öffnen"),
@@ -252,7 +248,7 @@ struct AppearanceSettings: View {
     var body: some View {
         SettingsPage {
             SettingsSection(L("Size", "Größe")) {
-                SliderRow(L("Width", "Breite"), value: $settings.shelfWidth, range: 240...400, step: 10,
+                SliderRow(L("Width", "Breite"), value: $settings.shelfWidth, range: 220...400, step: 10,
                           format: SliderRow.points)
                 SliderRow(L("Height", "Höhe"), value: $settings.shelfHeight, range: 280...680, step: 10,
                           format: SliderRow.points)
@@ -336,6 +332,18 @@ private struct ScreenPreview: View {
 
 // MARK: Objekte
 
+/// Dateien aus dem Finder: auf das Original zeigen oder eine eigene Kopie behalten
+private enum FinderFiles: String, CaseIterable, Identifiable {
+    case original, copy
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .original: return L("Use original", "Original verwenden")
+        case .copy: return L("Keep a copy", "Kopie behalten")
+        }
+    }
+}
+
 /// Was nach dem Verwenden eines Objekts passiert (fasst zwei Schalter zusammen)
 private enum AfterUse: String, CaseIterable, Identifiable {
     case keep, afterActions, always
@@ -365,6 +373,11 @@ struct ItemSettings: View {
                     settings.stackMultiple = value > 0
                     if value > 0 { settings.stackThreshold = value }
                 })
+    }
+
+    private var finderFiles: Binding<FinderFiles> {
+        Binding(get: { settings.copyAllFiles ? .copy : .original },
+                set: { settings.copyAllFiles = $0 == .copy })
     }
 
     private var afterUse: Binding<AfterUse> {
@@ -407,6 +420,10 @@ struct ItemSettings: View {
                                   "Werden so viele Objekte auf einmal abgelegt, entsteht ein Stapel. Du kannst auch mehrere Objekte auswählen und per Rechtsklick „Als Stapel zusammenfassen“ wählen. Ein Klick öffnet einen Stapel."),
                           selection: stackFrom,
                           options: [(0, L("Never", "Nie"))] + (2...10).map { ($0, L("From \($0) items", "Ab \($0) Objekten")) })
+                ToggleRow(L("Open where you left off", "An letzter Stelle öffnen"),
+                          info: L("The shelf opens at the same scroll position and in the stack you were last in.",
+                                  "Die Ablage öffnet an derselben Scrollposition und in dem Stapel, in dem du zuletzt warst."),
+                          isOn: $settings.reopenWhereLeft)
             }
 
             SettingsSection(L("Using items", "Verwenden"), info: afterUseNote) {
@@ -421,15 +438,19 @@ struct ItemSettings: View {
             }
 
             SettingsSection(L("Storage", "Speichern"),
-                            info: L("Without a copy, files from the Finder are only linked and are found again even after you move or rename them. Images from the web are always stored; WebP, AVIF and HEIC can be saved as PNG or JPEG.",
-                                    "Ohne Kopie werden Dateien aus dem Finder nur verknüpft und auch nach dem Verschieben oder Umbenennen wiedergefunden. Bilder aus dem Web werden immer gespeichert, WebP, AVIF und HEIC auf Wunsch als PNG oder JPEG.")) {
-                ToggleRow(L("Always store a copy", "Immer eine Kopie anlegen"), isOn: $settings.copyAllFiles)
+                            info: L("Images from the web, text, links and files from browsers or other apps are always stored in BarDrop. WebP, AVIF and HEIC can be saved as PNG or JPEG.",
+                                    "Bilder aus dem Web, Texte, Links und Dateien aus Browsern oder anderen Apps werden immer in BarDrop gespeichert. WebP, AVIF und HEIC auf Wunsch als PNG oder JPEG.")) {
+                PickerRow(L("Files from the Finder", "Dateien aus dem Finder"),
+                          info: L("Use original: The shelf points to your file, so you always get the latest version when you drag it out. Keep a copy: The shelf stores its own copy. It stays as it was when you dropped it, even if you change or delete the original.",
+                                  "Original verwenden: Die Ablage zeigt auf deine Datei. Beim Herausziehen bekommst du immer die aktuelle Fassung. Kopie behalten: Die Ablage speichert eine eigene Kopie. Sie bleibt so, wie sie beim Ablegen war, auch wenn du das Original änderst oder löschst."),
+                          selection: finderFiles,
+                          options: FinderFiles.allCases.map { ($0, $0.title) })
                 ToggleRow(L("Save web images as PNG or JPEG", "Bilder aus dem Web als PNG oder JPEG speichern"), isOn: $settings.convertWebImages)
             }
 
             SettingsSection(L("Cleanup", "Aufräumen"),
-                            info: L("Files from the Finder are never deleted when you remove them. Copies, images, links and text that only exist in BarDrop are deleted 15 minutes after you drag them out or use them in an action, and otherwise once removing them can no longer be undone with ⌘Z.",
-                                    "Dateien aus dem Finder bleiben beim Entfernen erhalten. Kopien, Bilder, Links und Texte, die nur in BarDrop liegen, werden 15 Minuten nach dem Herausziehen oder einer Aktion gelöscht, sonst sobald sich das Entfernen nicht mehr mit ⌘Z widerrufen lässt.")) {
+                            info: L("Removing an item (⌫) never deletes a file from the Finder. Copies, images, links and text that only exist in BarDrop are deleted 15 minutes after you drag them out, use them in an action or they are removed automatically, and otherwise once removing them can no longer be undone with ⌘Z. Move to Trash (⌘⌫) puts files in the Trash; ⌘Z puts them back.",
+                                    "Entfernen (⌫) löscht nie eine Datei aus dem Finder. Kopien, Bilder, Links und Texte, die nur in BarDrop liegen, werden 15 Minuten nach dem Herausziehen, einer Aktion oder dem automatischen Entfernen gelöscht, sonst sobald sich das Entfernen nicht mehr mit ⌘Z widerrufen lässt. „In den Papierkorb legen“ (⌘⌫) legt Dateien in den Papierkorb, ⌘Z legt sie zurück.")) {
                 PickerRow(L("Remove automatically", "Automatisch entfernen"), selection: autoRemove,
                           options: AutoRemoveOption.allCases.map { ($0, $0.title) })
                 SettingsRow(L("Remove all items", "Alle Objekte entfernen")) {

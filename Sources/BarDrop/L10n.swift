@@ -4,6 +4,9 @@ import Foundation
 /// Einstellungen wählen. Die Texte stehen direkt im Code nebeneinander
 /// (`L("English", "Deutsch")`), damit beide Fassungen immer zusammen gepflegt werden.
 enum AppLanguage: String, CaseIterable, Identifiable {
+    /// Wie macOS: die erste der bevorzugten Sprachen des Systems, die BarDrop kann,
+    /// sonst Englisch
+    case system = "system"
     case english = "en"
     case german = "de"
 
@@ -12,12 +15,29 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     /// Jeweils in der eigenen Sprache, damit man die eigene immer findet
     var title: String {
         switch self {
+        case .system: return L("System", "Wie System")
         case .english: return "English"
         case .german: return "Deutsch"
         }
     }
 
-    var locale: Locale { Locale(identifier: self == .german ? "de_DE" : "en_US") }
+    /// Die tatsächlich verwendete Sprache (nie `.system`)
+    var resolved: AppLanguage {
+        self == .system ? Self.systemLanguage() : self
+    }
+
+    /// Sprache für „Wie System“, nach den bevorzugten Sprachen in den Systemeinstellungen
+    static func systemLanguage(preferred: [String] = Locale.preferredLanguages) -> AppLanguage {
+        for identifier in preferred {
+            let code = Locale(identifier: identifier).language.languageCode?.identifier
+                ?? String(identifier.prefix(2))
+            if code == "de" { return .german }
+            if code == "en" { return .english }
+        }
+        return .english
+    }
+
+    var locale: Locale { Locale(identifier: resolved == .german ? "de_DE" : "en_US") }
 
     /// Aktuelle Sprache, auch aus Hintergrund-Threads sicher lesbar (z. B. beim
     /// Benennen neu übernommener Dateien). Gesetzt von `AppSettings`.

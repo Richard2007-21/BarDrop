@@ -230,7 +230,7 @@ enum ShelfDefaults {
     static let adaptiveZoneHalf = true
     static let displayMode = DisplayMode.all
     static let width = 240.0
-    static let height = 380.0
+    static let height = 340.0
     static let iconSize = 64.0
     static let actionIconSize = 34.0
 }
@@ -274,6 +274,7 @@ final class AppSettings: ObservableObject {
         static let openDelay = "openDelay"
         static let language = "language"
         static let generousHitArea = "generousHitArea"
+        static let reopenWhereLeft = "reopenWhereLeft"
         static let twoActionRows = "twoActionRows"
         static let actionRowSplit = "actionRowSplit"
         static let pinFromShelf = "pinFromShelf"
@@ -375,12 +376,15 @@ final class AppSettings: ObservableObject {
     /// Sprache der Oberfläche
     @Published var language: AppLanguage {
         didSet {
-            AppLanguage.current = language
+            AppLanguage.current = language.resolved
             defaults.set(language.rawValue, forKey: Key.language)
         }
     }
-    /// Etwas größerer Bereich um Streifen und Griff, in dem der Zeiger noch zählt
-    @Published var generousHitArea: Bool { didSet { defaults.set(generousHitArea, forKey: Key.generousHitArea) } }
+    /// Etwas größerer Bereich um Streifen und Griff, in dem der Zeiger noch zählt.
+    /// Seit 1.30.0 Beta 15 immer an, nicht mehr einstellbar.
+    var generousHitArea: Bool { true }
+    /// Beim Öffnen dort weitermachen, wo man aufgehört hat: offener Stapel und Scrollstand bleiben
+    @Published var reopenWhereLeft: Bool { didSet { defaults.set(reopenWhereLeft, forKey: Key.reopenWhereLeft) } }
     /// Aktionsleiste in zwei Reihen mit je bis zu fünf Aktionen
     @Published var twoActionRows: Bool { didSet { defaults.set(twoActionRows, forKey: Key.twoActionRows) } }
     /// Zwei Reihen: so viele Aktionen (vorne in `quickActions`) stehen in der oberen Reihe
@@ -498,20 +502,20 @@ final class AppSettings: ObservableObject {
             Key.keepAfterAction: false,
             Key.animationStyle: AnimationStyle.standard.rawValue,
             Key.openMode: OpenMode.automatic.rawValue,
-            Key.autoRemoveAfter: AutoRemoveOption.h2.rawValue,
+            Key.autoRemoveAfter: AutoRemoveOption.never.rawValue,
             Key.convertWebImages: true,
-            Key.copyAllFiles: true,
+            Key.copyAllFiles: false,
             Key.dragOutCopyOnly: false,
             Key.sortOrder: SortOrder.newestFirst.rawValue,
             Key.showOutline: true,
             Key.showTitle: true,
             Key.openDelay: OpenDelay.instant,
-            Key.language: AppLanguage.english.rawValue,
-            Key.generousHitArea: true,
+            Key.language: AppLanguage.system.rawValue,
+            Key.reopenWhereLeft: false,
             Key.twoActionRows: false,
             Key.pinFromShelf: true,
             Key.addScreenshots: false,
-            Key.openInFullScreen: true,
+            Key.openInFullScreen: false,
             Key.showActionLabels: true,
             Key.betaUpdates: false,
             Key.tileIconSize: ShelfDefaults.iconSize,
@@ -526,6 +530,10 @@ final class AppSettings: ObservableObject {
         verticalPosition = defaults.double(forKey: Key.verticalPosition)
         adaptivePosition = defaults.bool(forKey: Key.adaptivePosition)
         adaptiveMiddleThird = defaults.bool(forKey: Key.adaptiveMiddleThird)
+        // „Am Zeiger, nur mittleres Drittel“ gibt es nicht mehr: wird zur mittleren Hälfte
+        if defaults.object(forKey: Key.adaptiveZoneHalf) as? Bool == false {
+            defaults.removeObject(forKey: Key.adaptiveZoneHalf)
+        }
         adaptiveZoneHalf = defaults.bool(forKey: Key.adaptiveZoneHalf)
         displayMode = DisplayMode(rawValue: defaults.string(forKey: Key.displayMode) ?? "") ?? ShelfDefaults.displayMode
         shelfWidth = defaults.double(forKey: Key.shelfWidth)
@@ -575,10 +583,12 @@ final class AppSettings: ObservableObject {
         // Auf eine der wählbaren Wartezeiten runden (ältere Versionen hatten andere)
         let storedDelay = defaults.double(forKey: Key.openDelay)
         openDelay = OpenDelay.choices.min { abs($0 - storedDelay) < abs($1 - storedDelay) } ?? OpenDelay.instant
-        let storedLanguage = AppLanguage(rawValue: defaults.string(forKey: Key.language) ?? "") ?? .english
+        let storedLanguage = AppLanguage(rawValue: defaults.string(forKey: Key.language) ?? "") ?? .system
         language = storedLanguage
-        AppLanguage.current = storedLanguage
-        generousHitArea = defaults.bool(forKey: Key.generousHitArea)
+        AppLanguage.current = storedLanguage.resolved
+        // „Größerer Trefferbereich“ ist immer an: alten Wert aufräumen
+        defaults.removeObject(forKey: Key.generousHitArea)
+        reopenWhereLeft = defaults.bool(forKey: Key.reopenWhereLeft)
         // Zwei Reihen gibt es immer: Eine leere untere Reihe ist einfach nicht zu sehen
         twoActionRows = true
         actionRowSplit = defaults.integer(forKey: Key.actionRowSplit)
@@ -654,13 +664,13 @@ final class AppSettings: ObservableObject {
         animationStyle = .standard
         openMode = .automatic
         openDelay = OpenDelay.instant
-        generousHitArea = true
+        reopenWhereLeft = false
         twoActionRows = true
         actionRowSplit = QuickAction.perRow
         pinFromShelf = true
         addScreenshots = false
         excludedApps = []
-        openInFullScreen = true
+        openInFullScreen = false
         showActionLabels = true
         showOutline = true
         titleStyle = .bardrop
@@ -668,9 +678,9 @@ final class AppSettings: ObservableObject {
         stackMultiple = true
         stackThreshold = 2
         keepAfterAction = false
-        autoRemoveAfter = AutoRemoveOption.h2.rawValue
+        autoRemoveAfter = AutoRemoveOption.never.rawValue
         convertWebImages = true
-        copyAllFiles = true
+        copyAllFiles = false
         dragOutCopyOnly = false
         sortOrder = .newestFirst
         quickActions = QuickAction.defaults

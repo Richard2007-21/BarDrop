@@ -141,11 +141,14 @@ final class ShelfRemoval {
     let fileIDs: Set<UUID>
     /// Eigene Dateien, die bis zum Verfall des Widerrufens aufgehoben werden
     let heldFiles: [ShelfFile]
+    /// In den Papierkorb gelegt: alter Ort → Ort im Papierkorb. Widerrufen legt sie zurück.
+    let trashed: [URL: URL]
 
-    init(items: [Item], fileIDs: Set<UUID>, heldFiles: [ShelfFile]) {
+    init(items: [Item], fileIDs: Set<UUID>, heldFiles: [ShelfFile], trashed: [URL: URL] = [:]) {
         self.items = items
         self.fileIDs = fileIDs
         self.heldFiles = heldFiles
+        self.trashed = trashed
     }
 }
 
@@ -422,13 +425,13 @@ final class ShelfStore: ObservableObject {
         takeOut(ids, undoable: true)
     }
 
-    /// Entfernt Einträge, die älter als `interval` Sekunden sind. Nicht widerrufbar:
-    /// Das passiert von selbst, nicht durch eine Handlung des Nutzers.
+    /// Entfernt Einträge, die älter als `interval` Sekunden sind. Widerrufbar wie
+    /// Entfernen von Hand; eigene Dateien werden erst nach 15 Minuten gelöscht.
     func removeExpired(olderThan interval: TimeInterval) {
         guard interval > 0 else { return }
         let cutoff = Date().addingTimeInterval(-interval)
         let expired = entries.filter { $0.added < cutoff }.flatMap(\.files).map(\.id)
-        if !expired.isEmpty { takeOut(Set(expired), undoable: false) }
+        if !expired.isEmpty { takeOut(Set(expired), undoable: true, deleteOwnedAfter: 15 * 60) }
     }
 
     /// Entfernt alles (widerrufbar).
@@ -489,6 +492,29 @@ final class ShelfStore: ObservableObject {
         takeOut(Set(ids), undoable: false)
     }
 
+    /// Legt Dateien wie der Finder in den Papierkorb und nimmt sie aus der Ablage.
+    /// ⌘Z legt sie an ihren alten Ort zurück und wieder in die Ablage. `completion`
+    /// liefert, wie viele Dateien im Papierkorb gelandet sind.
+    func moveToTrash(_ urls: [URL], completion: @escaping (Int) -> Void = { _ in }) {
+        guard !urls.isEmpty else { return completion(0) }
+        NSWorkspace.shared.recycle(urls) { [weak self] trashed, error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let error {
+                    Log.store.error("Papierkorb fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+                }
+                let mapping = Dictionary(trashed.map { ($0.key.standardizedFileURL, $0.value) },
+                                         uniquingKeysWith: { first, _ in first })
+                let ids = self.entries.flatMap(\.files)
+                    .filter { mapping[$0.url.standardizedFileURL] != nil }.map(\.id)
+                if !ids.isEmpty {
+                    self.takeOut(Set(ids), undoable: true, trashed: mapping)
+                }
+                completion(mapping.count)
+            }
+        }
+    }
+
     // MARK: Entfernen und Widerrufen
 
     /// Gemeinsamer Weg für alles, was aus der Ablage genommen wird.
@@ -497,7 +523,8 @@ final class ShelfStore: ObservableObject {
     /// (`undoDepth` neuere Entfernungen, Beenden der App) oder `delay` abgelaufen ist.
     /// Nicht widerrufbar: Eigene Dateien werden sofort gelöscht.
     @discardableResult
-    private func takeOut(_ fileIDs: Set<UUID>, undoable: Bool, deleteOwnedAfter delay: TimeInterval? = nil) -> ShelfRemoval? {
+    private func takeOut(_ fileIDs: Set<UUID>, undoable: Bool, deleteOwnedAfter delay: TimeInterval? = nil,
+                         trashed: [URL: URL] = [:]) -> ShelfRemoval? {
         guard !fileIDs.isEmpty else { return nil }
         var items: [ShelfRemoval.Item] = []
         var removed: [ShelfFile] = []
@@ -517,7 +544,8 @@ final class ShelfStore: ObservableObject {
         guard !removed.isEmpty else { return nil }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { entries = updated }
 
-        let owned = removed.filter(\.owned)
+        // Im Papierkorb liegende eigene Dateien gehören jetzt dem Papierkorb: nichts löschen
+        let owned = removed.filter { $0.owned && trashed[$0.url.standardizedFileURL] == nil }
         guard undoable else {
             deleteOwnedFiles(owned)
             return nil
@@ -531,12 +559,16 @@ final class ShelfStore: ObservableObject {
             }
         }
         let removal = ShelfRemoval(items: items, fileIDs: Set(removed.map(\.id)),
-                                   heldFiles: delay == nil ? owned : [])
+                                   heldFiles: delay == nil ? owned : [], trashed: trashed)
         removals.append(removal)
         undoManager.registerUndo(withTarget: removal) { [weak self] removal in
             self?.undo(removal)
         }
-        undoManager.setActionName(removed.count == 1 ? L("Remove", "Entfernen") : L("Remove \(removed.count) Items", "\(removed.count) Objekte entfernen"))
+        if trashed.isEmpty {
+            undoManager.setActionName(removed.count == 1 ? L("Remove", "Entfernen") : L("Remove \(removed.count) Items", "\(removed.count) Objekte entfernen"))
+        } else {
+            undoManager.setActionName(L("Move to Trash", "In den Papierkorb legen"))
+        }
         while removals.count > Self.undoDepth {
             expire(removals.removeFirst())
         }
@@ -546,6 +578,7 @@ final class ShelfStore: ObservableObject {
     /// Legt entfernte Dateien zurück an ihren alten Platz. Registriert das Wiederholen.
     private func undo(_ removal: ShelfRemoval) {
         removals.removeAll { $0 === removal }
+        putBackFromTrash(removal.trashed)
         let present = Set(entries.flatMap { $0.files.map(\.id) })
         var updated = entries
         var restored = Set<UUID>()
@@ -578,8 +611,33 @@ final class ShelfStore: ObservableObject {
         guard !restored.isEmpty else { return }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) { entries = updated }
         lastRestoredFileIDs = restored
-        undoManager.registerUndo(withTarget: self) { store in
-            store.takeOut(restored, undoable: true)
+        if removal.trashed.isEmpty {
+            undoManager.registerUndo(withTarget: self) { store in
+                store.takeOut(restored, undoable: true)
+            }
+        } else {
+            // Wiederholen legt die Dateien erneut in den Papierkorb
+            let urls = updated.flatMap(\.files).filter { restored.contains($0.id) }.map(\.url)
+            undoManager.registerUndo(withTarget: self) { store in
+                store.moveToTrash(urls)
+                Sounds.trash()
+            }
+            undoManager.setActionName(L("Move to Trash", "In den Papierkorb legen"))
+        }
+    }
+
+    /// Legt Dateien aus dem Papierkorb an ihren alten Ort zurück, wie „Zurücklegen“ im
+    /// Finder. Schon im Finder zurückgelegte oder endgültig gelöschte bleiben, wie sie sind.
+    private func putBackFromTrash(_ trashed: [URL: URL]) {
+        let fm = FileManager.default
+        for (original, inTrash) in trashed {
+            guard fm.fileExists(atPath: inTrash.path), !fm.fileExists(atPath: original.path) else { continue }
+            do {
+                try fm.createDirectory(at: original.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try fm.moveItem(at: inTrash, to: original)
+            } catch {
+                Log.store.error("Zurücklegen fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
