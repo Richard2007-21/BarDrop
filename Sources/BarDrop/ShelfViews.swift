@@ -91,7 +91,10 @@ struct ShelfRootView: View {
                 ShelfContent(ui: ui, store: store, settings: settings, actions: actions)
                     .frame(width: full.width, height: full.height)
                     .padding(.vertical, full.fillet)
-                    .transition(.blurFade(settings.animationStyle.blur))
+                    // Während etwas aus der Ablage gezogen wird, nur überblenden: Die Unschärfe
+                    // wird in jedem Bild neu berechnet und bremst die App, die das gezogene Bild
+                    // bewegt (Ruckeln beim Herausziehen, wenn die Ablage zu- und aufgeht)
+                    .transition(.blurFade(ui.ownDragActive ? 0 : settings.animationStyle.blur))
             }
         }
         .frame(width: m.width, height: m.height + 2 * m.fillet, alignment: edgeAlignment)
