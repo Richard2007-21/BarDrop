@@ -61,7 +61,10 @@ final class ScreenshotWatcher {
         if !query.start() {
             Log.importing.error("Bildschirmfotos: Spotlight-Abfrage ließ sich nicht starten")
             Diagnostics.shared.failure("screenshots", "Spotlight-Abfrage ließ sich nicht starten")
-            stop()
+            // Nur Spotlight aufgeben: Der Ordner wird weiter beobachtet (das ist der zweite Weg).
+            // `query` bleibt gesetzt, damit `start` den Ordner nicht ein zweites Mal öffnet.
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
         }
     }
 
