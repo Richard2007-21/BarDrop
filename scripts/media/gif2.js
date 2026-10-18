@@ -145,7 +145,10 @@ window.render=function(real){
   // Folie: Bild nach dem Ablegen, ⌘Z in der Präsentation nimmt es wieder weg
   let ph=0; if(t>=6.25&&t<14.0) ph=seg(t,6.25,6.4)*(1-seg(t,14.0,14.12));
   $('photo').style.opacity=ph; $('thph').style.opacity=ph;
-  $('ph').classList.toggle('hot', t>=5.85&&t<6.25);
+  // Das Bildfeld reagiert auf jedes gezogene Bild, auch wenn die Fotos nur darüber hinweggezogen werden
+  const overPH = px>=441&&px<=569&&py>=175&&py<=271;
+  const dragging = (t>=2.35&&t<3.6) || (t>=4.9&&t<6.25);
+  $('ph').classList.toggle('hot', dragging&&overPH);
   $('ph').style.opacity=1-ph;
 
   const [kv,ko]=keys(t); const ks=$('keys'); const kk=kv.join('|');
