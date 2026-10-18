@@ -1,7 +1,8 @@
 // Vorschau-GIF: zwei Bilder aus einer Bildersuche in die Ablage, auf einem anderen Schreibtisch
 // auf eine Folie, ein Archiv in den Papierkorb und alles wieder zurück (echter Kreislauf).
 const C=(x)=>Math.max(0,Math.min(1,x)), lerp=(a,b,t)=>a+(b-a)*t;
-const io=(t)=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+// Sanftes An- und Abbremsen wie bei einer echten Handbewegung
+const io=(t)=>0.5-0.5*Math.cos(Math.PI*t);
 const out=(t)=>1-Math.pow(1-t,3);
 const back=(t)=>{const c1=1.2,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2)};
 const seg=(t,a,b)=>C((t-a)/(b-a));
@@ -16,13 +17,13 @@ function path(t,keys){
 const S=window.SLOTS, BODY_LEFT=506+280*374/880-18;
 const LAKE=[334.5,183], DUSK=[545.5,325], PH1=[275,289], PH2=[505,289];
 const inRect=(x,y,cx,cy,w,h)=>Math.abs(x-cx)<=w/2&&Math.abs(y-cy)<=h/2;
-const DUR=20.3;
-const P=[[0,430,470],[0.6,430,470],[1.25,LAKE[0],LAKE[1],10],[1.35,LAKE[0],LAKE[1]],[2.5,858,290,40],[2.7,858,290],
-  [3.5,DUSK[0],DUSK[1],25],[3.6,DUSK[0],DUSK[1]],[4.8,858,290,40],[5.0,858,290],[5.6,520,430,10],[6.75,520,430],
+const DUR=19.3;
+const P=[[0,430,470],[0.6,430,470],[1.25,LAKE[0],LAKE[1],10],[1.35,LAKE[0],LAKE[1]],[2.5,858,290,40],[2.85,858,290],
+  [3.5,DUSK[0],DUSK[1],25],[3.6,DUSK[0],DUSK[1]],[4.8,858,290,40],[5.1,858,290],[5.7,520,430,10],[6.75,520,430],
   [7.25,872,285,20],[7.9,S.r1c2[0],S.r1c2[1]+2,15],[8.35,S.r1c2[0],S.r1c2[1]+2],[9.5,PH1[0],PH1[1],30],[9.75,PH1[0],PH1[1]],
   [10.3,872,285,25],[10.95,S.r1c1[0],S.r1c1[1]+2,15],[11.35,S.r1c1[0],S.r1c1[1]+2],[12.4,PH2[0],PH2[1],25],[12.65,PH2[0],PH2[1]],
-  [13.1,872,285,15],[13.85,S.r1c2[0],S.r1c2[1]+2,15],[14.25,S.r1c2[0],S.r1c2[1]+2],[15.05,S.trash[0],S.trash[1],15],[15.3,S.trash[0],S.trash[1]],
-  [16.0,720,400,10],[16.6,450,420,15],[18.6,450,420],[20.0,430,470,15],[20.3,430,470]];
+  [13.1,872,285,15],[13.85,S.r1c2[0],S.r1c2[1]+2,15],[14.25,S.r1c2[0],S.r1c2[1]+2],[15.05,S.trash[0],S.trash[1],15],[16.15,S.trash[0],S.trash[1]],
+  [16.9,450,420,15],[18.3,450,420],[19.0,430,470,15],[19.3,430,470]];
 // Wann der Zeiger die offene Ablage verlässt
 function leaveAfter(t0){for(let t=t0;t<DUR;t+=1/120){if(path(t,P)[0]<BODY_LEFT)return t}return DUR}
 const L_A=leaveAfter(2.5), L_B=leaveAfter(4.8), L_1=leaveAfter(8.4), L_2=leaveAfter(11.4), L_C=leaveAfter(15.3);
@@ -55,13 +56,14 @@ function strip(t){
   return 0;
 }
 function keys(t){
-  const k=[[15.55,16.1,['⌘','Z']],[16.9,17.4,['⌘','Z']],[17.6,18.1,['⌘','Z']]];
+  const k=[[15.55,16.1,['⌘','Z']]];
   for(const [a,b,v] of k){ if(t>=a-0.12&&t<b+0.12) return [v, seg(t,a-0.12,a)*(1-seg(t,b,b+0.12))]; }
   return [[],0];
 }
 // Ruhiger ablaufen lassen: etwas langsamer, nach wichtigen Schritten kurz innehalten
 const SLOW=1.25;
-const HOLDS=[[2.55,0.5],[4.85,0.7],[6.65,0.4],[9.75,0.6],[12.65,0.7],[15.3,0.7],[16.1,0.6],[17.4,0.3],[18.1,0.6],[19.3,0.3]];
+// Pausen nur, wenn der Zeiger ohnehin ruht, damit nichts mitten in der Bewegung stehen bleibt
+const HOLDS=[[2.8,0.5],[5.05,0.7],[6.7,0.4],[9.7,0.6],[12.6,0.7],[15.35,0.6],[16.12,0.5],[17.9,0.3]];
 function sceneTime(real){
   let r=real,last=0;
   for(const [at,hold] of HOLDS){
@@ -80,7 +82,7 @@ window.render=function(real){
   const pt=$('pointer'); pt.style.left=(px-2)+'px'; pt.style.top=(py-2)+'px';
 
   // Schreibtische: Wischen zur Präsentation und am Ende zurück
-  let sw=0; if(t>=6.0&&t<18.6) sw=io(seg(t,6.0,6.65)); if(t>=18.6) sw=1-io(seg(t,18.6,19.3));
+  let sw=0; if(t>=6.0&&t<17.25) sw=io(seg(t,6.0,6.65)); if(t>=17.25) sw=1-io(seg(t,17.25,17.9));
   $('sp1').style.transform=`translateX(${-900*sw}px)`; $('sp2').style.transform=`translateX(${900*(1-sw)}px)`;
   const inPresent=sw>=0.5;
   $('app').textContent=inPresent?'Present':'Browser'; $('m4').textContent=inPresent?'Insert':'History';
@@ -88,15 +90,14 @@ window.render=function(real){
   // Gezogenes
   const g=$('ghost'); let html='', go=0, gx=px, gy=py;
   const web=(src,a,b,target)=>{ // Bild aus dem Browser: halbdurchsichtig am Zeiger, fliegt beim Loslassen in die Ablage
-    let u=0; if(t>=b) u=out(seg(t,b,b+0.15)); go=.75*(1-seg(t,b+0.08,b+0.15));
-    const sc=lerp(1,.5,u); gx=lerp(px,target[0],u); gy=lerp(py,target[1],u);
-    html=`<div style="position:absolute;left:${-60*sc}px;top:${-39*sc}px;width:${120*sc}px;height:${78*sc}px;border-radius:6px;background:url(${src}) center/cover;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>`;
+    // Wie in macOS: Beim Ablegen verschwindet das Ziehbild einfach, die Ablage zeigt die neue Kachel
+    go=.72*(1-seg(t,b,b+0.06));
+    html=`<div style="position:absolute;left:-60px;top:-39px;width:120px;height:78px;border-radius:6px;background:url(${src}) center/cover"></div>`;
   };
   const tile=(src,a,b,target,label)=>{ // Kachel aus der Ablage auf die Folie
-    let u=0; if(t>=b) u=out(seg(t,b,b+0.15)); go=.85*(1-seg(t,b+0.05,b+0.15));
-    const sc=lerp(1,2.6,u); gx=lerp(px,target[0],u); gy=lerp(py,target[1],u);
-    html=`<div style="position:absolute;left:${-27*sc}px;top:${-20*sc}px;width:${54*sc}px;height:${40*sc}px;border-radius:3px;background:url(${src}) center/cover;box-shadow:0 3px 8px rgba(0,0,0,.45)"></div>`+
-      (u<0.01?`<div style="position:absolute;left:-60px;top:24px;width:120px;text-align:center"><span style="font-size:10.5px;font-weight:600;color:#fff;background:#2f6ff5;padding:1px 5px;border-radius:4px;white-space:nowrap">${label}</span></div>`:'');
+    go=.85*(1-seg(t,b,b+0.06));
+    html=`<div style="position:absolute;left:-27px;top:-20px;width:54px;height:40px;border-radius:3px;background:url(${src}) center/cover;box-shadow:0 3px 8px rgba(0,0,0,.45)"></div>`+
+      (true?`<div style="position:absolute;left:-60px;top:24px;width:120px;text-align:center"><span style="font-size:10.5px;font-weight:600;color:#fff;background:#2f6ff5;padding:1px 5px;border-radius:4px;white-space:nowrap">${label}</span></div>`:'');
   };
   if(t>=1.35&&t<2.65) web('GIF3_mountain-lake.png',1.35,2.5,S.r1c1);
   else if(t>=3.6&&t<4.95) web('GIF3_alpine-dusk.png',3.6,4.8,S.r1c1);
@@ -114,12 +115,21 @@ window.render=function(real){
   sh.style.opacity=C(o*2.2); sh.style.transform=`scale(${lerp(.04,1,o)},${lerp(.16,1,o)})`;
   sh.style.filter=`blur(${(1-C(o))*6}px)`;
   const img=shelfImage(t);
-  for(const el of sh.querySelectorAll('img')) el.style.opacity=el.id===img?1:0;
+  // Kommt eine Kachel dazu oder geht eine weg, rücken die anderen in der App animiert nach:
+  // hier weich überblendet statt hart umgeschaltet. Eine neue Auswahl wechselt sofort.
+  const SOFT=new Set(['h0d>h1','h1d>h2','h4t>h5','h5>h4']);
+  let prev=null, mix=1;
+  for(let d=0.01; d<=0.15; d+=0.01){ const p=shelfImage(t-d); if(p!==img){ if(SOFT.has(p+'>'+img)){prev=p; mix=d/0.15;} break; } }
+  // Die vorige Fassung bleibt deckend darunter, die neue blendet darüber ein: so scheint nichts durch
+  for(const el of sh.querySelectorAll('img')){
+    el.style.zIndex = el.id===img ? 2 : 1;
+    el.style.opacity = el.id===img ? (prev ? mix : 1) : (el.id===prev ? 1 : 0);
+  }
   const s=$('strip'), st=strip(t); s.style.opacity=st; s.style.width=(6*st)+'px';
 
   // Folie: Bilder nach dem Ablegen, ⌘Z in der Präsentation nimmt sie wieder weg (zuletzt eingefügtes zuerst)
-  let p1=0; if(t>=9.55&&t<17.85) p1=seg(t,9.55,9.7)*(1-seg(t,17.85,17.97));
-  let p2=0; if(t>=12.45&&t<17.15) p2=seg(t,12.45,12.6)*(1-seg(t,17.15,17.27));
+  let p1=0; if(t>=9.5) p1=seg(t,9.5,9.65);
+  let p2=0; if(t>=12.4) p2=seg(t,12.4,12.55);
   $('p1').style.opacity=p1; $('th1').style.opacity=p1; $('ph1').style.opacity=1-p1;
   $('p2').style.opacity=p2; $('th2').style.opacity=p2; $('ph2').style.opacity=1-p2;
   const dragTile=(t>=8.4&&t<9.5)||(t>=11.4&&t<12.4);

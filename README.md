@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/preview.gif" width="640" alt="Two images are dragged from a browser into the shelf, then onto a slide on another desktop; an archive goes to the Trash and comes back with ⌘Z">
+  <img src="docs/preview.gif" width="640" alt="Two images are dragged from a browser into the shelf, then onto a slide on another desktop; an archive goes to the Trash and comes back with ⌘Z, then back to the search">
 </p>
 
 ---
