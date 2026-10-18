@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import Quartz
 
 /// Steuert, wann und wo die Ablage am Rand auftaucht: beim Ziehen von Dateien,
 /// beim Berühren des Rands mit dem Mauszeiger und per Kurzbefehl.
@@ -63,6 +64,7 @@ final class EdgeController: NSObject {
     /// Öffnen im Vollbild ausgeschaltet ist, sonst leer)
     private var fullScreenFrames: [CGRect] = []
     private var spaceObserver: NSObjectProtocol?
+    private var resignObserver: NSObjectProtocol?
     private var terminateObserver: NSObjectProtocol?
     private var fullScreenObserver: AnyCancellable?
 
@@ -177,23 +179,48 @@ final class EdgeController: NSObject {
     // MARK: Ereignisse des Systems
 
     private func installMonitors() {
-        let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown, .leftMouseDragged, .leftMouseUp,
+                                           .rightMouseDown, .otherMouseDown]
         if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] event in
-            self?.handle(event)
+            self?.handle(event, global: true)
         }) {
             monitors.append(global)
         }
         if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
-            self?.handle(event)
+            self?.handle(event, global: false)
             return event
         }) {
             monitors.append(local)
         }
+        // Übersicht offen und BarDrop verliert den Fokus (andere App, ⌘⇥): Übersicht und
+        // Ablage schließen, wie im Finder
+        resignObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.closeQuickLookAndShelf() }
     }
 
-    private func handle(_ event: NSEvent) {
+    /// Klick neben Übersicht und Ablage: beide schließen. Klicks in anderen Apps kommen
+    /// über den globalen Beobachter, Klicks in eigene Fenster (Einstellungen) über den lokalen.
+    private func clickedWhileQuickLook(_ event: NSEvent, global: Bool) {
+        guard actions.isQuickLookVisible else { return }
+        if !global {
+            if event.window === panel || event.window is QLPreviewPanel { return }
+        }
+        closeQuickLookAndShelf()
+    }
+
+    private func closeQuickLookAndShelf() {
+        guard actions.isQuickLookVisible else { return }
+        actions.closeQuickLook()
+        if ui.level == .expanded { close() }
+    }
+
+    private func handle(_ event: NSEvent, global: Bool) {
         switch event.type {
+        case .rightMouseDown, .otherMouseDown:
+            clickedWhileQuickLook(event, global: global)
         case .leftMouseDown:
+            clickedWhileQuickLook(event, global: global)
             // Neuer Ausgangsstand: Ändert sich das Drag-Pasteboard danach, wird etwas gezogen
             dragBaseline = dragPasteboard.changeCount
         case .leftMouseDragged:
