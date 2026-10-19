@@ -434,8 +434,8 @@ enum PluginSummary {
     static func matches(_ match: PluginMatch) -> String {
         var parts: [String] = []
         for identifier in match.types ?? [] {
-            let type = UTType(identifier)
-            parts.append(type?.localizedDescription ?? identifier)
+            let name = UTType(identifier)?.localizedDescription ?? identifier
+            parts.append(name.prefix(1).uppercased() + name.dropFirst())
         }
         if let ext = match.extensions, !ext.isEmpty {
             parts.append(ext.map { "." + $0.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) }.joined(separator: " "))
