@@ -334,7 +334,44 @@ final class EdgeController: NSObject {
         return NSScreen.screens.first { same($0, screen) }
     }
 
+    /// Zuletzt verarbeitete Anordnung der Bildschirme (Kennung, Rahmen, sichtbarer Bereich)
+    private var lastScreenSignature: String?
+    private var screenChangeWork: DispatchWorkItem?
+    /// Meldungen ohne Änderung seit dem letzten Eintrag im Diagnoseprotokoll
+    private var unchangedScreenNotices = 0
+    private var lastUnchangedReport = Date.distantPast
+
+    static func screenSignature(_ screens: [NSScreen]) -> String {
+        screens.map { s in
+            let f = s.frame, v = s.visibleFrame
+            return "\(s.displayID ?? 0):\(Int(f.minX)),\(Int(f.minY)),\(Int(f.width)),\(Int(f.height))/\(Int(v.minX)),\(Int(v.minY)),\(Int(v.width)),\(Int(v.height))"
+        }.joined(separator: "|")
+    }
+
+    /// macOS meldet geänderte Bildschirme teils viele Male pro Sekunde, ohne dass sich etwas
+    /// ändert (im Diagnoseprotokoll über 200 Meldungen in 30 Sekunden). Deshalb gesammelt
+    /// nach einem kurzen Moment und nur dann neu ausrichten, wenn sich wirklich etwas
+    /// geändert hat oder der gemerkte Bildschirm nicht mehr gültig ist.
     @objc private func screensChanged() {
+        screenChangeWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.applyScreenChange() }
+        screenChangeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
+    private func applyScreenChange() {
+        let signature = Self.screenSignature(NSScreen.screens)
+        let stillValid = screen.map { s in NSScreen.screens.contains { $0 === s } } ?? false
+        if signature == lastScreenSignature && stillValid {
+            unchangedScreenNotices += 1
+            if Date().timeIntervalSince(lastUnchangedReport) > 30 {
+                Diagnostics.shared.record("screen", "unchanged notices=\(unchangedScreenNotices) (ignored)")
+                unchangedScreenNotices = 0
+                lastUnchangedReport = Date()
+            }
+            return
+        }
+        lastScreenSignature = signature
         // Bildschirm abgesteckt, Mac entsperrt oder Auflösung geändert: neu ausrichten
         let before = screen
         if let s = screen, let current = Self.fresh(s), allowedScreens().contains(where: { Self.same($0, current) }) {
@@ -343,7 +380,8 @@ final class EdgeController: NSObject {
             screen = screenUnderMouse() ?? allowedScreens().first
             Log.edge.info("Bildschirme geändert, Ablage neu ausgerichtet")
         }
-        Diagnostics.shared.record("screen", "changed screens=[\(NSScreen.screens.map { "\($0.displayID ?? 0):\(Int($0.frame.minX)),\(Int($0.frame.minY)) \(Int($0.frame.width))×\(Int($0.frame.height))" }.joined(separator: " | "))] shelf \(before?.displayID ?? 0)@\(before.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY))" } ?? "–") → \(screen?.displayID ?? 0)@\(screen.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY))" } ?? "–")")
+        Diagnostics.shared.record("screen", "changed screens=[\(NSScreen.screens.map { "\($0.displayID ?? 0):\(Int($0.frame.minX)),\(Int($0.frame.minY)) \(Int($0.frame.width))×\(Int($0.frame.height)) visible \(Int($0.visibleFrame.minY))+\(Int($0.visibleFrame.height))" }.joined(separator: " | "))] ignoredBefore=\(unchangedScreenNotices) shelf \(before?.displayID ?? 0)@\(before.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY))" } ?? "–") → \(screen?.displayID ?? 0)@\(screen.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY))" } ?? "–")")
+        unchangedScreenNotices = 0
         adaptiveY = nil
         updateFullScreen()
         layoutPanel()

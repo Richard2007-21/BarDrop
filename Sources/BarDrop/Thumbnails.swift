@@ -77,10 +77,19 @@ enum Thumbnails {
     /// zeichnet sich daraufhin neu, auch wenn sie gerade keinen Fokus hat.
     static let didChange = Notification.Name("BarDropThumbnailDidChange")
 
+    /// Dateien, für die Quick Look ausdrücklich kein Vorschaubild erzeugen kann (z. B. Links
+    /// als .webloc). Der Schlüssel enthält das Änderungsdatum: Ändert sich die Datei, wird
+    /// es erneut versucht. Ohne diese Liste fragte jede neue Kachel mehrmals vergeblich nach.
+    private static var unavailable = Set<String>()
+
     static func load(_ url: URL, size: CGFloat, completion: @escaping (NSImage?) -> Void) {
         let k = key(url, size: size)
         if let img = cache.object(forKey: k as NSString) {
             completion(img)
+            return
+        }
+        if unavailable.contains(k) {
+            completion(nil)
             return
         }
         if pending[k] != nil {
@@ -118,6 +127,12 @@ enum Thumbnails {
                     } else {
                         Diagnostics.shared.record("thumb", base)
                     }
+                }
+                // Die scharfe Stufe ist gescheitert, weil Quick Look für diese Datei keins
+                // erzeugen kann: nicht weiter fragen (generationFailed, Code 0)
+                if type == .thumbnail, image == nil, let error = error as NSError?,
+                   error.domain == QLThumbnailError.errorDomain, error.code == QLThumbnailError.generationFailed.rawValue {
+                    unavailable.insert(k)
                 }
                 // Nur echte Vorschaubilder merken. Ein bloßes Symbol kommt z. B., solange
                 // eine frisch abgelegte Datei noch geschrieben wird; dann später erneut versuchen.

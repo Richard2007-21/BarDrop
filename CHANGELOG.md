@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.31.0-beta.4
+* **Improved:** macOS sometimes reports changed displays many times per second without anything changing (over 200 times in 30 seconds in a diagnostic log). BarDrop now collects these reports and only rearranges the shelf when something really changed, which saves work and keeps the diagnostic log readable
+* **Improved:** Files for which Quick Look can’t make a preview, such as links, are no longer asked for a preview again and again
+
 ## 1.31.0-beta.3
 * The action bar has no line above it anymore: items simply disappear under the bar
 * Plugins: errors show the file and line in the script (for example “TypeError: … (main.js:4)”), and all messages of the plugin interface are in English and German
