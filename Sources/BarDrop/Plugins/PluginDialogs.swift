@@ -34,8 +34,7 @@ enum PluginDialogs {
 
     static func allow(_ permission: PluginPermission, for plugin: InstalledPlugin, ui: ShelfUIModel?) -> Bool {
         let alert = makeAlert(plugin.manifest)
-        alert.messageText = L("Allow “\(plugin.manifest.name.text)”: \(permission.title)?",
-                              "„\(plugin.manifest.name.text)“ erlauben: \(permission.title)?")
+        alert.messageText = permission.question(for: plugin.manifest.name.text)
         alert.informativeText = permission.explanation
         alert.addButton(withTitle: L("Allow", "Erlauben"))
         alert.addButton(withTitle: L("Don’t Allow", "Nicht erlauben"))
@@ -46,12 +45,15 @@ enum PluginDialogs {
     static func allowDownload(of tool: PluginTool, for plugin: InstalledPlugin, ui: ShelfUIModel?) -> Bool {
         let alert = makeAlert(plugin.manifest)
         let host = URL(string: tool.url)?.host ?? tool.url
-        alert.messageText = L("Load “\(tool.name)”?", "„\(tool.name)“ laden?")
-        var text = L("“\(plugin.manifest.name.text)” needs the program “\(tool.name)”. BarDrop loads it once from \(host), checks it and keeps it for all plugins. It isn’t part of BarDrop.",
-                     "„\(plugin.manifest.name.text)“ braucht das Programm „\(tool.name)“. BarDrop lädt es einmal von \(host), prüft es und hebt es für alle Plugins auf. Es gehört nicht zu BarDrop.")
+        alert.messageText = L("Download “\(tool.name)”?", "„\(tool.name)“ herunterladen?")
+        var text = L("“\(plugin.manifest.name.text)” needs the program “\(tool.name)”. BarDrop downloads it from \(host), checks its checksum and keeps it for all plugins. The program isn’t part of BarDrop and runs with the same rights as the plugin.",
+                     "„\(plugin.manifest.name.text)“ braucht das Programm „\(tool.name)“. BarDrop lädt es von \(host), prüft seine Prüfsumme und hebt es für alle Plugins auf. Das Programm gehört nicht zu BarDrop und läuft mit denselben Rechten wie das Plugin.")
+        if let days = tool.refreshDays {
+            text += " " + L("It is downloaded again after \(days) days.", "Nach \(days) Tagen wird es neu geladen.")
+        }
         if let license = tool.license { text += "\n\n" + L("License: \(license)", "Lizenz: \(license)") }
         alert.informativeText = text
-        alert.addButton(withTitle: L("Load", "Laden"))
+        alert.addButton(withTitle: L("Download", "Laden"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
         return run(alert, ui: ui) == .alertFirstButtonReturn
     }
@@ -64,8 +66,9 @@ enum PluginDialogs {
         run(alert, ui: ui)
     }
 
-    /// Einschalten von „Automatisch beim Ablegen“: Zustimmung und alle Rechte jetzt
-    /// erfragen, damit beim Ablegen später keine Frage aufspringt.
+    /// Einschalten von „Automatisch beim Ablegen“ und „Erlauben“ in den Einstellungen:
+    /// Zustimmung, alle Rechte und alle Programme jetzt erfragen, damit beim Ablegen
+    /// später keine Frage aufspringt.
     static func prepareAutomatic(_ plugin: InstalledPlugin, manager: PluginManager) -> Bool {
         guard confirmConsent(plugin, manager: manager, ui: nil) else { return false }
         for permission in plugin.manifest.allPermissions where !manager.isGranted(permission, for: plugin) {
@@ -183,7 +186,7 @@ private struct ImportDetails: View {
                             .font(.system(size: 12))
                     }
                     ForEach(manifest.tools ?? []) { tool in
-                        Label(L("Loads “\(tool.name)” from \(URL(string: tool.url)?.host ?? tool.url)",
+                        Label(L("Downloads “\(tool.name)” from \(URL(string: tool.url)?.host ?? tool.url)",
                                 "Lädt „\(tool.name)“ von \(URL(string: tool.url)?.host ?? tool.url)"),
                               systemImage: "arrow.down.circle")
                             .font(.system(size: 12))

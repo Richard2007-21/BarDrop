@@ -366,6 +366,17 @@ final class PluginManager: ObservableObject {
         return installed
     }
 
+    /// Ordner eines installierten Plugins (auch eines, das sich nicht lesen lässt)
+    func folder(of id: String) -> URL {
+        pluginsDirectory.appendingPathComponent(id, isDirectory: true)
+    }
+
+    /// Entfernt ein Plugin, das sich nicht mehr lesen lässt (außer Standard-Plugins)
+    func removeBroken(_ id: String) {
+        guard broken[id] != nil, !state(id).isStandard else { return }
+        uninstall(id)
+    }
+
     /// Entfernt ein importiertes Plugin. Standard-Plugins lassen sich nur ausschalten.
     func remove(_ id: String) {
         guard let plugin = plugin(id), !plugin.isStandard else { return }

@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "id": "io.github.zzuuuiii.test.upper-text",
+  "name": { "en": "Upper Case", "de": "Großbuchstaben" },
+  "description": { "en": "Copy of a text file in capital letters", "de": "Kopie einer Textdatei in Großbuchstaben" },
+  "version": "1.0.0",
+  "author": "zzuuuiii",
+  "icon": { "symbol": "textformat.size.larger", "color": "#007AFF" },
+  "minAppVersion": "1.31.0",
+  "match": { "types": ["public.plain-text"] },
+  "triggers": ["menu", "action", "automatic"],
+  "automaticByDefault": true,
+  "settings": [
+    { "key": "suffix", "type": "text", "title": { "en": "Name ending", "de": "Namensende" }, "default": " UPPER" }
+  ]
+}

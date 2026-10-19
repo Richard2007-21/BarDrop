@@ -36,6 +36,9 @@ final class PluginJob: ObservableObject, Identifiable {
 
     var title: String { plugin.manifest.title }
 
+    /// Läuft schon (sonst wartet es, weil schon drei Plugins laufen)
+    @Published fileprivate(set) var isStarted = false
+
     /// Fortschritt in Prozent für Menüs, nil ohne Angabe
     var percent: Int? { progress.map { Int(($0 * 100).rounded()) } }
 
@@ -128,6 +131,7 @@ final class PluginRuntime {
         self.onNotify = onNotify
         self.queue = DispatchQueue(label: "BarDrop.plugin.\(job.plugin.id)", qos: .userInitiated)
         job.runtime = self
+        job.isStarted = true
     }
 
     // MARK: Start und Ende
@@ -144,8 +148,7 @@ final class PluginRuntime {
             self.context = context
             context.name = plugin.manifest.name.text(for: .english)
             context.exceptionHandler = { [weak self] _, exception in
-                let text = exception?.toString() ?? "Error"
-                self?.finish(.failure(.script(text)))
+                self?.finish(.failure(.script(PluginRuntime.describe(exception))))
             }
             installAPI(in: context)
             // console.log & Co. landen im Diagnoseprotokoll (JavaScriptCore kennt kein console)
@@ -168,11 +171,26 @@ final class PluginRuntime {
             (function (item) {
               return Promise.resolve().then(function () { return run(item); })
                 .then(function () { __bardropDone(); },
-                      function (e) { __bardropFail(e && e.message ? e.message : String(e)); });
+                      function (e) { __bardropFail(e); });
             })
             """
             context.evaluateScript(bootstrap)?.call(withArguments: [job.item.scriptValue])
         }
+    }
+
+    /// Fehlermeldung eines Skripts: Text, bei Fehlern im Skript mit Datei und Zeile
+    /// („TypeError: … (main.js:12)“), damit man die Stelle findet
+    static func describe(_ error: JSValue?) -> String {
+        guard let error, !error.isUndefined, !error.isNull else { return "Error" }
+        guard error.isObject, error.hasProperty("message") else { return error.toString() ?? "Error" }
+        let message = error.forProperty("message")?.toString() ?? ""
+        let name = error.forProperty("name")?.toString() ?? ""
+        var text = name.isEmpty || name == "Error" ? message : "\(name): \(message)"
+        if let line = error.forProperty("line"), line.isNumber, line.toInt32() > 0 {
+            let source = error.forProperty("sourceURL").flatMap { $0.isString ? URL(string: $0.toString())?.lastPathComponent : nil }
+            text += " (\(source ?? "script"):\(line.toInt32()))"
+        }
+        return text.isEmpty ? "Error" : text
     }
 
     /// Nur auf `queue`
@@ -190,7 +208,10 @@ final class PluginRuntime {
         tasks.forEach { $0.cancel() }
         tasks = []
         lock.unlock()
-        running.forEach { if $0.isRunning { $0.terminate() } }
+        for process in running where process.isRunning {
+            ProcessTree.signal(process.processIdentifier, SIGCONT)
+            ProcessTree.signal(process.processIdentifier, SIGTERM)
+        }
         // Kontext freigeben, aber nicht mitten in einem eigenen Aufruf
         queue.async { [weak self] in self?.context = nil }
         DispatchQueue.main.async { completion(final) }
@@ -212,8 +233,9 @@ final class PluginRuntime {
         let open = tasks
         lock.unlock()
         for process in running where process.isRunning {
-            kill(process.processIdentifier, SIGCONT)
-            process.terminate()
+            let pid = process.processIdentifier
+            ProcessTree.signal(pid, SIGCONT)
+            ProcessTree.signal(pid, SIGTERM)
         }
         open.forEach { $0.cancel() }
         queue.async { [weak self] in self?.finish(.failure(.cancelled)) }
@@ -229,7 +251,7 @@ final class PluginRuntime {
         let open = tasks
         lock.unlock()
         for process in running where process.isRunning {
-            kill(process.processIdentifier, paused ? SIGSTOP : SIGCONT)
+            ProcessTree.signal(process.processIdentifier, paused ? SIGSTOP : SIGCONT)
         }
         open.forEach { paused ? $0.suspend() : $0.resume() }
         DispatchQueue.main.async { self.job.setPausedState(paused) }
@@ -276,6 +298,10 @@ final class PluginRuntime {
 
         let writeFile: @convention(block) (JSValue, JSValue) -> JSValue = { [weak self] name, contents in
             guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
+            guard name.isString, !contents.isUndefined, !contents.isNull else {
+                ctx.exception = JSValue(newErrorFromMessage: L("writeFile needs a name and a text.", "writeFile braucht einen Namen und einen Text."), in: ctx)
+                return JSValue(undefinedIn: ctx)
+            }
             let target = self.newOutputURL(name.toString())
             do {
                 try contents.toString().write(to: target, atomically: true, encoding: .utf8)
@@ -289,8 +315,8 @@ final class PluginRuntime {
 
         let createLink: @convention(block) (JSValue, JSValue) -> JSValue = { [weak self] address, title in
             guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
-            guard let link = URL(string: address.toString()), link.scheme != nil else {
-                ctx.exception = JSValue(newErrorFromMessage: "Invalid URL", in: ctx)
+            guard address.isString, let link = URL(string: address.toString()), link.scheme != nil else {
+                ctx.exception = JSValue(newErrorFromMessage: L("Invalid web address.", "Ungültige Webadresse."), in: ctx)
                 return JSValue(undefinedIn: ctx)
             }
             let name = title.isString ? title.toString()! : (link.host ?? "Link")
@@ -305,14 +331,21 @@ final class PluginRuntime {
 
         let readFile: @convention(block) (JSValue) -> JSValue = { [weak self] path in
             guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
-            let url = URL(fileURLWithPath: path.toString()).standardizedFileURL
+            // Ohne „/“ am Anfang: relativ zum Ausgabeordner
+            guard path.isString else {
+                ctx.exception = JSValue(newErrorFromMessage: L("readFile needs a path.", "readFile braucht einen Pfad."), in: ctx)
+                return JSValue(undefinedIn: ctx)
+            }
+            let raw = path.toString() ?? ""
+            let url = (raw.hasPrefix("/") ? URL(fileURLWithPath: raw)
+                       : self.outputDirectory.appendingPathComponent(raw)).standardizedFileURL
             guard self.mayRead(url) else {
-                ctx.exception = JSValue(newErrorFromMessage: "Not allowed to read this file", in: ctx)
+                ctx.exception = JSValue(newErrorFromMessage: L("The plugin may only read the item itself, its output folder and its own files.", "Das Plugin darf nur das Objekt selbst, seinen Ausgabeordner und seine eigenen Dateien lesen."), in: ctx)
                 return JSValue(undefinedIn: ctx)
             }
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
             guard size <= 20 * 1024 * 1024, let data = try? Data(contentsOf: url) else {
-                ctx.exception = JSValue(newErrorFromMessage: "File can’t be read", in: ctx)
+                ctx.exception = JSValue(newErrorFromMessage: L("The file can’t be read (missing or larger than 20 MB).", "Die Datei lässt sich nicht lesen (fehlt oder ist größer als 20 MB)."), in: ctx)
                 return JSValue(undefinedIn: ctx)
             }
             let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
@@ -360,8 +393,8 @@ final class PluginRuntime {
 
         let done: @convention(block) () -> Void = { [weak self] in self?.finish(.success([])) }
         context.setObject(done, forKeyedSubscript: "__bardropDone" as NSString)
-        let fail: @convention(block) (JSValue) -> Void = { [weak self] message in
-            self?.finish(.failure(.script(message.toString() ?? "Error")))
+        let fail: @convention(block) (JSValue) -> Void = { [weak self] error in
+            self?.finish(.failure(.script(PluginRuntime.describe(error))))
         }
         context.setObject(fail, forKeyedSubscript: "__bardropFail" as NSString)
     }
@@ -403,7 +436,8 @@ final class PluginRuntime {
     private func require(_ permission: PluginPermission) -> Bool {
         guard plugin.manifest.allPermissions.contains(permission) else {
             if let ctx = JSContext.current() {
-                ctx.exception = JSValue(newErrorFromMessage: "Permission “\(permission.rawValue)” is missing in manifest.json", in: ctx)
+                ctx.exception = JSValue(newErrorFromMessage: L("The permission “\(permission.rawValue)” is missing in manifest.json.",
+                                                                 "Das Recht „\(permission.rawValue)“ fehlt in der manifest.json."), in: ctx)
             }
             return false
         }
@@ -466,8 +500,8 @@ final class PluginRuntime {
 
     private func fetch(_ address: JSValue, _ options: JSValue,
                        _ resolve: @escaping (Any?) -> Void, _ reject: @escaping (String) -> Void) {
-        guard require(.network) else { return reject("Internet access not allowed") }
-        guard let request = request(address, options) else { return reject("Invalid URL") }
+        guard require(.network) else { return reject(L("Internet access isn’t allowed.", "Der Zugriff aufs Internet ist nicht erlaubt.")) }
+        guard let request = request(address, options) else { return reject(L("Invalid web address.", "Ungültige Webadresse.")) }
         let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             self?.untrackFinished()
             if let error { return reject(error.localizedDescription) }
@@ -485,8 +519,8 @@ final class PluginRuntime {
 
     private func download(_ address: JSValue, _ options: JSValue,
                           _ resolve: @escaping (Any?) -> Void, _ reject: @escaping (String) -> Void) {
-        guard require(.network) else { return reject("Internet access not allowed") }
-        guard let request = request(address, options) else { return reject("Invalid URL") }
+        guard require(.network) else { return reject(L("Internet access isn’t allowed.", "Der Zugriff aufs Internet ist nicht erlaubt.")) }
+        guard let request = request(address, options) else { return reject(L("Invalid web address.", "Ungültige Webadresse.")) }
         let wanted = options.isObject ? options.forProperty("name").flatMap { $0.isString ? $0.toString() : nil } : nil
         let observation = ObservationHolder()
         let task = URLSession.shared.downloadTask(with: request) { [weak self] file, response, error in
@@ -495,7 +529,8 @@ final class PluginRuntime {
             self.untrackFinished()
             if let error { return reject(error.localizedDescription) }
             guard let file, let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                return reject("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+                return reject(L("The server answered with status \((response as? HTTPURLResponse)?.statusCode ?? 0).",
+                                 "Der Server antwortete mit Status \((response as? HTTPURLResponse)?.statusCode ?? 0)."))
             }
             let name = wanted ?? response?.suggestedFilename ?? request.url?.lastPathComponent ?? "Download"
             let target = self.newOutputURL(name)
@@ -520,7 +555,7 @@ final class PluginRuntime {
 
     private func run(_ command: JSValue, _ args: JSValue, _ options: JSValue,
                      _ resolve: @escaping (Any?) -> Void, _ reject: @escaping (String) -> Void) {
-        guard require(.run) else { return reject("Running programs not allowed") }
+        guard require(.run) else { return reject(L("Running programs isn’t allowed.", "Programme auszuführen ist nicht erlaubt.")) }
         let name = command.toString() ?? ""
         let arguments = (args.toArray() ?? []).map { "\($0)" }
         let onOutput: JSValue? = options.isObject ? options.forProperty("onOutput").flatMap { $0.isObject ? $0 : nil } : nil
@@ -561,13 +596,13 @@ final class PluginRuntime {
         }
         if name.hasPrefix("/") {
             guard FileManager.default.isExecutableFile(atPath: name) else {
-                throw PluginRunError.script("Program not found: \(name)")
+                throw PluginRunError.script(L("Program not found: \(name)", "Programm nicht gefunden: \(name)"))
             }
             return URL(fileURLWithPath: name)
         }
         guard !name.contains("/"),
               let path = Self.searchPaths.map({ $0 + "/" + name }).first(where: FileManager.default.isExecutableFile) else {
-            throw PluginRunError.script("Program not found: \(name)")
+            throw PluginRunError.script(L("Program not found: \(name)", "Programm nicht gefunden: \(name)"))
         }
         return URL(fileURLWithPath: path)
     }
@@ -614,7 +649,7 @@ final class PluginRuntime {
             resolve(["code": Int(finished.terminationStatus), "stdout": result.stdout, "stderr": result.stderr])
         }
         lock.lock()
-        guard !_cancelled else { lock.unlock(); return reject("Cancelled") }
+        guard !_cancelled else { lock.unlock(); return reject(L("Cancelled", "Abgebrochen")) }
         processes.append(process)
         let paused = _paused
         lock.unlock()
@@ -629,21 +664,27 @@ final class PluginRuntime {
 }
 
 /// Sammelt die Ausgabe eines Programms (höchstens 1 MB je Kanal) und meldet sie
-/// zeilenweise. Zeilen enden auch an \r, damit Fortschrittsanzeigen ankommen.
+/// zeilenweise, getrennt nach stdout und stderr. Zeilen enden auch an \r, damit
+/// Fortschrittsanzeigen ankommen. Sehr lange Zeilen werden nach 64 KB weitergereicht.
 private final class OutputCollector {
     private let lock = NSLock()
     private var stdout = Data()
     private var stderr = Data()
-    private var pending = Data()
+    private var pendingOut = Data()
+    private var pendingErr = Data()
     private let limit = 1024 * 1024
+    private let maxLine = 64 * 1024
 
     func add(_ data: Data, stderr isErr: Bool, lines: (String) -> Void) {
         guard !data.isEmpty else { return }
         lock.lock()
+        var pending: Data
         if isErr {
             if stderr.count < limit { stderr.append(data.prefix(limit - stderr.count)) }
-        } else if stdout.count < limit {
-            stdout.append(data.prefix(limit - stdout.count))
+            pending = pendingErr
+        } else {
+            if stdout.count < limit { stdout.append(data.prefix(limit - stdout.count)) }
+            pending = pendingOut
         }
         pending.append(data)
         var found: [String] = []
@@ -652,21 +693,53 @@ private final class OutputCollector {
             pending = Data(pending[pending.index(after: index)...])
             if !line.isEmpty { found.append(String(decoding: line, as: UTF8.self)) }
         }
+        if pending.count > maxLine {
+            found.append(String(decoding: pending, as: UTF8.self))
+            pending = Data()
+        }
+        if isErr { pendingErr = pending } else { pendingOut = pending }
         lock.unlock()
         found.forEach(lines)
     }
 
     func flush(lines: (String) -> Void) {
         lock.lock()
-        let rest = pending
-        pending = Data()
+        let rest = [pendingOut, pendingErr]
+        pendingOut = Data()
+        pendingErr = Data()
         lock.unlock()
-        if !rest.isEmpty { lines(String(decoding: rest, as: UTF8.self)) }
+        for data in rest where !data.isEmpty { lines(String(decoding: data, as: UTF8.self)) }
     }
 
     var result: (stdout: String, stderr: String) {
         lock.lock(); defer { lock.unlock() }
         return (String(decoding: stdout, as: UTF8.self), String(decoding: stderr, as: UTF8.self))
+    }
+}
+
+/// Signale an ein Programm und alle Programme, die es selbst gestartet hat (z. B. ein
+/// Werkzeug, das ffmpeg startet): Anhalten und Abbrechen wirken auf den ganzen Baum.
+enum ProcessTree {
+    static func descendants(of pid: pid_t) -> [pid_t] {
+        var result: [pid_t] = []
+        var queue = [pid]
+        while let current = queue.popLast(), result.count < 256 {
+            let count = proc_listchildpids(current, nil, 0)
+            guard count > 0 else { continue }
+            var buffer = [pid_t](repeating: 0, count: Int(count) + 8)
+            let filled = proc_listchildpids(current, &buffer, Int32(buffer.count * MemoryLayout<pid_t>.size))
+            guard filled > 0 else { continue }
+            let children = buffer.prefix(Int(filled)).filter { $0 > 0 }
+            result += children
+            queue += children
+        }
+        return result
+    }
+
+    /// Erst die Nachkommen, dann das Programm selbst
+    static func signal(_ pid: pid_t, _ sig: Int32) {
+        for child in descendants(of: pid).reversed() { kill(child, sig) }
+        kill(pid, sig)
     }
 }
 

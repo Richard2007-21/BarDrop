@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "io.github.zzuuuiii.test.broken-line",
+  "name": "Broken Line",
+  "version": "1.0.0",
+  "minAppVersion": "1.31.0",
+  "match": { "extensions": ["txt"] },
+  "triggers": ["menu"]
+}

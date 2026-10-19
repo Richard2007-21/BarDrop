@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "id": "io.github.zzuuuiii.test.link-note",
+  "name": { "en": "Link Note", "de": "Link-Notiz" },
+  "version": "1.0.0",
+  "icon": { "symbol": "note.text", "color": "#FF9500" },
+  "minAppVersion": "1.31.0",
+  "match": { "links": { "hosts": ["example.com"], "patterns": ["^https://docs\\.example\\.org/"] } },
+  "triggers": ["menu", "action"],
+  "canReplaceOriginal": true
+}

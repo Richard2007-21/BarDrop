@@ -59,6 +59,15 @@ enum PluginPermission: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Frage im Dialog beim ersten Gebrauch
+    func question(for plugin: String) -> String {
+        switch self {
+        case .network: return L("Allow “\(plugin)” to access the internet?", "Darf „\(plugin)“ auf das Internet zugreifen?")
+        case .run: return L("Allow “\(plugin)” to run programs?", "Darf „\(plugin)“ Programme ausführen?")
+        case .clipboard: return L("Allow “\(plugin)” to use the clipboard?", "Darf „\(plugin)“ die Zwischenablage verwenden?")
+        }
+    }
+
     var explanation: String {
         switch self {
         case .network:

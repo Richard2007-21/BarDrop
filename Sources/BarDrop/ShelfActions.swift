@@ -14,8 +14,9 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// Die Übersicht zeigt mehrere ausgewählte Objekte: Dann blättert sie selbst darin
     var quickLookPagesSelection = false
 
-    /// Plugins: laufen lassen, Platzhalter, Ergebnisse (erst beim ersten Gebrauch angelegt)
-    private(set) lazy var plugins = PluginRunner(actions: self)
+    /// Plugins: laufen lassen, Platzhalter, Ergebnisse (erst beim ersten Gebrauch angelegt;
+    /// Tests setzen einen eigenen)
+    lazy var plugins = PluginRunner(actions: self)
 
     init(store: ShelfStore, ui: ShelfUIModel, settings: AppSettings) {
         self.store = store
@@ -724,13 +725,16 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         let status = LiveMenuItem { [weak job] in
             guard let job else { return L("Finished", "Fertig") }
             let name = job.title
+            if !job.isStarted { return L("\(name): waiting", "\(name): wartet") }
             if job.paused { return L("\(name): paused", "\(name): angehalten") + (job.percent.map { " · " + Format.percent($0) } ?? "") }
             if let percent = job.percent { return "\(name): " + Format.percent(percent) }
             return L("\(name): running", "\(name): läuft")
         }
         menu.addItem(status)
         menu.addItem(.separator())
-        if job.paused {
+        if !job.isStarted {
+            // Wartet noch: nur abbrechen
+        } else if job.paused {
             menu.addItem(ClosureMenuItem(L("Resume", "Fortsetzen"), symbol: "play.fill") { [weak job] in job?.resume() })
         } else {
             menu.addItem(ClosureMenuItem(L("Pause", "Anhalten"), symbol: "pause.fill") { [weak job] in job?.pause() })

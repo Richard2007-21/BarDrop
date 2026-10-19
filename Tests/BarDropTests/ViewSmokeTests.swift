@@ -127,6 +127,10 @@ final class ViewSmokeTests: XCTestCase {
         let ui = ShelfUIModel()
         let actions = ShelfActions(store: store, ui: ui, settings: settings)
         let job = PluginJob(plugin: plugin, item: PluginItem(url: file), anchorFileID: UUID(), automatic: false)
+        // Ein Laufzeitobjekt macht den Auftrag zu einem laufenden (ohne ihn zu starten)
+        let runtime = PluginRuntime(job: job, workDirectory: base.appendingPathComponent("work"),
+                                    tools: PluginTools(directory: base.appendingPathComponent("tools")), prompter: nil,
+                                    settingsValues: [:], granted: [], onGrant: { _ in }, onNotify: { _ in })
         job.report(0.4, label: nil, force: true)
         let waiting = PluginJob(plugin: plugin, item: PluginItem(url: file), anchorFileID: UUID(), automatic: false)
         render(HStack { PluginJobTile(job: job, ui: ui, actions: actions); PluginJobTile(job: waiting, ui: ui, actions: actions) }
@@ -134,6 +138,7 @@ final class ViewSmokeTests: XCTestCase {
                size: CGSize(width: 260, height: 160), "Plugin Platzhalter", appearance: .darkAqua)
         let menu = actions.menu(for: job)
         XCTAssertTrue(menu.items.first?.title.contains("40") == true)
+        withExtendedLifetime(runtime) {}
     }
 
     func testIntroductionPagesRender() {

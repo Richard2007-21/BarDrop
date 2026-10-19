@@ -91,7 +91,7 @@ struct PluginSettings: View {
                         MissingPluginRow(entry: entry) { manager.syncCatalog(force: true) }
                     }
                     ForEach(manager.broken.keys.sorted(), id: \.self) { id in
-                        BrokenPluginRow(id: id, message: manager.broken[id] ?? "")
+                        BrokenPluginRow(id: id, message: manager.broken[id] ?? "", manager: manager)
                     }
                 }
             }
@@ -213,8 +213,8 @@ private struct PluginDetails: View {
             divider
             if manifest.allTriggers.contains(.automatic) {
                 ToggleRow(L("Automatically when dropped", "Automatisch beim Ablegen"),
-                          info: L("Runs as soon as you drop a matching item. Permissions are asked when you turn this on.",
-                                  "Läuft, sobald du ein passendes Objekt ablegst. Die Rechte werden beim Einschalten erfragt."),
+                          info: L("Runs as soon as you drop a matching item. Permissions and programs the plugin needs are asked for when you turn this on, so nothing pops up when you drop.",
+                                  "Läuft, sobald du ein passendes Objekt ablegst. Rechte und Programme, die das Plugin braucht, werden beim Einschalten erfragt, damit beim Ablegen nichts aufspringt."),
                           isOn: automatic)
                 divider
             }
@@ -257,9 +257,17 @@ private struct PluginDetails: View {
                                 permission.title + ": " + (manager.isGranted(permission, for: plugin)
                                                            ? L("allowed", "erlaubt") : L("asks first", "fragt zuerst"))
                             }.joined(separator: " · ")) {
-                    Button(L("Reset", "Zurücksetzen")) { manager.revokePermissions(plugin.id) }
-                        .buttonStyle(KlackButtonStyle())
-                        .disabled(state.granted.isEmpty)
+                    HStack(spacing: 6) {
+                        if !manifest.allPermissions.allSatisfy({ manager.isGranted($0, for: plugin) }) {
+                            Button(L("Allow", "Erlauben")) { _ = PluginDialogs.prepareAutomatic(plugin, manager: manager) }
+                                .buttonStyle(KlackButtonStyle())
+                                .help(L("Asks for all permissions now, for example for automatic runs.",
+                                        "Fragt jetzt nach allen Rechten, zum Beispiel für automatische Läufe."))
+                        }
+                        Button(L("Reset", "Zurücksetzen")) { manager.revokePermissions(plugin.id) }
+                            .buttonStyle(KlackButtonStyle())
+                            .disabled(state.granted.isEmpty)
+                    }
                 }
             }
             divider
@@ -364,6 +372,7 @@ private struct MissingPluginRow: View {
 private struct BrokenPluginRow: View {
     let id: String
     let message: String
+    @ObservedObject var manager: PluginManager
 
     var body: some View {
         HStack(spacing: 10) {
@@ -381,6 +390,14 @@ private struct BrokenPluginRow: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
+            Button(L("Show in Finder", "Im Finder zeigen")) {
+                NSWorkspace.shared.activateFileViewerSelecting([manager.folder(of: id)])
+            }
+            .buttonStyle(KlackButtonStyle())
+            if !manager.state(id).isStandard {
+                Button(L("Remove", "Entfernen")) { manager.removeBroken(id) }
+                    .buttonStyle(KlackButtonStyle(destructive: true))
+            }
         }
         .padding(.horizontal, SettingsTheme.rowPadding)
         .frame(minHeight: 52)
@@ -441,20 +458,36 @@ private struct Badge: View {
 
 /// Lesbare Kurzfassung, wofür ein Plugin zuständig ist
 enum PluginSummary {
+    /// Häufige Typen in der Sprache der App; sonst die Kennung selbst (die Beschreibung
+    /// des Systems käme in der Sprache von macOS, nicht der von BarDrop)
+    static func typeName(_ identifier: String) -> String {
+        switch identifier {
+        case "public.image": return L("Images", "Bilder")
+        case "public.movie", "public.video", "public.audiovisual-content": return L("Videos", "Videos")
+        case "public.audio": return L("Audio", "Audio")
+        case "com.adobe.pdf": return "PDF"
+        case "public.text", "public.plain-text": return L("Text", "Text")
+        case "public.folder", "public.directory": return L("Folders", "Ordner")
+        case "public.archive", "public.zip-archive": return L("Archives", "Archive")
+        case "public.url", "com.apple.web-internet-location": return L("Links", "Links")
+        case "public.data", "public.item", "public.content": return L("All files", "Alle Dateien")
+        default: return identifier
+        }
+    }
+
     static func matches(_ match: PluginMatch) -> String {
         var parts: [String] = []
         for identifier in match.types ?? [] {
-            let name = UTType(identifier)?.localizedDescription ?? identifier
-            parts.append(name.prefix(1).uppercased() + name.dropFirst())
+            parts.append(typeName(identifier))
         }
         if let ext = match.extensions, !ext.isEmpty {
             parts.append(ext.map { "." + $0.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) }.joined(separator: " "))
         }
         if let hosts = match.links?.hosts, !hosts.isEmpty {
-            parts.append(hosts.contains("*") ? L("all links", "alle Links") : L("links: ", "Links: ") + hosts.joined(separator: ", "))
+            parts.append(hosts.contains("*") ? L("All links", "Alle Links") : L("Links: ", "Links: ") + hosts.joined(separator: ", "))
         }
         if !(match.links?.patterns ?? []).isEmpty, (match.links?.hosts ?? []).isEmpty {
-            parts.append(L("some links", "bestimmte Links"))
+            parts.append(L("Some links", "Bestimmte Links"))
         }
         return parts.joined(separator: " · ")
     }

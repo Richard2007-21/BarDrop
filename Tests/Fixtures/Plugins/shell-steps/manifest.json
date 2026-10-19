@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "id": "io.github.zzuuuiii.test.shell-steps",
+  "name": "Shell Steps",
+  "version": "1.0.0",
+  "icon": { "symbol": "terminal", "color": "#5856D6" },
+  "minAppVersion": "1.31.0",
+  "match": { "extensions": ["steps"] },
+  "permissions": ["run"]
+}

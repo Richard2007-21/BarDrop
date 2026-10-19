@@ -16,6 +16,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     /// Höchstens so viele Plugins gleichzeitig; weitere warten (schont den Mac)
     static let maxConcurrent = 3
     private var waiting: [PluginJob] = []
+    /// Fehler eines Laufs per Rechtsklick oder Aktionsleiste als Dialog zeigen (Tests: aus)
+    var showsErrorDialogs = true
 
     init(manager: PluginManager = .shared, actions: ShelfActions) {
         self.manager = manager
@@ -59,8 +61,14 @@ final class PluginRunner: ObservableObject, PluginPrompter {
                                 "„\(plugin.manifest.name.text)“ passt nicht zu diesem Objekt"), duration: 1.6)
             return
         }
+        // Läuft dasselbe Plugin schon für eine Datei, nicht ein zweites Mal starten
+        let fresh = matching.filter { file in !jobs.contains { $0.anchorFileID == file.id && $0.plugin.id == plugin.id } }
+        guard !fresh.isEmpty else {
+            actions?.announce(L("\(plugin.manifest.title) is already running", "\(plugin.manifest.title) läuft schon"), duration: 1.6)
+            return
+        }
         guard confirmConsent(plugin) else { return }
-        for file in matching { enqueue(PluginJob(plugin: plugin, item: PluginItem(url: file.url), anchorFileID: file.id, automatic: false)) }
+        for file in fresh { enqueue(PluginJob(plugin: plugin, item: PluginItem(url: file.url), anchorFileID: file.id, automatic: false)) }
         actions?.announce(L("\(plugin.manifest.title) running", "\(plugin.manifest.title) läuft"), duration: 1.5)
     }
 
@@ -151,7 +159,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             removeJob(job)
             NSSound.beep()
             actions?.announce(L("\(job.title) didn’t work", "\(job.title) hat nicht geklappt"), duration: 2.5)
-            if !job.automatic { showError(error, of: job.plugin) }
+            if !job.automatic && showsErrorDialogs { showError(error, of: job.plugin) }
         }
     }
 

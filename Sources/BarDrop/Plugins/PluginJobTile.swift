@@ -13,7 +13,8 @@ struct PluginJobTile: View {
     var iconSize: CGFloat = 64
 
     var body: some View {
-        TileLabel(title: job.label ?? job.title, isSelected: false, isKey: false, iconSize: iconSize) {
+        TileLabel(title: job.isStarted ? (job.label ?? job.title) : L("Waiting", "Wartet"),
+                  isSelected: false, isKey: false, iconSize: iconSize) {
             PluginProgressRing(job: job, size: (iconSize * 0.62).rounded())
                 .frame(width: iconSize, height: iconSize)
         }
@@ -36,7 +37,9 @@ private struct PluginProgressRing: View {
         ZStack {
             Circle()
                 .stroke(Color.white.opacity(0.14), lineWidth: line)
-            if let progress = job.progress {
+            if !job.isStarted {
+                // Wartet, bis ein anderes Plugin fertig ist: nur der stille Ring
+            } else if let progress = job.progress {
                 Circle()
                     .trim(from: 0, to: max(0.02, progress))
                     .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: line, lineCap: .round))
@@ -51,14 +54,16 @@ private struct PluginProgressRing: View {
                     .animation(job.paused || AnimationStyle.reduceMotion ? .default
                                : .linear(duration: 1.1).repeatForever(autoreverses: false), value: spinning)
             }
-            Image(systemName: job.paused ? "pause.fill" : (job.plugin.manifest.icon?.resolvedSymbol ?? PluginIconView.fallbackSymbol))
+            Image(systemName: !job.isStarted ? "clock" : job.paused ? "pause.fill"
+                  : (job.plugin.manifest.icon?.resolvedSymbol ?? PluginIconView.fallbackSymbol))
                 .font(.system(size: size * 0.34, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.85))
                 .contentTransition(.symbolEffect(.replace))
         }
         .frame(width: size, height: size)
-        .onAppear { spinning = !job.paused }
-        .onChange(of: job.paused) { _, paused in spinning = !paused }
+        .onAppear { spinning = job.isStarted && !job.paused }
+        .onChange(of: job.paused) { _, paused in spinning = job.isStarted && !paused }
+        .onChange(of: job.isStarted) { _, started in spinning = started && !job.paused }
     }
 }
 
