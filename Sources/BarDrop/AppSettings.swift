@@ -634,7 +634,7 @@ final class AppSettings: ObservableObject {
         autoUpdateCheck = defaults.bool(forKey: Key.autoUpdateCheck)
         pluginsEnabled = defaults.bool(forKey: Key.pluginsEnabled)
         pluginLogEnabled = defaults.bool(forKey: Key.pluginLogEnabled)
-        PluginLog.shared.isEnabled = pluginLogEnabled
+        PluginLog.shared.isEnabled = defaults.bool(forKey: Key.pluginLogEnabled)
         hotKeyCode = defaults.integer(forKey: Key.hotKeyCode)
         hotKeyModifiers = defaults.integer(forKey: Key.hotKeyModifiers)
         hotKeyLabel = defaults.string(forKey: Key.hotKeyLabel) ?? Self.defaultHotKey.label
