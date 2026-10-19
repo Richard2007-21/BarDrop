@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.31.0-beta.4
+* **New:** Plugin log. Settings → Plugins → Log keeps a separate file of what each plugin did: starts, results, errors, permissions, downloaded programs, programs run and internet requests. It is kept apart from BarDrop’s diagnostic log, is off by default, and stays on this Mac. `bardrop.log` and `console.log` now write there
+* Plugins in Settings carry a BETA label
+* Plugins: programs a plugin downloads (`tools`) can come as a ZIP archive (`archive`, `executable`), and `{arch}` picks the file for Apple chip or Intel Macs. Each plugin finds its own programs by name
 * **Changed:** Plugins with “Replace original” turned on no longer show the original next to a placeholder: the placeholder stands in the original’s place, and the result appears there directly, without a fade
 * Plugins: messages a plugin gives itself (`throw new Error(…)`) appear exactly as written; file and line are only added for errors in the code
 * **Improved:** macOS sometimes reports changed displays many times per second without anything changing (over 200 times in 30 seconds in a diagnostic log). BarDrop now collects these reports and only rearranges the shelf when something really changed, which saves work and keeps the diagnostic log readable
