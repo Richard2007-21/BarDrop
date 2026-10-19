@@ -2,7 +2,7 @@
 
 English · [Deutsch](PLUGINS.de.md)
 
-This file describes BarDrop’s plugin system completely and exactly as the code implements it (as of 1.31.0 Beta 3). What isn’t written here doesn’t exist. Anyone writing a plugin follows this file and checks the result with `scripts/check_plugin.py` (section 11).
+This file describes BarDrop’s plugin system completely and exactly as the code implements it (as of 1.31.0 Beta 4). What isn’t written here doesn’t exist. Anyone writing a plugin follows this file and checks the result with `scripts/check_plugin.py` (section 11).
 
 Source: `Sources/BarDrop/Plugins/`. When something changes there, this file, its German version and `scripts/check_plugin.py` are updated in the same commit.
 
@@ -193,12 +193,12 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin,
 ## 8. Result
 
 * `run(item)` ends without an error (also an `async` `run` whose promise resolves): **success**. The return value isn’t used.
-* `run` throws or its promise is rejected: **failure**. Nothing is added. For right-click and action bar BarDrop shows the message in a dialog: `error.message`, for error types other than `Error` with the type in front (`TypeError: …`), for errors in the script with file and line after it (`(main.js:12)`); for automatic runs only briefly “… didn’t work”. Either way, the message appears in Settings under “Last error” (until quitting).
+* `run` throws or its promise is rejected: **failure**. Nothing is added. For right-click and action bar BarDrop shows the message in a dialog: `error.message`, for errors in the code (`TypeError`, `ReferenceError`, `SyntaxError` …) with the type in front and file and line after it (`TypeError: … (main.js:12)`); a message of the plugin’s own, thrown with `throw new Error(…)`, appears exactly as it is; for automatic runs only briefly “… didn’t work”. Either way, the message appears in Settings under “Last error” (until quitting).
 * On success, all **top-level entries** of the output folder are taken, sorted by name, **folders included**. Excluded are names starting with `.` and the extensions `part`, `ytdl`, `tmp`, `download`, `crdownload`. If the folder is empty, only the placeholder disappears.
 * The files are moved into BarDrop’s storage and inserted **right after the original** (in the order the user sees; in a stack, after the original inside the stack). They appear immediately with their preview and are selected. If the original is no longer in the shelf, they are added like newly dropped items.
-* “Replace original” (only with `canReplaceOriginal`, the user’s switch): the original is then taken **out of the shelf**, never deleted; ⌘Z brings it back.
+* “Replace original” (only with `canReplaceOriginal`, the user’s switch, decided when the run starts): while the plugin runs, its placeholder stands **in the original’s place** and the original itself isn’t shown. Afterwards the result appears exactly there, without a fade; the original is taken **out of the shelf**, never deleted, and ⌘Z brings it back. If the run fails or is cancelled, the original is shown again.
 
-**Placeholder:** while a plugin runs, a ring with the plugin’s symbol and name (or the `label` from `bardrop.progress`) stands next to the original. Without progress a short arc spins; with progress the ring fills. Right-click: progress in percent (updates while the menu is open), “Pause” or “Resume”, “Cancel”. A plugin that is still waiting only offers “Cancel”.
+**Placeholder:** while a plugin runs, a ring with the plugin’s symbol and name (or the `label` from `bardrop.progress`) stands next to the original (with “Replace original”, in its place). Without progress a short arc spins; with progress the ring fills. Right-click: progress in percent (updates while the menu is open), “Pause” or “Resume”, “Cancel”. A plugin that is still waiting only offers “Cancel”.
 
 * **Pause:** started programs and every program they started themselves get `SIGSTOP`, downloads pause. The script itself and `bardrop.sleep` keep running.
 * **Cancel:** started programs and their child programs get `SIGTERM`, requests are cancelled, the result is discarded.

@@ -46,7 +46,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     func jobs(nextTo fileIDs: [UUID]) -> [PluginJob] {
         guard !jobs.isEmpty else { return [] }
         let ids = Set(fileIDs)
-        return jobs.filter { ids.contains($0.anchorFileID) }
+        return jobs.filter { ids.contains($0.anchorFileID) && !$0.replacesOriginal }
     }
 
     // MARK: Starten
@@ -68,7 +68,11 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             return
         }
         guard confirmConsent(plugin) else { return }
-        for file in fresh { enqueue(PluginJob(plugin: plugin, item: PluginItem(url: file.url), anchorFileID: file.id, automatic: false)) }
+        let replaces = replacesOriginal(plugin)
+        for file in fresh {
+            enqueue(PluginJob(plugin: plugin, item: PluginItem(url: file.url), anchorFileID: file.id, automatic: false,
+                              replacesOriginal: replaces))
+        }
         actions?.announce(L("\(plugin.manifest.title) running", "\(plugin.manifest.title) läuft"), duration: 1.5)
     }
 
@@ -84,7 +88,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             guard let plugin = automatic.first(where: { PluginMatcher.matches($0.manifest.match, item) }) else { continue }
             // Automatisch nur mit allen nötigen Rechten (beim Einschalten erteilt) und Zustimmung
             guard readyForAutomatic(plugin), approveTools(plugin) else { blocked = plugin; continue }
-            enqueue(PluginJob(plugin: plugin, item: item, anchorFileID: file.id, automatic: true))
+            enqueue(PluginJob(plugin: plugin, item: item, anchorFileID: file.id, automatic: true,
+                              replacesOriginal: replacesOriginal(plugin)))
             started[plugin.manifest.title, default: 0] += 1
         }
         if started.count == 1, let name = started.keys.first {
@@ -105,6 +110,17 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             manager.update(plugin.id) { $0.approvedTools.append(tool.id) }
         }
         return true
+    }
+
+    /// „Original ersetzen“ ist für dieses Plugin an
+    func replacesOriginal(_ plugin: InstalledPlugin) -> Bool {
+        plugin.manifest.canReplaceOriginal == true && manager.state(plugin.id).replaceOriginal
+    }
+
+    /// Platzhalter, der an der Stelle dieser Datei steht (sie selbst ist dann nicht zu sehen)
+    func replacingJob(for fileID: UUID) -> PluginJob? {
+        guard !jobs.isEmpty else { return nil }
+        return jobs.first { $0.replacesOriginal && $0.anchorFileID == fileID }
     }
 
     /// Hat das Plugin alles, um ohne Rückfrage zu laufen?
@@ -194,9 +210,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     private func place(_ job: PluginJob, _ files: [ShelfFile]) {
         guard let store else { return }
         for file in files { Thumbnails.shownOnce.insert(file.url.path) }
-        let replace = job.plugin.manifest.canReplaceOriginal == true && manager.state(job.plugin.id).replaceOriginal
         store.insertResults(files, nextTo: job.anchorFileID,
-                            newestFirst: settings.sortOrder == .newestFirst, replacing: replace)
+                            newestFirst: settings.sortOrder == .newestFirst, replacing: job.replacesOriginal)
         removeJob(job, animated: false)
         NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
         if let actions {

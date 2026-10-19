@@ -18,6 +18,9 @@ final class PluginJob: ObservableObject, Identifiable {
     /// Datei der Ablage, neben der das Ergebnis erscheint
     let anchorFileID: UUID
     let automatic: Bool
+    /// Das Ergebnis ersetzt das Original („Original ersetzen“, beim Start festgelegt):
+    /// Dann steht der Platzhalter an der Stelle des Originals, das solange nicht zu sehen ist
+    let replacesOriginal: Bool
     /// 0…1, nil solange das Plugin keinen Fortschritt meldet
     @Published fileprivate(set) var progress: Double?
     @Published fileprivate(set) var label: String?
@@ -27,11 +30,12 @@ final class PluginJob: ObservableObject, Identifiable {
     /// Letzte Meldung an die Oberfläche (höchstens alle 100 ms, sonst zeichnet die Ablage zu oft)
     private var lastPublished = Date.distantPast
 
-    init(plugin: InstalledPlugin, item: PluginItem, anchorFileID: UUID, automatic: Bool) {
+    init(plugin: InstalledPlugin, item: PluginItem, anchorFileID: UUID, automatic: Bool, replacesOriginal: Bool = false) {
         self.plugin = plugin
         self.item = item
         self.anchorFileID = anchorFileID
         self.automatic = automatic
+        self.replacesOriginal = replacesOriginal
     }
 
     var title: String { plugin.manifest.title }
@@ -189,8 +193,11 @@ final class PluginRuntime {
         guard error.isObject, error.hasProperty("message") else { return error.toString() ?? "Error" }
         let message = error.forProperty("message")?.toString() ?? ""
         let name = error.forProperty("name")?.toString() ?? ""
-        var text = name.isEmpty || name == "Error" ? message : "\(name): \(message)"
-        if let line = error.forProperty("line"), line.isNumber, line.toInt32() > 0 {
+        let plain = name.isEmpty || name == "Error"
+        var text = plain ? message : "\(name): \(message)"
+        // Datei und Zeile nur bei Fehlern im Code (TypeError, ReferenceError …). Eine Meldung,
+        // die das Plugin selbst mit `throw new Error(…)` gibt, ist für Menschen gedacht.
+        if !plain, let line = error.forProperty("line"), line.isNumber, line.toInt32() > 0 {
             let source = error.forProperty("sourceURL").flatMap { $0.isString ? URL(string: $0.toString())?.lastPathComponent : nil }
             text += " (\(source ?? "script"):\(line.toInt32()))"
         }

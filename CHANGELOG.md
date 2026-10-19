@@ -1,6 +1,8 @@
 # Changelog
 
 ## 1.31.0-beta.4
+* **Changed:** Plugins with “Replace original” turned on no longer show the original next to a placeholder: the placeholder stands in the original’s place, and the result appears there directly, without a fade
+* Plugins: messages a plugin gives itself (`throw new Error(…)`) appear exactly as written; file and line are only added for errors in the code
 * **Improved:** macOS sometimes reports changed displays many times per second without anything changing (over 200 times in 30 seconds in a diagnostic log). BarDrop now collects these reports and only rearranges the shelf when something really changed, which saves work and keeps the diagnostic log readable
 * **Improved:** Files for which Quick Look can’t make a preview, such as links, are no longer asked for a preview again and again
 

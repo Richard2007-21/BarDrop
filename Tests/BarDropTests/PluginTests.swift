@@ -222,6 +222,7 @@ final class PluginTests: XCTestCase {
         let failing = try installed(manager, script: "async function run(item) { await Promise.resolve(); throw new Error('nope'); }")
         guard case .failure(.script(let message)) = run(failing, on: makeFile("a.txt")) else { return XCTFail("muss scheitern") }
         XCTAssertTrue(message.contains("nope"))
+        XCTAssertFalse(message.contains("main.js"), "eigene Meldungen ohne Ort")
 
         let noRun = try installed(manager, script: "var x = 1;")
         guard case .failure(.script) = run(noRun, on: makeFile("a.txt")) else { return XCTFail("ohne run") }

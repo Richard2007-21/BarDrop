@@ -556,7 +556,8 @@ final class ShelfStore: ObservableObject {
     /// Nicht widerrufbar: Eigene Dateien werden sofort gelöscht.
     @discardableResult
     private func takeOut(_ fileIDs: Set<UUID>, undoable: Bool, deleteOwnedAfter delay: TimeInterval? = nil,
-                         trashed: [URL: URL] = [:], extraItems: [ShelfRemoval.Item] = []) -> ShelfRemoval? {
+                         trashed: [URL: URL] = [:], extraItems: [ShelfRemoval.Item] = [],
+                         animated: Bool = true) -> ShelfRemoval? {
         guard !fileIDs.isEmpty || !extraItems.isEmpty else { return nil }
         var items: [ShelfRemoval.Item] = []
         var removed: [ShelfFile] = []
@@ -576,7 +577,11 @@ final class ShelfStore: ObservableObject {
         guard !removed.isEmpty || !extraItems.isEmpty else { return nil }
         diagnostics?.record("store", "takeOut \(removed.count) undoable=\(undoable) delay=\(delay.map { String(Int($0)) } ?? "–") trashed=\(trashed.count) extra=\(extraItems.count)")
         if !removed.isEmpty {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { entries = updated }
+            if animated {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { entries = updated }
+            } else {
+                insertWithoutAnimation { $0 = updated }
+            }
         }
         items += extraItems
         let extraFiles = extraItems.flatMap(\.before.files)
@@ -844,7 +849,8 @@ final class ShelfStore: ObservableObject {
         }
         insertWithoutAnimation { $0 = updated }
         if replacing {
-            takeOut([fileID], undoable: true)
+            // Ohne Ausblenden: Das Ergebnis steht sofort an der Stelle des Originals
+            takeOut([fileID], undoable: true, animated: false)
         }
     }
 }

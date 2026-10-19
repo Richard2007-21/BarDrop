@@ -2,7 +2,7 @@
 
 [English](PLUGINS.md) · Deutsch
 
-Diese Datei beschreibt das Plugin-System von BarDrop vollständig und genau so, wie der Code es umsetzt (Stand 1.31.0 Beta 3). Was hier nicht steht, gibt es nicht. Wer ein Plugin schreibt, hält sich an diese Datei und prüft das Ergebnis mit `scripts/check_plugin.py` (Abschnitt 11).
+Diese Datei beschreibt das Plugin-System von BarDrop vollständig und genau so, wie der Code es umsetzt (Stand 1.31.0 Beta 4). Was hier nicht steht, gibt es nicht. Wer ein Plugin schreibt, hält sich an diese Datei und prüft das Ergebnis mit `scripts/check_plugin.py` (Abschnitt 11).
 
 Quellcode: `Sources/BarDrop/Plugins/`. Ändert sich dort etwas, wird diese Datei, ihre englische Fassung und `scripts/check_plugin.py` im selben Commit angepasst.
 
@@ -193,12 +193,12 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, L
 ## 8. Ergebnis
 
 * `run(item)` endet ohne Fehler (auch ein `async`-`run`, dessen Versprechen erfüllt wird): **Erfolg**. Der Rückgabewert wird nicht verwendet.
-* Wirft `run` einen Fehler oder wird das Versprechen abgelehnt: **Fehlschlag**. Es kommt nichts in die Ablage. Bei Rechtsklick und Aktionsleiste zeigt BarDrop die Meldung in einem Dialog: `error.message`, bei Fehlertypen außer `Error` mit dem Typ davor (`TypeError: …`), bei Fehlern im Skript mit Datei und Zeile dahinter (`(main.js:12)`); bei automatischen Läufen nur kurz „… hat nicht geklappt“. In beiden Fällen steht die Meldung in den Einstellungen unter „Letzter Fehler“ (bis zum Beenden).
+* Wirft `run` einen Fehler oder wird das Versprechen abgelehnt: **Fehlschlag**. Es kommt nichts in die Ablage. Bei Rechtsklick und Aktionsleiste zeigt BarDrop die Meldung in einem Dialog: `error.message`, bei Fehlern im Code (`TypeError`, `ReferenceError`, `SyntaxError` …) mit dem Typ davor und Datei und Zeile dahinter (`TypeError: … (main.js:12)`); eine eigene Meldung mit `throw new Error(…)` erscheint genau so, wie sie ist; bei automatischen Läufen nur kurz „… hat nicht geklappt“. In beiden Fällen steht die Meldung in den Einstellungen unter „Letzter Fehler“ (bis zum Beenden).
 * Bei Erfolg werden alle **Einträge der obersten Ebene** im Ausgabeordner übernommen, alphabetisch sortiert, **Ordner eingeschlossen**. Ausgenommen sind Namen, die mit `.` beginnen, und die Endungen `part`, `ytdl`, `tmp`, `download`, `crdownload`. Ist der Ordner leer, verschwindet nur der Platzhalter.
 * Die Dateien werden in den Speicher von BarDrop verschoben und **direkt hinter dem Original** eingefügt (in der Reihenfolge, die der Nutzer sieht; liegt das Original in einem Stapel, hinter ihm im Stapel). Sie erscheinen sofort mit Vorschau und sind danach ausgewählt. Liegt das Original nicht mehr in der Ablage, kommen sie dazu wie neu abgelegte Objekte.
-* „Original ersetzen“ (nur mit `canReplaceOriginal`, Schalter des Nutzers): Das Original wird danach **aus der Ablage** genommen, nie gelöscht; ⌘Z holt es zurück.
+* „Original ersetzen“ (nur mit `canReplaceOriginal`, Schalter des Nutzers, beim Start des Laufs festgelegt): Solange das Plugin läuft, steht sein Platzhalter **an der Stelle des Originals**, das Original selbst ist nicht zu sehen. Danach steht das Ergebnis genau dort, ohne Überblenden; das Original ist **aus der Ablage** genommen, nie gelöscht, ⌘Z holt es zurück. Scheitert der Lauf oder wird er abgebrochen, ist das Original wieder zu sehen.
 
-**Platzhalter:** Während ein Plugin läuft, steht neben dem Original ein Ring mit dem Symbol des Plugins und dem Namen (oder dem `label` aus `bardrop.progress`). Ohne Fortschritt dreht ein kurzer Bogen, mit Fortschritt füllt sich der Ring. Rechtsklick: Fortschritt in Prozent (läuft im offenen Menü mit), „Anhalten“ bzw. „Fortsetzen“, „Abbrechen“. Wartet ein Plugin noch, gibt es nur „Abbrechen“.
+**Platzhalter:** Während ein Plugin läuft, steht neben dem Original (bei „Original ersetzen“ an seiner Stelle) ein Ring mit dem Symbol des Plugins und dem Namen (oder dem `label` aus `bardrop.progress`). Ohne Fortschritt dreht ein kurzer Bogen, mit Fortschritt füllt sich der Ring. Rechtsklick: Fortschritt in Prozent (läuft im offenen Menü mit), „Anhalten“ bzw. „Fortsetzen“, „Abbrechen“. Wartet ein Plugin noch, gibt es nur „Abbrechen“.
 
 * **Anhalten:** gestartete Programme und alle Programme, die diese selbst gestartet haben, bekommen `SIGSTOP`, Downloads pausieren. Das Skript selbst und `bardrop.sleep` laufen weiter.
 * **Abbrechen:** gestartete Programme und ihre Unterprogramme bekommen `SIGTERM`, Anfragen werden abgebrochen, das Ergebnis wird verworfen.

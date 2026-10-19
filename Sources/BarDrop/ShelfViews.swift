@@ -406,6 +406,11 @@ struct ShelfContent: View {
                 // steht sofort als Kachel da, an der Stelle, an der es landen wird
                 if showPending && settings.sortOrder == .newestFirst { pendingTiles }
                 ForEach(actions.orderedEntries) { entry in
+                    // „Original ersetzen“: Solange das Plugin läuft, steht sein Platzhalter an
+                    // der Stelle des Originals; das Original selbst ist nicht zu sehen
+                    if !entry.isStack, let file = entry.files.first, let job = runner.replacingJob(for: file.id) {
+                        PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
+                    } else {
                     TileView(entry: entry, ui: ui, actions: actions,
                              isSelected: ui.selection.contains(entry.id),
                              iconSize: CGFloat(settings.tileIconSize))
@@ -416,6 +421,7 @@ struct ShelfContent: View {
                             }
                         )
                         .transition(Self.tileTransition)
+                    }
                     if !runner.jobs.isEmpty {
                         ForEach(runner.jobs(nextTo: entry.files.map(\.id))) { job in
                             PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
@@ -460,6 +466,9 @@ struct ShelfContent: View {
     private func stackGrid(_ stack: ShelfEntry) -> some View {
         LazyVGrid(columns: columns, spacing: 6) {
             ForEach(stack.files) { file in
+                if let job = runner.replacingJob(for: file.id) {
+                    PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
+                } else {
                 StackMemberTile(file: file, entry: stack, ui: ui, actions: actions,
                                 isSelected: ui.memberSelection.contains(file.id),
                                 iconSize: CGFloat(settings.tileIconSize))
@@ -470,6 +479,7 @@ struct ShelfContent: View {
                         }
                     )
                     .transition(Self.tileTransition)
+                }
                 if !runner.jobs.isEmpty {
                     ForEach(runner.jobs(nextTo: [file.id])) { job in
                         PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
