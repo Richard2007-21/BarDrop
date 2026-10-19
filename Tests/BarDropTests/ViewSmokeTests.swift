@@ -139,6 +139,55 @@ final class ViewSmokeTests: XCTestCase {
         let menu = actions.menu(for: job)
         XCTAssertTrue(menu.items.first?.title.contains("40") == true)
         withExtendedLifetime(runtime) {}
+
+        // Alle Zustände des Platzhalters nebeneinander, in beiden Sprachen
+        for language in [AppLanguage.german, .english] {
+            settings.language = language
+            func running(_ setup: (PluginJob, PluginRuntime) -> Void) -> (PluginJob, PluginRuntime) {
+                let job = PluginJob(plugin: plugin, item: PluginItem(url: file), anchorFileID: UUID(), automatic: false)
+                let runtime = PluginRuntime(job: job, workDirectory: base.appendingPathComponent("work-\(UUID().uuidString)"),
+                                            tools: PluginTools(directory: base.appendingPathComponent("tools")), prompter: nil,
+                                            settingsValues: [:], granted: [], onGrant: { _ in }, onNotify: { _ in })
+                setup(job, runtime)
+                return (job, runtime)
+            }
+            let spinning = running { _, _ in }
+            let progress = running { job, _ in job.report(0.4, label: nil, force: true) }
+            let labeled = running { job, _ in job.report(0.6, label: L("Page 3 of 5", "Seite 3 von 5"), force: true) }
+            let tool = running { job, _ in job.report(nil, label: L("Loading mytool", "Lädt mytool"), force: true) }
+            let paused = running { job, runtime in
+                job.report(0.7, label: nil, force: true)
+                runtime.setPaused(true)
+            }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            let waitingJob = PluginJob(plugin: plugin, item: PluginItem(url: file), anchorFileID: UUID(), automatic: false)
+            let states: [(PluginJob, String)] = [
+                (spinning.0, L("Running, no progress", "Läuft, ohne Fortschritt")),
+                (progress.0, L("Running, 40 %", "Läuft, 40 %")),
+                (labeled.0, L("Own label", "Eigene Beschriftung")),
+                (tool.0, L("Loading a program", "Programm wird geladen")),
+                (paused.0, L("Paused", "Angehalten")),
+                (waitingJob, L("Waiting", "Wartet"))
+            ]
+            let sheet = HStack(alignment: .top, spacing: 18) {
+                ForEach(Array(states.enumerated()), id: \.offset) { _, state in
+                    VStack(spacing: 6) {
+                        PluginJobTile(job: state.0, ui: ui, actions: actions, iconSize: 64)
+                            .frame(width: 100)
+                        Text(state.1)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.45))
+                            .multilineTextAlignment(.center)
+                            .frame(width: 100)
+                    }
+                }
+            }
+            .padding(20)
+            .background(Color.black)
+            render(sheet, size: CGSize(width: 760, height: 190),
+                   "Plugin Platzhalter alle \(language.rawValue)", appearance: .darkAqua)
+            withExtendedLifetime([spinning.1, progress.1, labeled.1, tool.1, paused.1]) {}
+        }
     }
 
     func testIntroductionPagesRender() {
