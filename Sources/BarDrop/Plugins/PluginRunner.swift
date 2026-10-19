@@ -1,0 +1,217 @@
+import AppKit
+import SwiftUI
+
+/// Startet Plugins für Objekte der Ablage und bringt ihre Ergebnisse zurück:
+/// über den Rechtsklick, die Aktionsleiste oder automatisch beim Ablegen.
+///
+/// Laufende Plugins erscheinen als Platzhalter direkt neben dem Original. Ist ein Plugin
+/// fertig, liegt das Ergebnis an genau dieser Stelle und ist sofort mit Vorschau zu sehen.
+final class PluginRunner: ObservableObject, PluginPrompter {
+    @Published private(set) var jobs: [PluginJob] = []
+
+    private let manager: PluginManager
+    private weak var actions: ShelfActions?
+    private var runtimes: [UUID: PluginRuntime] = [:]
+    private lazy var tools = PluginTools(directory: manager.toolsDirectory)
+    /// Höchstens so viele Plugins gleichzeitig; weitere warten (schont den Mac)
+    static let maxConcurrent = 3
+    private var waiting: [PluginJob] = []
+
+    init(manager: PluginManager = .shared, actions: ShelfActions) {
+        self.manager = manager
+        self.actions = actions
+    }
+
+    private var store: ShelfStore? { actions?.store }
+    private var settings: AppSettings { AppSettings.shared }
+
+    // MARK: Welche Plugins passen
+
+    /// Eingeschaltete Plugins, die zu mindestens einer der Dateien passen und den Auslöser kennen
+    func plugins(for urls: [URL], trigger: PluginTrigger) -> [InstalledPlugin] {
+        let active = manager.activePlugins.filter { $0.manifest.allTriggers.contains(trigger) }
+        guard !active.isEmpty, !urls.isEmpty else { return [] }
+        let items = urls.prefix(50).map(PluginItem.init(url:))
+        return active.filter { plugin in items.contains { PluginMatcher.matches(plugin.manifest.match, $0) } }
+    }
+
+    func job(for id: UUID?) -> PluginJob? {
+        guard let id else { return nil }
+        return jobs.first { $0.id == id }
+    }
+
+    /// Laufende Plugins, die neben dieser Datei erscheinen
+    func jobs(nextTo fileIDs: [UUID]) -> [PluginJob] {
+        guard !jobs.isEmpty else { return [] }
+        let ids = Set(fileIDs)
+        return jobs.filter { ids.contains($0.anchorFileID) }
+    }
+
+    // MARK: Starten
+
+    /// Rechtsklick oder Aktionsleiste: das Plugin für alle passenden Dateien
+    func run(_ pluginID: String, on files: [ShelfFile]) {
+        guard let plugin = manager.refreshed(pluginID), manager.isActive(pluginID) else { return NSSound.beep() }
+        let matching = files.filter { PluginMatcher.matches(plugin.manifest.match, PluginItem(url: $0.url)) }
+        guard !matching.isEmpty else {
+            NSSound.beep()
+            actions?.announce(L("“\(plugin.manifest.name.text)” doesn’t work with this item",
+                                "„\(plugin.manifest.name.text)“ passt nicht zu diesem Objekt"), duration: 1.6)
+            return
+        }
+        guard confirmConsent(plugin) else { return }
+        for file in matching { enqueue(PluginJob(plugin: plugin, item: PluginItem(url: file.url), anchorFileID: file.id, automatic: false)) }
+        actions?.announce(L("\(plugin.manifest.title) running", "\(plugin.manifest.title) läuft"), duration: 1.5)
+    }
+
+    /// Frisch abgelegte Dateien: je Datei das erste passende Plugin mit „Automatisch“
+    func handleDropped(_ files: [ShelfFile]) {
+        guard settings.pluginsEnabled, !IntroGate.active else { return }
+        let automatic = manager.activePlugins.filter { manager.isAutomatic($0) }
+        guard !automatic.isEmpty else { return }
+        var started: [String: Int] = [:]
+        var blocked: InstalledPlugin?
+        for file in files {
+            let item = PluginItem(url: file.url)
+            guard let plugin = automatic.first(where: { PluginMatcher.matches($0.manifest.match, item) }) else { continue }
+            // Automatisch nur mit allen nötigen Rechten (beim Einschalten erteilt) und Zustimmung
+            guard readyForAutomatic(plugin) else { blocked = plugin; continue }
+            enqueue(PluginJob(plugin: plugin, item: item, anchorFileID: file.id, automatic: true))
+            started[plugin.manifest.title, default: 0] += 1
+        }
+        if started.count == 1, let name = started.keys.first {
+            actions?.announce(L("Plugin \(name) active", "Plugin \(name) aktiv"), duration: 1.5)
+        } else if started.count > 1 {
+            actions?.announce(L("\(started.count) plugins active", "\(started.count) Plugins aktiv"), duration: 1.5)
+        } else if let blocked {
+            actions?.announce(L("\(blocked.manifest.title) needs permission in Settings",
+                                "\(blocked.manifest.title) braucht eine Erlaubnis in den Einstellungen"), duration: 2.5)
+        }
+    }
+
+    /// Hat das Plugin alles, um ohne Rückfrage zu laufen?
+    func readyForAutomatic(_ plugin: InstalledPlugin) -> Bool {
+        if plugin.manifest.consent != nil && !manager.state(plugin.id).consented { return false }
+        return plugin.manifest.allPermissions.allSatisfy { manager.isGranted($0, for: plugin) }
+    }
+
+    private func enqueue(_ job: PluginJob) {
+        withAnimation(.easeOut(duration: 0.2)) { jobs.append(job) }
+        if runtimes.count < Self.maxConcurrent { launch(job) } else { waiting.append(job) }
+    }
+
+    private func launch(_ job: PluginJob) {
+        let work = manager.scratchDirectory.appendingPathComponent(job.id.uuidString, isDirectory: true)
+        let plugin = job.plugin
+        let runtime = PluginRuntime(
+            job: job, workDirectory: work, tools: tools, prompter: self,
+            settingsValues: manager.settingsValues(of: plugin),
+            granted: Set(plugin.manifest.allPermissions.filter { manager.isGranted($0, for: plugin) }),
+            onGrant: { [weak self] permission in self?.manager.grant(permission, for: plugin) },
+            onNotify: { [weak self] text in self?.actions?.announce(text, duration: 2) }
+        )
+        runtimes[job.id] = runtime
+        Diagnostics.shared.record("plugin", "start \(plugin.id) automatic=\(job.automatic) item=\(job.item.kind.rawValue)")
+        runtime.start { [weak self] result in
+            self?.finished(job, result: result, workDirectory: work)
+        }
+    }
+
+    private func finished(_ job: PluginJob, result: Result<[URL], PluginRunError>, workDirectory: URL) {
+        runtimes.removeValue(forKey: job.id)
+        defer {
+            try? FileManager.default.removeItem(at: workDirectory)
+            if !waiting.isEmpty, runtimes.count < Self.maxConcurrent { launch(waiting.removeFirst()) }
+        }
+        switch result {
+        case .success(let urls):
+            Diagnostics.shared.record("plugin", "done \(job.plugin.id) results=\(urls.count)")
+            deliver(job, urls)
+        case .failure(.cancelled):
+            removeJob(job)
+            actions?.announce(L("Cancelled", "Abgebrochen"), duration: 1.5)
+        case .failure(let error):
+            Diagnostics.shared.failure("plugin", "\(job.plugin.id) failed: \(error.message.prefix(200))")
+            removeJob(job)
+            NSSound.beep()
+            actions?.announce(L("\(job.title) didn’t work", "\(job.title) hat nicht geklappt"), duration: 2.5)
+            if !job.automatic { showError(error, of: job.plugin) }
+        }
+    }
+
+    /// Ergebnis an die Stelle des Platzhalters. Vorschaubilder entstehen schon vorher,
+    /// damit die neue Kachel sofort fertig gezeichnet erscheint und nicht erst beim
+    /// nächsten Öffnen der Ablage.
+    private func deliver(_ job: PluginJob, _ urls: [URL]) {
+        guard let store, !urls.isEmpty else {
+            removeJob(job)
+            return
+        }
+        let replace = job.plugin.manifest.canReplaceOriginal == true && manager.state(job.plugin.id).replaceOriginal
+        let added = store.insertResults(urls, nextTo: job.anchorFileID,
+                                        newestFirst: settings.sortOrder == .newestFirst, replacing: replace)
+        removeJob(job, animated: false)
+        let size = CGFloat(settings.tileIconSize)
+        Task { @MainActor in
+            for file in added where ThumbnailView.expectsPreview(file.url) {
+                _ = await Thumbnails.load(file.url, size: size)
+            }
+            NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
+        }
+        if let actions, !added.isEmpty {
+            if actions.isInStack {
+                actions.ui.memberSelection = Set(added.map(\.id))
+            } else {
+                let ids = Set(added.map(\.id))
+                actions.ui.selection = Set(store.entries.filter { $0.files.contains { ids.contains($0.id) } }.map(\.id))
+            }
+        }
+    }
+
+    private func removeJob(_ job: PluginJob, animated: Bool = true) {
+        if animated {
+            withAnimation(.easeOut(duration: 0.2)) { jobs.removeAll { $0.id == job.id } }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { jobs.removeAll { $0.id == job.id } }
+        }
+        waiting.removeAll { $0.id == job.id }
+    }
+
+    /// Abbrechen auch, solange ein Plugin noch wartet
+    func cancel(_ job: PluginJob) {
+        if waiting.contains(where: { $0.id == job.id }) {
+            removeJob(job)
+            return
+        }
+        job.cancel()
+    }
+
+    /// Beim Beenden: laufende Plugins abbrechen
+    func cancelAll() {
+        waiting.removeAll()
+        runtimes.values.forEach { $0.cancel() }
+    }
+
+    // MARK: Rückfragen
+
+    /// Zustimmung zum Hinweis des Plugins, einmalig
+    func confirmConsent(_ plugin: InstalledPlugin) -> Bool {
+        PluginDialogs.confirmConsent(plugin, manager: manager, ui: actions?.ui)
+    }
+
+    func allow(_ permission: PluginPermission, for plugin: InstalledPlugin) -> Bool {
+        PluginDialogs.allow(permission, for: plugin, ui: actions?.ui)
+    }
+
+    func allowDownload(of tool: PluginTool, for plugin: InstalledPlugin) -> Bool {
+        PluginDialogs.allowDownload(of: tool, for: plugin, ui: actions?.ui)
+    }
+
+    private func showError(_ error: PluginRunError, of plugin: InstalledPlugin) {
+        DispatchQueue.main.async { [weak self] in
+            PluginDialogs.showError(error.message, of: plugin, ui: self?.actions?.ui)
+        }
+    }
+}

@@ -166,6 +166,7 @@ final class EdgeController: NSObject {
         // neu. Deshalb hier selbst neu zeichnen, sobald sich der Inhalt ändert.
         contentObserver = store.$entries.map { _ in () }
             .merge(with: store.$pendingImports.map { _ in () })
+            .merge(with: actions.plugins.$jobs.map { _ in () })
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.refreshContent() }
         // Dasselbe für Änderungen innerhalb der Kacheln, die später kommen als der Eintrag

@@ -15,7 +15,8 @@ let package = Package(
                 .linkedFramework("QuickLookThumbnailing"),
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("Carbon"),
-                .linkedFramework("IOKit")
+                .linkedFramework("IOKit"),
+                .linkedFramework("JavaScriptCore")
             ]
         ),
         .testTarget(

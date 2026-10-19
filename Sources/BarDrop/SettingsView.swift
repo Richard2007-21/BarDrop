@@ -108,6 +108,7 @@ struct KeyboardSettings: View {
                     ShortcutRow(L("Paste from clipboard", "Aus der Zwischenablage einfügen"), ["⌘", "V"])
                     ShortcutRow(L("Copy path", "Pfad kopieren"), ["⌥", "⌘", "C"])
                     ShortcutRow(L("Show in Finder", "Im Finder zeigen"), ["⌘", "R"])
+                    ShortcutRow(L("Get Info", "Informationen"), ["⌘", "I"])
                     ShortcutRow(L("Select all", "Alle auswählen"), ["⌘", "A"])
                     ShortcutRow(L("Move selection", "Auswahl bewegen"), ["←", "→", "↑", "↓"])
                     ShortcutRow(L("Extend selection", "Auswahl erweitern"), ["⇧", "←"])
@@ -555,6 +556,19 @@ struct ActionSettings: View {
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(L("Folder", "Ordner")) { chooseFolder() })
         menu.addItem(ClosureMenuItem("App") { chooseApp() })
+        // Eingeschaltete Plugins, die in der Aktionsleiste laufen können
+        let plugins = PluginManager.shared.activePlugins.filter { $0.manifest.allTriggers.contains(.action) }
+        if !plugins.isEmpty {
+            menu.addItem(.separator())
+            for plugin in plugins {
+                let item = ClosureMenuItem(plugin.manifest.title) { add(QuickAction(kind: .plugin, path: plugin.id)) }
+                item.image = PluginMenuIcons.image(for: plugin)
+                if settings.quickActions.contains(where: { $0.kind == .plugin && $0.path == plugin.id }) {
+                    item.action = nil
+                }
+                menu.addItem(item)
+            }
+        }
         MenuPresenter.show(menu, below: addButtonFrame)
     }
 

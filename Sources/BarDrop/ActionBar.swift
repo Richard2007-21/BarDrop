@@ -202,13 +202,21 @@ struct QuickActionIcon: View {
         }
     }
 
+    /// Teilen im Blau von AirDrop, Plugins in ihrer eigenen Farbe
+    private var tileGradient: LinearGradient {
+        if action.kind == .plugin {
+            let tint = PluginManager.shared.plugin(action.path)?.manifest.icon?.tint ?? PluginIconView.fallbackTint
+            return SettingsTheme.iconGradient(tint)
+        }
+        return LinearGradient(colors: AirDropColors.shared.gradient, startPoint: .top, endPoint: .bottom)
+    }
+
     private var fallbackTile: some View {
         // Eigene Kachel im macOS-Icon-Raster, im Blau von AirDrop: heller oben, satter
         // unten, ein Glanz an der Oberkante und ein leichter Schatten wie bei App-Symbolen
         let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
         return shape
-            .fill(LinearGradient(colors: AirDropColors.shared.gradient,
-                                 startPoint: .top, endPoint: .bottom))
+            .fill(tileGradient)
             .overlay(
                 shape.fill(LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0)],
                                           startPoint: .top, endPoint: .center))
@@ -395,6 +403,8 @@ struct QuickActionButton: View {
 struct QuickActionBar: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var ui: ShelfUIModel
+    /// Plugins ein- oder ausgeschaltet: ihre Aktionen erscheinen bzw. verschwinden
+    @ObservedObject private var pluginManager = PluginManager.shared
     let store: ShelfStore
     let actions: ShelfActions
 
@@ -411,7 +421,8 @@ struct QuickActionBar: View {
     }
 
     var body: some View {
-        let all = settings.quickActions
+        // Plugins nur, solange sie eingeschaltet sind
+        let all = settings.quickActions.filter { $0.kind != .plugin || PluginManager.shared.isActive($0.path) }
         // Der Platz zum Anheften kommt dorthin, wo die Aktion danach stünde: ans Ende
         let pin = ui.pinCandidate.flatMap { settings.pinFromShelf ? $0 : nil }
         let slots = all.map(Slot.action) + (pin.map { [Slot.pin($0)] } ?? [])

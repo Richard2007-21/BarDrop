@@ -14,10 +14,18 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// Die Übersicht zeigt mehrere ausgewählte Objekte: Dann blättert sie selbst darin
     var quickLookPagesSelection = false
 
+    /// Plugins: laufen lassen, Platzhalter, Ergebnisse (erst beim ersten Gebrauch angelegt)
+    private(set) lazy var plugins = PluginRunner(actions: self)
+
     init(store: ShelfStore, ui: ShelfUIModel, settings: AppSettings) {
         self.store = store
         self.ui = ui
         self.settings = settings
+        super.init()
+        store.onUserDrop = { [weak self] files in
+            guard let self, self.settings.pluginsEnabled else { return }
+            self.plugins.handleDropped(files)
+        }
     }
 
     // MARK: Reihenfolge und Auswahl
@@ -143,10 +151,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     // MARK: Rückmeldung und Widerrufen
 
     /// Zeigt kurz eine Rückmeldung oben in der Ablage an Stelle der Anzahl.
-    func announce(_ text: String, canUndo: Bool = false) {
+    /// `duration`: wie lange (Standard: 2 s, mit Widerrufen 3 s)
+    func announce(_ text: String, canUndo: Bool = false, duration: TimeInterval? = nil) {
         let notice = ShelfUIModel.Notice(text: text, canUndo: canUndo)
         withAnimation(.easeOut(duration: 0.18)) { ui.notice = notice }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (canUndo ? 3 : 2)) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + (duration ?? (canUndo ? 3 : 2))) { [weak self] in
             guard let self, self.ui.notice?.id == notice.id else { return }
             withAnimation(.easeIn(duration: 0.25)) { self.ui.notice = nil }
         }
@@ -357,6 +366,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         case .trash:
             ui.selection = []
             moveToTrash(urls)
+        case .plugin:
+            guard let id = action.path else { return }
+            let keys = Set(urls.map(\.standardizedFileURL))
+            let files = store.entries.flatMap(\.files).filter { keys.contains($0.url.standardizedFileURL) }
+            plugins.run(id, on: files)
         }
     }
 
@@ -604,6 +618,9 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         menu.addItem(ClosureMenuItem(L("Show in Finder", "Im Finder zeigen"), key: "r") { [weak self] in
             self?.reveal(urls)
         })
+        menu.addItem(ClosureMenuItem(L("Get Info", "Informationen"), key: "i") { [weak self] in
+            self?.getInfo(urls)
+        })
         menu.addItem(ClosureMenuItem(L("Copy", "Kopieren"), key: "c") { [weak self] in
             ShelfActions.copyFiles(urls)
             self?.announceCopy(urls.count, pathsOnly: false)
@@ -649,6 +666,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
             self?.moveToTrash(urls)
         })
+        addPluginItems(to: menu, files: targets.flatMap(\.files))
         return menu
     }
 
@@ -668,7 +686,75 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
             self?.moveToTrash(urls)
         })
+        addPluginItems(to: menu, files: files)
         return menu
+    }
+
+    /// Plugins, die zu den Dateien passen: unter den normalen Einträgen, nach einer
+    /// Trennlinie. Bis zu drei direkt im Menü, ab vier gesammelt unter „Plugins“.
+    private func addPluginItems(to menu: NSMenu, files: [ShelfFile]) {
+        guard settings.pluginsEnabled, !files.isEmpty else { return }
+        let matching = plugins.plugins(for: files.map(\.url), trigger: .menu)
+        guard !matching.isEmpty else { return }
+        let items = matching.map { plugin -> NSMenuItem in
+            let item = ClosureMenuItem(plugin.manifest.title) { [weak self] in
+                // Erst nach dem Schließen des Menüs: Das Plugin kann eine Frage stellen
+                DispatchQueue.main.async { self?.plugins.run(plugin.id, on: files) }
+            }
+            item.image = PluginMenuIcons.image(for: plugin)
+            return item
+        }
+        menu.addItem(.separator())
+        if items.count <= 3 {
+            items.forEach(menu.addItem)
+        } else {
+            let submenu = NSMenu()
+            items.forEach(submenu.addItem)
+            let group = NSMenuItem(title: L("Plugins", "Plugins"), action: nil, keyEquivalent: "")
+            group.image = NSImage(systemSymbolName: "puzzlepiece.extension", accessibilityDescription: nil)
+            group.submenu = submenu
+            menu.addItem(group)
+        }
+    }
+
+    /// Kontextmenü für ein laufendes Plugin (Platzhalter): Fortschritt, Anhalten,
+    /// Fortsetzen und Abbrechen. Der Fortschritt läuft im offenen Menü mit.
+    func menu(for job: PluginJob) -> NSMenu {
+        let menu = NSMenu()
+        let status = LiveMenuItem { [weak job] in
+            guard let job else { return L("Finished", "Fertig") }
+            let name = job.title
+            if job.paused { return L("\(name): paused", "\(name): angehalten") + (job.percent.map { " · " + Format.percent($0) } ?? "") }
+            if let percent = job.percent { return "\(name): " + Format.percent(percent) }
+            return L("\(name): running", "\(name): läuft")
+        }
+        menu.addItem(status)
+        menu.addItem(.separator())
+        if job.paused {
+            menu.addItem(ClosureMenuItem(L("Resume", "Fortsetzen"), symbol: "play.fill") { [weak job] in job?.resume() })
+        } else {
+            menu.addItem(ClosureMenuItem(L("Pause", "Anhalten"), symbol: "pause.fill") { [weak job] in job?.pause() })
+        }
+        menu.addItem(ClosureMenuItem(L("Cancel", "Abbrechen"), symbol: "xmark") { [weak self, weak job] in
+            guard let job else { return }
+            self?.plugins.cancel(job)
+        })
+        return menu
+    }
+
+    /// ⌘I: Informationen wie im Finder (das Fenster „Informationen“ des Finders)
+    func getInfo(_ urls: [URL]) {
+        let targets = originals(urls).filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !targets.isEmpty else { return NSSound.beep() }
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("io.github.zzuuuiii.bardrop.info"))
+        pasteboard.clearContents()
+        pasteboard.writeObjects(targets as [NSURL])
+        pasteboard.setPropertyList(targets.map(\.path), forType: NSPasteboard.PasteboardType("NSFilenamesPboardType"))
+        if !NSPerformService("Finder/Show Info", pasteboard) {
+            // Ohne den Dienst des Finders: wenigstens im Finder zeigen
+            NSSound.beep()
+            reveal(targets)
+        }
     }
 
     /// Kontextmenü für die leere Fläche der Ablage.

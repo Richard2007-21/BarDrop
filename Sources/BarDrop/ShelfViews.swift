@@ -88,7 +88,7 @@ struct ShelfRootView: View {
             }
 
             if ui.level == .expanded {
-                ShelfContent(ui: ui, store: store, settings: settings, actions: actions)
+                ShelfContent(ui: ui, store: store, settings: settings, actions: actions, runner: actions.plugins)
                     .frame(width: full.width, height: full.height)
                     .padding(.vertical, full.fillet)
                     // Während etwas aus der Ablage gezogen wird, nur überblenden: Die Unschärfe
@@ -133,6 +133,8 @@ struct ShelfContent: View {
     @ObservedObject var store: ShelfStore
     @ObservedObject var settings: AppSettings
     let actions: ShelfActions
+    /// Laufende Plugins: ihre Platzhalter stehen direkt neben dem Original
+    @ObservedObject var runner: PluginRunner
 
     @State private var tileFrames: [UUID: CGRect] = [:]
     /// Höhe des sichtbaren Bereichs der Kacheln (bis unter die Aktionsleiste)
@@ -146,18 +148,18 @@ struct ShelfContent: View {
     /// Platzhalter erst nach einem Augenblick zeigen: Dateien aus dem Finder sind sofort
     /// da, für sie soll nichts aufblitzen
     @State private var showPending = false
-    /// Hinter der Aktionsleiste ganz deckend, darüber ein kurzer Übergang. Sanft beginnend
-    /// und sanft endend (S-Kurve), damit weder oben noch am Übergang eine Linie zu sehen ist.
+    /// Hinter der Aktionsleiste ganz deckend, mit einer klaren Kante statt eines Nebels:
+    /// Kacheln laufen sichtbar unter einer feinen Linie hindurch, wie unter einer Leiste
+    /// in macOS.
     private var barBackdrop: some View {
-        let total = barHeight + Self.barFade
-        let fade = Self.barFade / max(1, total)
-        var stops: [Gradient.Stop] = []
-        for (t, alpha) in Self.fadeCurve {
-            stops.append(Gradient.Stop(color: Color.black.opacity(alpha), location: t * fade))
-        }
-        stops.append(Gradient.Stop(color: Color.black, location: 1))
-        return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
-            .frame(height: total)
+        Rectangle()
+            .fill(Color.black)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.white.opacity(0.1))
+                    .frame(height: 1)
+            }
+            .frame(height: barHeight)
             .allowsHitTesting(false)
     }
 
@@ -167,12 +169,12 @@ struct ShelfContent: View {
             Gradient.Stop(color: Color.black.opacity(point.1), location: 1 - point.0)
         }
         return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
-            .frame(height: Self.barFade)
+            .frame(height: Self.headerFade)
             .allowsHitTesting(false)
     }
 
-    /// Länge des Verlaufs über der Leiste: kurz, damit er nicht weit in die Kacheln reicht
-    private static let barFade: CGFloat = 24
+    /// Länge des Verlaufs unter dem Kopf
+    private static let headerFade: CGFloat = 24
     /// Deckkraft entlang des Verlaufs (S-Kurve, smoothstep)
     private static let fadeCurve: [(CGFloat, Double)] = {
         var points: [(CGFloat, Double)] = []
@@ -238,7 +240,7 @@ struct ShelfContent: View {
                                 onClick: { actions.clearCurrentSelection() },
                                 menu: { actions.backgroundMenu() },
                                 // Der Rahmen endet über der Aktionsleiste und ihrem Übergang
-                                bottomInset: barHeight + Self.barFade / 2
+                                bottomInset: barHeight
                             )
                         } })
                         .overlay(alignment: .topLeading) { bandOverlay }
@@ -420,6 +422,11 @@ struct ShelfContent: View {
                             }
                         )
                         .transition(Self.tileTransition)
+                    if !runner.jobs.isEmpty {
+                        ForEach(runner.jobs(nextTo: entry.files.map(\.id))) { job in
+                            PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
+                        }
+                    }
                 }
                 if showPending && settings.sortOrder == .oldestFirst { pendingTiles }
                 if ui.showSampleTile { sizeGuides }
@@ -469,6 +476,11 @@ struct ShelfContent: View {
                         }
                     )
                     .transition(Self.tileTransition)
+                if !runner.jobs.isEmpty {
+                    ForEach(runner.jobs(nextTo: [file.id])) { job in
+                        PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
+                    }
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -518,8 +530,8 @@ struct ShelfContent: View {
             ?? CGFloat(settings.tileIconSize) + 60
         // Außerhalb der weichen Übergänge oben und über der Leiste (die Kachel hat selbst
         // 6 pt Rand oben und unten)
-        let top = Self.barFade - 6
-        let bottom = viewport - barHeight - Self.barFade + 6
+        let top = Self.headerFade - 6
+        let bottom = viewport - barHeight - 4
         let span = viewport - tileHeight
         guard span > 0, bottom - top >= tileHeight else {
             proxy.scrollTo(id, anchor: .top)
@@ -755,7 +767,7 @@ struct TileView: View {
                 },
                 menu: { anchor in actions.menu(for: entry, anchor: anchor) },
                 draggedIDs: { Set(actions.targets(for: entry).map(\.id)) },
-                onShelfDrop: { pb in actions.store.ingest(from: pb) },
+                onShelfDrop: { pb in actions.store.ingest(from: pb, byUser: true) },
                 onShelfTargeted: { targeted in
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) { ui.isDropTargeted = targeted }
                 }

@@ -161,6 +161,9 @@ final class ShelfStore: ObservableObject {
     }
     /// Objekte, die gerade übernommen werden (Kopieren, Herunterladen)
     @Published private(set) var pendingImports = 0
+    /// Der Nutzer hat etwas abgelegt oder eingefügt (nicht: Ergebnisse von Aktionen,
+    /// Bildschirmfotos, Widerrufen). Für Plugins, die automatisch laufen.
+    var onUserDrop: (([ShelfFile]) -> Void)?
 
     private let baseDir: URL
     private let itemsDir: URL
@@ -756,7 +759,8 @@ final class ShelfStore: ObservableObject {
     /// Übernimmt den Inhalt eines Pasteboards (Drag & Drop oder Zwischenablage).
     /// Mit `target` landen die Objekte auf diesem Eintrag (Stapel bilden bzw. ergänzen).
     /// `completion` liefert die Dateien, die daraus entstanden sind.
-    func ingest(from pb: NSPasteboard, into target: UUID? = nil, completion: (([URL]) -> Void)? = nil) {
+    func ingest(from pb: NSPasteboard, into target: UUID? = nil, byUser: Bool = false,
+                completion: (([URL]) -> Void)? = nil) {
         importer.convertImages = AppSettings.shared.convertWebImages
         importer.alwaysCopy = AppSettings.shared.copyAllFiles
         pendingImports += 1
@@ -775,11 +779,68 @@ final class ShelfStore: ObservableObject {
             }
             if let target { self.append(files, to: target) } else { self.add(files) }
             completion?(files.map(\.url))
+            if byUser {
+                // Nur, was wirklich in der Ablage gelandet ist (schon vorhandene Dateien nicht)
+                let present = Set(self.entries.flatMap(\.files).map(\.id))
+                let landed = files.filter { present.contains($0.id) }
+                if !landed.isEmpty { self.onUserDrop?(landed) }
+            }
         }
     }
 
     /// Fügt den Inhalt der allgemeinen Zwischenablage hinzu.
     func pasteFromClipboard() {
-        ingest(from: .general)
+        ingest(from: .general, byUser: true)
+    }
+
+    // MARK: Ergebnisse von Plugins
+
+    /// Eintrag und Stelle einer Datei in der Ablage
+    func position(of fileID: UUID) -> (entry: Int, file: Int)? {
+        for (e, entry) in entries.enumerated() {
+            if let f = entry.files.firstIndex(where: { $0.id == fileID }) { return (e, f) }
+        }
+        return nil
+    }
+
+    /// Übernimmt fertige Dateien eines Plugins in den eigenen Speicher und legt sie direkt
+    /// neben das Original (in der angezeigten Reihenfolge dahinter; in einem Stapel hinter
+    /// die Datei im Stapel). Mit `replacing` wird das Original aus der Ablage genommen
+    /// (widerrufbar). Liegt das Original nicht mehr in der Ablage, kommen sie nach vorn.
+    @discardableResult
+    func insertResults(_ urls: [URL], nextTo fileID: UUID, newestFirst: Bool, replacing: Bool) -> [ShelfFile] {
+        let fm = FileManager.default
+        var files: [ShelfFile] = []
+        for url in urls {
+            let dir = itemsDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            do {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+                let target = dir.appendingPathComponent(url.lastPathComponent)
+                try fm.moveItem(at: url, to: target)
+                files.append(ShelfFile(url: target, owned: true))
+            } catch {
+                try? fm.removeItem(at: dir)
+                diagnostics?.failure("plugin", "Ergebnis übernehmen fehlgeschlagen", error)
+            }
+        }
+        guard !files.isEmpty else { return [] }
+        guard let pos = position(of: fileID) else {
+            insertWithoutAnimation { $0.insert(contentsOf: files.map { ShelfEntry(files: [$0]) }, at: 0) }
+            return files
+        }
+        var updated = entries
+        if updated[pos.entry].isStack {
+            updated[pos.entry].files.insert(contentsOf: files, at: pos.file + 1)
+        } else {
+            var newEntries = files.map { ShelfEntry(files: [$0]) }
+            // Gespeichert wird neueste zuerst: „dahinter“ in der Anzeige ist hier davor bzw. danach
+            if !newestFirst { newEntries.reverse() }
+            updated.insert(contentsOf: newEntries, at: newestFirst ? pos.entry + 1 : pos.entry)
+        }
+        insertWithoutAnimation { $0 = updated }
+        if replacing {
+            takeOut([fileID], undoable: true)
+        }
+        return files
     }
 }

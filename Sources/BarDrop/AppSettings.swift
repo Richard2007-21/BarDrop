@@ -293,6 +293,7 @@ final class AppSettings: ObservableObject {
         static let hotKeyModifiers = "hotKeyModifiers"
         static let hotKeyLabel = "hotKeyLabel"
         static let didLaunchBefore = "didLaunchBefore"
+        static let pluginsEnabled = "pluginsEnabled"
     }
 
     // Lage und Größe
@@ -414,6 +415,9 @@ final class AppSettings: ObservableObject {
     @Published var betaUpdates: Bool { didSet { defaults.set(betaUpdates, forKey: Key.betaUpdates) } }
     /// Größe der Symbole und Vorschauen in der Ablage (pt)
     @Published var tileIconSize: Double { didSet { defaults.set(tileIconSize, forKey: Key.tileIconSize) } }
+    /// Plugins verwenden (Einstellungen → Plugins). Standardmäßig aus; erst beim
+    /// Einschalten lädt BarDrop die Standard-Plugins aus dem Katalog.
+    @Published var pluginsEnabled: Bool { didSet { defaults.set(pluginsEnabled, forKey: Key.pluginsEnabled) } }
     /// Größe der Symbole in der Aktionsleiste (pt); ohne Namen kommen 10 pt dazu
     @Published var actionIconSize: Double { didSet { defaults.set(actionIconSize, forKey: Key.actionIconSize) } }
 
@@ -536,6 +540,7 @@ final class AppSettings: ObservableObject {
             // Alle Aktionen standardmäßig in der unteren Reihe
             Key.actionRowSplit: 0,
             Key.autoUpdateCheck: true,
+            Key.pluginsEnabled: false,
             Key.hotKeyCode: Self.defaultHotKey.code,
             Key.hotKeyModifiers: Self.defaultHotKey.modifiers,
             Key.hotKeyLabel: Self.defaultHotKey.label
@@ -618,6 +623,7 @@ final class AppSettings: ObservableObject {
         tileIconSize = min(max(defaults.double(forKey: Key.tileIconSize), 40), 96)
         actionIconSize = min(max(defaults.double(forKey: Key.actionIconSize), 24), 48)
         autoUpdateCheck = defaults.bool(forKey: Key.autoUpdateCheck)
+        pluginsEnabled = defaults.bool(forKey: Key.pluginsEnabled)
         hotKeyCode = defaults.integer(forKey: Key.hotKeyCode)
         hotKeyModifiers = defaults.integer(forKey: Key.hotKeyModifiers)
         hotKeyLabel = defaults.string(forKey: Key.hotKeyLabel) ?? Self.defaultHotKey.label
@@ -709,6 +715,9 @@ final class AppSettings: ObservableObject {
         sortOrder = .newestFirst
         quickActions = QuickAction.defaults
         autoUpdateCheck = true
+        // Plugins bleiben installiert, sind aber aus und haben keine Rechte mehr
+        pluginsEnabled = false
+        PluginManager.shared.resetAll()
         resetHotKey()
     }
 

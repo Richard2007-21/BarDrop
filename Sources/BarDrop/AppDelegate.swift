@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var hotKey: HotKey?
     private var onboarding: OnboardingController?
     private var screenshots: ScreenshotWatcher?
+    /// Geöffnete .bdrop-Dateien, solange BarDrop noch startet
+    private var pendingPluginFiles: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Nach einem Update erst starten, wenn die alte Fassung beendet ist
@@ -60,6 +62,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 && self.settingsWindow?.isVisible != true && self.onboarding == nil
         }
         Updater.shared.start()
+        PluginManager.shared.start()
+        // .bdrop-Dateien, die vor dem Start geöffnet wurden
+        let early = pendingPluginFiles
+        pendingPluginFiles = []
+        if !early.isEmpty { DispatchQueue.main.async { [weak self] in self?.importPlugins(early) } }
         Diagnostics.shared.installCrashHandler()
         Diagnostics.shared.record("app", "launch \(Updater.shared.currentVersion) firstLaunch=\(!settings.didLaunchBefore) afterUpdate=\(Updater.launchedAfterUpdate)")
 
@@ -91,6 +98,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Widerrufen ist nach dem Beenden nicht mehr möglich: aufgehobene Dateien löschen
         store?.discardUndoHistory()
+        controller?.actions.plugins.cancelAll()
+    }
+
+    // MARK: Plugins öffnen
+
+    /// Doppelklick auf eine .bdrop-Datei: Import mit Prüfung und Rückfrage, nie still
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let plugins = urls.filter { $0.pathExtension.lowercased() == PluginPackage.fileExtension }
+        guard !plugins.isEmpty else { return }
+        guard store != nil else {
+            pendingPluginFiles += plugins
+            return
+        }
+        importPlugins(plugins)
+    }
+
+    private func importPlugins(_ urls: [URL]) {
+        for url in urls {
+            guard PluginImporter.importFile(url, parent: nil) != nil else { continue }
+            // Danach den Reiter zeigen, damit man das Plugin gleich einschalten kann
+            showSettings(pane: .plugins)
+        }
     }
 
     // MARK: Hauptmenü
@@ -170,8 +199,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: Einstellungen
 
-    func showSettings() {
+    func showSettings(pane: SettingsPane? = nil) {
         guard store != nil else { return }   // noch nicht gestartet (wartet nach Update)
+        if let pane { SettingsNavigation.shared.pane = pane }
         if settingsWindow == nil {
             let window = SettingsWindowFactory.make(settings: settings, store: store) { [weak self] in
                 DispatchQueue.main.async { self?.showOnboarding() }

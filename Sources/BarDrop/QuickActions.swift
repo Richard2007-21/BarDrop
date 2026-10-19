@@ -5,13 +5,15 @@ import AppKit
 struct QuickAction: Codable, Identifiable, Hashable {
     enum Kind: String, Codable, CaseIterable {
         case airdrop, share, mail, messages, folder, app, trash
+        /// Ein Plugin (`path` ist seine Kennung)
+        case plugin
         /// Nur noch zum Einlesen alter Einstellungen (1.28): Umwandeln steht im Kontextmenü
         case convert
     }
 
     var id = UUID()
     var kind: Kind
-    /// Ordner- bzw. App-Pfad für `.folder` und `.app`
+    /// Ordner- bzw. App-Pfad für `.folder` und `.app`, Kennung des Plugins für `.plugin`
     var path: String?
 
     var url: URL? { path.map { URL(fileURLWithPath: $0) } }
@@ -24,6 +26,7 @@ struct QuickAction: Codable, Identifiable, Hashable {
         case .messages: return L("Messages", "Nachrichten")
         case .trash: return L("Trash", "Papierkorb")
         case .convert: return L("Convert", "Umwandeln")
+        case .plugin: return PluginManager.shared.plugin(path)?.manifest.title ?? L("Plugin", "Plugin")
         case .folder, .app:
             guard let path else { return kind == .folder ? L("Folder", "Ordner") : "App" }
             let name = FileManager.default.displayName(atPath: path)
@@ -40,6 +43,8 @@ struct QuickAction: Codable, Identifiable, Hashable {
         case .messages: return L("Send with Messages", "Per Nachrichten senden")
         case .trash: return L("Move to Trash", "In den Papierkorb legen")
         case .convert: return L("Convert to another format", "In ein anderes Format umwandeln")
+        case .plugin:
+            return PluginManager.shared.plugin(path)?.manifest.description?.text ?? L("Run the plugin", "Plugin ausführen")
         case .folder: return L("Move to “\(title)”", "In „\(title)“ verschieben")
         case .app: return L("Open with \(title)", "Mit \(title) öffnen")
         }
@@ -51,7 +56,7 @@ struct QuickAction: Codable, Identifiable, Hashable {
         switch kind {
         case .airdrop:
             return NSSharingService(named: .sendViaAirDrop)?.image
-        case .share, .convert:
+        case .share, .convert, .plugin:
             return nil
         case .mail:
             return Self.appIcon("com.apple.mail")
@@ -75,6 +80,7 @@ struct QuickAction: Codable, Identifiable, Hashable {
         case .messages: return "message.fill"
         case .trash: return "trash.fill"
         case .convert: return "arrow.triangle.2.circlepath"
+        case .plugin: return PluginManager.shared.plugin(path)?.manifest.icon?.resolvedSymbol ?? PluginIconView.fallbackSymbol
         case .folder: return "folder.fill"
         case .app: return "app.fill"
         }

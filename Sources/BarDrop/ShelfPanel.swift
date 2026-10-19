@@ -108,6 +108,8 @@ final class ShelfPanel: NSPanel {
             actions.openCurrentSelection()
         case "r":
             actions.revealCurrentSelection()
+        case "i":
+            actions.getInfo(actions.currentSelectionURLs)
         case "z":
             if event.modifierFlags.contains(.shift) { actions.redo() } else { actions.undo() }
         case ",":
@@ -200,7 +202,7 @@ final class ShelfDropHandler {
             return true
         }
         Diagnostics.shared.record("drop", "shelf types=\(sender.draggingPasteboard.types?.map(\.rawValue).prefix(12).joined(separator: ",") ?? "–") items=\(sender.draggingPasteboard.pasteboardItems?.count ?? 0) source=\(sender.draggingSource.map { String(describing: type(of: $0)) } ?? "external") intro=\(IntroGate.active)")
-        store.ingest(from: sender.draggingPasteboard)
+        store.ingest(from: sender.draggingPasteboard, byUser: true)
         Haptics.drop()
         setTargeted(false)
         ui.setPinCandidate(nil)

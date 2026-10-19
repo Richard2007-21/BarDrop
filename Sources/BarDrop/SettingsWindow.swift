@@ -40,8 +40,14 @@ enum SettingsWindowFactory {
     }
 }
 
+/// Welcher Bereich der Einstellungen gezeigt wird
+final class SettingsNavigation: ObservableObject {
+    static let shared = SettingsNavigation()
+    @Published var pane: SettingsPane = .general
+}
+
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, opening, appearance, items, actions, keyboard, about
+    case general, opening, appearance, items, actions, plugins, keyboard, about
     var id: String { rawValue }
 
     var title: String {
@@ -51,6 +57,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: return L("Appearance", "Aussehen")
         case .items: return L("Items", "Objekte")
         case .actions: return L("Actions", "Aktionen")
+        case .plugins: return L("Plugins", "Plugins")
         case .keyboard: return L("Keyboard", "Tastatur")
         case .about: return L("About BarDrop", "Über BarDrop")
         }
@@ -63,6 +70,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: return "paintbrush.fill"
         case .items: return "tray.full.fill"
         case .actions: return "square.grid.2x2.fill"
+        case .plugins: return "puzzlepiece.extension.fill"
         case .keyboard: return "command"
         case .about: return "info"
         }
@@ -75,6 +83,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: return Color(red: 0.92, green: 0.3, blue: 0.55)
         case .items: return Color(red: 1, green: 0.58, blue: 0.1)
         case .actions: return Color(red: 0.2, green: 0.78, blue: 0.4)
+        case .plugins: return Color(red: 0.0, green: 0.68, blue: 0.82)
         case .keyboard: return Color(red: 0.55, green: 0.35, blue: 0.95)
         case .about: return Color(white: 0.55)
         }
@@ -104,13 +113,21 @@ struct SettingsRoot: View {
     @ObservedObject var settings: AppSettings
     let store: ShelfStore
     let showOnboarding: () -> Void
-    @State private var pane: SettingsPane
+    /// Gewählter Bereich; von außen umschaltbar (z. B. nach dem Import eines Plugins)
+    @ObservedObject private var navigation: SettingsNavigation
 
-    init(settings: AppSettings, store: ShelfStore, showOnboarding: @escaping () -> Void, pane: SettingsPane = .general) {
+    private var pane: SettingsPane {
+        get { navigation.pane }
+        nonmutating set { navigation.pane = newValue }
+    }
+
+    init(settings: AppSettings, store: ShelfStore, showOnboarding: @escaping () -> Void, pane: SettingsPane? = nil,
+         navigation: SettingsNavigation = .shared) {
         self.settings = settings
         self.store = store
         self.showOnboarding = showOnboarding
-        _pane = State(initialValue: pane)
+        self.navigation = navigation
+        if let pane { navigation.pane = pane }
     }
 
     var body: some View {
@@ -145,6 +162,7 @@ struct SettingsRoot: View {
                 row(.appearance)
                 row(.items)
                 row(.actions)
+                row(.plugins)
                 row(.keyboard)
                 Spacer(minLength: 12)
                 row(.about)
@@ -195,6 +213,7 @@ struct SettingsRoot: View {
         case .appearance: AppearanceSettings(settings: settings)
         case .items: ItemSettings(settings: settings, store: store)
         case .actions: ActionSettings(settings: settings)
+        case .plugins: PluginSettings(settings: settings)
         case .keyboard: KeyboardSettings(settings: settings)
         case .about: AboutSettings(settings: settings, store: store, showOnboarding: showOnboarding)
         }
