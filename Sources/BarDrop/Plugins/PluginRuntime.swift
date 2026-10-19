@@ -325,6 +325,14 @@ final class PluginRuntime {
         }
         set("download", download)
 
+        let sleep: @convention(block) (JSValue) -> JSValue = { [weak self] ms in
+            let seconds = max(0, min(ms.isNumber ? ms.toDouble() / 1000 : 0, 3600))
+            return self?.promise { resolve, _ in
+                DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { resolve(nil) }
+            } ?? JSValue(undefinedIn: JSContext.current())
+        }
+        set("sleep", sleep)
+
         let run: @convention(block) (JSValue, JSValue, JSValue) -> JSValue = { [weak self] command, args, options in
             self?.promise { resolve, reject in self?.run(command, args, options, resolve, reject) }
                 ?? JSValue(undefinedIn: JSContext.current())
