@@ -128,7 +128,7 @@ def check_manifest(m, files):
             error(f"\"types\" erwartet Uniform Type Identifier wie public.image, nicht {t!r}")
     for h in hosts:
         if not isinstance(h, str) or "/" in h or ":" in h:
-            error(f"\"links.hosts\" erwartet nur Domains wie youtube.com, nicht {h!r}")
+            error(f"\"links.hosts\" erwartet nur Domains wie example.com, nicht {h!r}")
     for p in patterns:
         try:
             re.compile(p)
@@ -166,7 +166,7 @@ def check_manifest(m, files):
             if archive != "zip":
                 error(f"Programm \"{tid}\": \"archive\" kennt nur \"zip\"")
             if not isinstance(exe, str) or not exe or exe.startswith("/") or ".." in exe.split("/"):
-                error(f"Programm \"{tid}\": mit \"archive\" braucht es \"executable\" (Pfad im Archiv, z. B. \"deno\")")
+                error(f"Programm \"{tid}\": mit \"archive\" braucht es \"executable\" (Pfad im Archiv, z. B. \"tool\")")
         elif tool["url"].lower().endswith((".zip", ".tar.gz", ".tgz", ".dmg", ".pkg")):
             error(f"Programm \"{tid}\": Archive nur mit \"archive\": \"zip\" und \"executable\"; tar, DMG und PKG gehen nicht")
         if "{arch}" in tool["url"] and tool.get("sha256"):

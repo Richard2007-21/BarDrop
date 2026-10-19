@@ -67,6 +67,22 @@ else:
     if UMLAUT.search(english):
         error(".github/RELEASE_NOTES.md", "Deutscher Text im englischen Teil")
 
+# BarDrop hat keine eingebauten Plugins: keine Namen bestimmter Dienste oder Programme,
+# für die es Plugins gibt (auch nicht als Beispiel)
+FOREIGN = re.compile(r"youtube|youtu\.be|yt-dlp|\bdeno\b", re.I)
+for pattern in ("Sources/**/*.swift", "Tests/**/*", "docs/*.md", "scripts/*.py", "Plugins/**/*",
+                "README.md", "CHANGELOG.md", ".github/RELEASE_NOTES.md", "Resources/*"):
+    for path in sorted(ROOT.glob(pattern)):
+        if not path.is_file() or path.name == "check_project.py":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            if FOREIGN.search(line):
+                error(f"{path.relative_to(ROOT)}:{number}", "Name eines Dienstes oder Programms für ein Plugin")
+
 for e in errors:
     print(f"::error::{e}")
 if errors:

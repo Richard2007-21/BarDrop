@@ -43,7 +43,7 @@ struct LocalizedText: Codable, Hashable {
 enum PluginPermission: String, Codable, CaseIterable, Identifiable {
     /// Webseiten und Dateien aus dem Internet laden
     case network
-    /// Programme ausführen (auch nachgeladene Werkzeuge wie yt-dlp). Damit hat ein Plugin
+    /// Programme ausführen (auch nachgeladene Werkzeuge). Damit hat ein Plugin
     /// praktisch dieselben Rechte wie jede andere App auf dem Mac.
     case run
     /// Text in die Zwischenablage legen
@@ -116,7 +116,7 @@ struct PluginMatch: Codable, Hashable {
     var links: LinkMatch?
 
     struct LinkMatch: Codable, Hashable {
-        /// Domains; `youtube.com` passt auch zu `www.youtube.com`. `*` passt zu allen Links.
+        /// Domains; `example.com` passt auch zu `www.example.com`. `*` passt zu allen Links.
         var hosts: [String]?
         /// Reguläre Ausdrücke auf die ganze Adresse
         var patterns: [String]?
@@ -220,7 +220,7 @@ struct PluginTool: Codable, Hashable, Identifiable {
     var refreshDays: Int?
     /// `"zip"`: Die Adresse liefert ein ZIP-Archiv; darin liegt das Programm unter `executable`
     var archive: String?
-    /// Pfad des Programms im Archiv (nur mit `archive`), z. B. `"deno"` oder `"bin/tool"`
+    /// Pfad des Programms im Archiv (nur mit `archive`), z. B. `"tool"` oder `"bin/tool"`
     var executable: String?
 
     /// `{arch}` in `url` und `checksums` wird zur Architektur des Mac: `aarch64` (Apple Chip)

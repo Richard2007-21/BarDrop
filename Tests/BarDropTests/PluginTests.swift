@@ -334,7 +334,7 @@ final class PluginTests: XCTestCase {
             pb.clearContents()
             let item = NSPasteboardItem()
             item.setString("https://www.example.com/watch?v=abc", forType: .URL)
-            item.setString("Video", forType: NSPasteboard.PasteboardType("public.url-name"))
+            item.setString("Beispiel", forType: NSPasteboard.PasteboardType("public.url-name"))
             item.setData(png, forType: NSPasteboard.PasteboardType("public.png"))
             pb.writeObjects([item])
             let importer = ContentImporter(storage: base.appendingPathComponent("items"), convertImages: true)
@@ -367,8 +367,8 @@ final class PluginTests: XCTestCase {
 
     func testToolArchiveAndArchitectureRules() throws {
         let ok = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON(permissions: ["run"], extra: #"""
-        , "tools": [{"id": "deno", "name": "Deno", "url": "https://example.com/deno-{arch}-apple-darwin.zip",
-                     "checksums": "https://example.com/deno-{arch}-apple-darwin.zip.sha256sum", "archive": "zip", "executable": "deno"}]
+        , "tools": [{"id": "tool", "name": "Tool", "url": "https://example.com/tool-{arch}.zip",
+                     "checksums": "https://example.com/tool-{arch}.zip.sha256", "archive": "zip", "executable": "tool"}]
         """#).utf8))
         XCTAssertNoThrow(try ok.validate(appVersion: "1.31.0"))
         let tool = try XCTUnwrap(ok.tools?.first)
@@ -377,7 +377,7 @@ final class PluginTests: XCTestCase {
         XCTAssertTrue(["aarch64", "x86_64"].contains(PluginTool.architecture))
 
         let noExecutable = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON(permissions: ["run"], extra: #"""
-        , "tools": [{"id": "deno", "name": "Deno", "url": "https://example.com/deno.zip", "sha256": "\#(String(repeating: "a", count: 64))", "archive": "zip"}]
+        , "tools": [{"id": "tool", "name": "Tool", "url": "https://example.com/tool.zip", "sha256": "\#(String(repeating: "a", count: 64))", "archive": "zip"}]
         """#).utf8))
         XCTAssertThrowsError(try noExecutable.validate(appVersion: "1.31.0"))
         let escape = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON(permissions: ["run"], extra: #"""

@@ -59,8 +59,8 @@ final class ContentImporter {
         // Dateien aus dem Finder: nur referenzieren, auch wenn zusätzlich ein Versprechen anliegt
         let onlyUserFiles = !fileURLs.isEmpty && fileURLs.allSatisfy(Self.isUserFile)
 
-        // 0. Ein Link, für den ein eingeschaltetes Plugin zuständig ist (z. B. ein Video aus
-        // dem Browser gezogen): als Link übernehmen, nicht als Vorschaubild, das oft dabei ist
+        // 0. Ein Link, für den ein eingeschaltetes Plugin zuständig ist (z. B. aus dem
+        // Browser gezogen): als Link übernehmen, nicht als Vorschaubild, das oft dabei ist
         if fileURLs.isEmpty || !onlyUserFiles {
             let snapshot = PasteboardSnapshot(pb)
             if snapshot.prefersLink, let link = snapshot.webURL, let webloc = writeWebloc(link, title: snapshot.urlTitle) {

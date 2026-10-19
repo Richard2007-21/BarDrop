@@ -135,7 +135,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 * `links.patterns`: gilt **nur für Links**. Reguläre Ausdrücke (ICU-Syntax von macOS), geprüft auf die ganze Adresse, **ohne** Groß- und Kleinschreibung; ein Treffer irgendwo genügt. Mit `^` am Anfang verankern. In JSON jeden `\` doppelt schreiben.
 * Ein Link passt außerdem auf `extensions: ["webloc"]`.
 
-**Links aus dem Browser:** Wird ein Link zusammen mit einem Vorschaubild gezogen (z. B. ein Video aus einer Webseite), übernimmt BarDrop normalerweise das Bild. Passt der Link aber zu `links` eines **eingeschalteten** Plugins, übernimmt BarDrop den Link als `.webloc`. Das gilt nur für `links.hosts` und `links.patterns`.
+**Links aus dem Browser:** Wird ein Link zusammen mit einem Vorschaubild gezogen (z. B. aus einer Webseite), übernimmt BarDrop normalerweise das Bild. Passt der Link aber zu `links` eines **eingeschalteten** Plugins, übernimmt BarDrop den Link als `.webloc`. Das gilt nur für `links.hosts` und `links.patterns`.
 
 ## 5. Auslöser
 
@@ -188,17 +188,17 @@ BarDrop liefert nie Programme Dritter mit. Ein Plugin kann Programme nennen, die
 | `homepage` | nein | Wird gespeichert. |
 | `refreshDays` | nein | Nach so vielen Tagen lädt BarDrop die Datei beim nächsten Gebrauch neu, ohne erneut zu fragen. Ohne Angabe nie. |
 | `archive` | nein | `"zip"`: `url` liefert ein ZIP-Archiv. BarDrop prüft die Prüfsumme **des Archivs**, entpackt es und übernimmt nur die Datei `executable`. Andere Archivarten gibt es nicht. |
-| `executable` | mit `archive` | Pfad des Programms im Archiv, z. B. `"deno"` oder `"bin/tool"`, ohne `/` am Anfang und ohne `..`. |
+| `executable` | mit `archive` | Pfad des Programms im Archiv, z. B. `"tool"` oder `"bin/tool"`, ohne `/` am Anfang und ohne `..`. |
 
-`{arch}` in `url` und `checksums` wird zur Architektur des Mac: `aarch64` (Apple Chip) oder `x86_64` (Intel). Damit gibt es je Mac eine andere Datei, also `checksums` statt `sha256`. `id` darf nur Buchstaben, Ziffern, `.`, `-` und `_` enthalten; die Datei wird **unter diesem Namen** gespeichert, andere Programme finden sie also über diesen Namen (z. B. `id: "deno"`).
+`{arch}` in `url` und `checksums` wird zur Architektur des Mac: `aarch64` (Apple Chip) oder `x86_64` (Intel). Damit gibt es je Mac eine andere Datei, also `checksums` statt `sha256`. `id` darf nur Buchstaben, Ziffern, `.`, `-` und `_` enthalten; die Datei wird **unter diesem Namen** gespeichert, andere Programme finden sie also über diesen Namen (z. B. `id: "tool"`).
 
 Beispiel für ein Programm im Archiv:
 
 ```json
-{ "id": "deno", "name": "Deno",
-  "url": "https://github.com/denoland/deno/releases/latest/download/deno-{arch}-apple-darwin.zip",
-  "checksums": "https://github.com/denoland/deno/releases/latest/download/deno-{arch}-apple-darwin.zip.sha256sum",
-  "archive": "zip", "executable": "deno", "license": "MIT", "refreshDays": 30 }
+{ "id": "tool", "name": "Tool",
+  "url": "https://example.com/downloads/tool-{arch}.zip",
+  "checksums": "https://example.com/downloads/tool-{arch}.zip.sha256",
+  "archive": "zip", "executable": "tool", "license": "MIT", "refreshDays": 30 }
 ```
 
 Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, Lizenz und dem Hinweis, dass das Programm mit denselben Rechten läuft wie das Plugin). Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` mit `meta.json` daneben. Die Erlaubnis wird je Plugin gespeichert und gilt danach auch für automatische Läufe. Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
@@ -323,7 +323,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 | unbekanntes Recht, z. B. `"files"` | Plugin abgelehnt | nur `network`, `run`, `clipboard` |
 | `bardrop.run` ohne `"run"` | Fehler beim Aufruf | Recht eintragen |
 | `tools` ohne `"run"` | Programm nicht startbar | `"permissions": ["run"]` |
-| `"hosts": ["https://youtube.com"]` | passt nie | `"hosts": ["youtube.com"]` |
+| `"hosts": ["https://example.com"]` | passt nie | `"hosts": ["example.com"]` |
 | `"patterns": ["\.pdf$"]` | ungültiges JSON | `"\\.pdf$"` |
 | `extensions` für Links | passt nur auf `webloc` | `links.hosts` oder `links.patterns` |
 | `setTimeout`, `new URL`, `fetch` | Fehler im Skript | `bardrop.sleep`, Text selbst zerlegen, `bardrop.fetch` |

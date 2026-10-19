@@ -135,7 +135,7 @@ BarDrop always stores links itself as `.webloc`.
 * `links.patterns`: **links only**. Regular expressions (macOS ICU syntax) on the whole address, **case-insensitive**; a match anywhere is enough. Anchor with `^`. Double every `\` in JSON.
 * A link also matches `extensions: ["webloc"]`.
 
-**Links from the browser:** when a link is dragged together with a preview image (e.g. a video from a web page), BarDrop normally keeps the image. If the link matches `links` of a **turned-on** plugin, BarDrop keeps the link as `.webloc` instead. This only applies to `links.hosts` and `links.patterns`.
+**Links from the browser:** when a link is dragged together with a preview image (e.g. from a web page), BarDrop normally keeps the image. If the link matches `links` of a **turned-on** plugin, BarDrop keeps the link as `.webloc` instead. This only applies to `links.hosts` and `links.patterns`.
 
 ## 5. Triggers
 
@@ -188,17 +188,17 @@ BarDrop never ships third-party programs. A plugin can name programs that BarDro
 | `homepage` | no | Stored. |
 | `refreshDays` | no | After this many days, BarDrop loads the file again on next use, without asking again. Without it: never. |
 | `archive` | no | `"zip"`: `url` delivers a ZIP archive. BarDrop checks the checksum **of the archive**, unpacks it and keeps only the file `executable`. Other archive types don’t exist. |
-| `executable` | with `archive` | Path of the program inside the archive, e.g. `"deno"` or `"bin/tool"`, without a leading `/` and without `..`. |
+| `executable` | with `archive` | Path of the program inside the archive, e.g. `"tool"` or `"bin/tool"`, without a leading `/` and without `..`. |
 
-`{arch}` in `url` and `checksums` becomes the Mac’s architecture: `aarch64` (Apple chip) or `x86_64` (Intel). That means a different file per Mac, so use `checksums` instead of `sha256`. `id` may only contain letters, digits, `.`, `-` and `_`; the file is saved **under this name**, so other programs find it by this name (e.g. `id: "deno"`).
+`{arch}` in `url` and `checksums` becomes the Mac’s architecture: `aarch64` (Apple chip) or `x86_64` (Intel). That means a different file per Mac, so use `checksums` instead of `sha256`. `id` may only contain letters, digits, `.`, `-` and `_`; the file is saved **under this name**, so other programs find it by this name (e.g. `id: "tool"`).
 
 Example of a program inside an archive:
 
 ```json
-{ "id": "deno", "name": "Deno",
-  "url": "https://github.com/denoland/deno/releases/latest/download/deno-{arch}-apple-darwin.zip",
-  "checksums": "https://github.com/denoland/deno/releases/latest/download/deno-{arch}-apple-darwin.zip.sha256sum",
-  "archive": "zip", "executable": "deno", "license": "MIT", "refreshDays": 30 }
+{ "id": "tool", "name": "Tool",
+  "url": "https://example.com/downloads/tool-{arch}.zip",
+  "checksums": "https://example.com/downloads/tool-{arch}.zip.sha256",
+  "archive": "zip", "executable": "tool", "license": "MIT", "refreshDays": 30 }
 ```
 
 Sequence: if the file is missing, BarDrop asks (“Download …?” with origin, license and the note that the program runs with the same rights as the plugin). After “Download” it downloads (the placeholder shows “Loading …”), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` with `meta.json` next to it. The permission is stored per plugin and then also applies to automatic runs. If two runs need it at the same time, only one downloads, the other waits. Removing a plugin keeps loaded programs.
@@ -323,7 +323,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 | unknown permission, e.g. `"files"` | plugin rejected | only `network`, `run`, `clipboard` |
 | `bardrop.run` without `"run"` | error on the call | add the permission |
 | `tools` without `"run"` | program can’t start | `"permissions": ["run"]` |
-| `"hosts": ["https://youtube.com"]` | never matches | `"hosts": ["youtube.com"]` |
+| `"hosts": ["https://example.com"]` | never matches | `"hosts": ["example.com"]` |
 | `"patterns": ["\.pdf$"]` | invalid JSON | `"\\.pdf$"` |
 | `extensions` for links | only matches `webloc` | `links.hosts` or `links.patterns` |
 | `setTimeout`, `new URL`, `fetch` | script error | `bardrop.sleep`, split text yourself, `bardrop.fetch` |

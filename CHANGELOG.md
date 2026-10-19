@@ -18,7 +18,7 @@
 * Plugins: “Works with” uses the language of BarDrop
 
 ## 1.31.0-beta.2
-* **Fixed:** Links dragged from a web page together with a preview image (for example a video from YouTube) are kept as a link when a turned-on plugin is made for that link, instead of saving the preview image
+* **Fixed:** Links dragged from a web page together with a preview image are kept as a link when a turned-on plugin is made for that link, instead of saving the preview image
 * **Fixed:** Plugins that run automatically and need a program (`tools`) no longer fail silently on their first run. Turning on “Automatically when dropped” now also asks whether the program may be loaded; plugins whose automatic mode was turned on in Beta 1 ask once at the next drop
 * Settings → Plugins shows the last error of a plugin, with Copy
 * Plugin scripts can use `console.log`; it goes to the diagnostic log like `bardrop.log`
