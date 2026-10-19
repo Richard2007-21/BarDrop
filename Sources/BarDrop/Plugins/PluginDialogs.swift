@@ -95,7 +95,7 @@ enum PluginImporter {
             return nil
         }
         let manifest = unpacked.manifest
-        if let existing = manager.plugin(manifest.id), existing.isStandard {
+        if manager.plugin(manifest.id)?.isStandard == true {
             try? FileManager.default.removeItem(at: unpacked.directory)
             showFailure(PluginManager.InstallError.standardExists.message, file: url)
             return nil

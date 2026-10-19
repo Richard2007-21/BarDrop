@@ -426,8 +426,9 @@ final class PluginRuntime {
         if paused { task.suspend() }
     }
 
-    private func untrack(_ task: URLSessionTask) {
-        lock.lock(); tasks.removeAll { $0 === task }; lock.unlock()
+    /// Fertige Anfragen vergessen
+    private func untrackFinished() {
+        lock.lock(); tasks.removeAll { $0.state == .completed }; lock.unlock()
     }
 
     // MARK: Internet
@@ -450,9 +451,8 @@ final class PluginRuntime {
                        _ resolve: @escaping (Any?) -> Void, _ reject: @escaping (String) -> Void) {
         guard require(.network) else { return reject("Internet access not allowed") }
         guard let request = request(address, options) else { return reject("Invalid URL") }
-        var task: URLSessionDataTask!
-        task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            if let task { self?.untrack(task) }
+        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            self?.untrackFinished()
             if let error { return reject(error.localizedDescription) }
             let http = response as? HTTPURLResponse
             let limited = (data ?? Data()).prefix(20 * 1024 * 1024)
@@ -471,12 +471,11 @@ final class PluginRuntime {
         guard require(.network) else { return reject("Internet access not allowed") }
         guard let request = request(address, options) else { return reject("Invalid URL") }
         let wanted = options.isObject ? options.forProperty("name").flatMap { $0.isString ? $0.toString() : nil } : nil
-        var observation: NSKeyValueObservation?
-        var task: URLSessionDownloadTask!
-        task = URLSession.shared.downloadTask(with: request) { [weak self] file, response, error in
-            observation?.invalidate()
+        let observation = ObservationHolder()
+        let task = URLSession.shared.downloadTask(with: request) { [weak self] file, response, error in
+            observation.invalidate()
             guard let self else { return }
-            if let task { self.untrack(task) }
+            self.untrackFinished()
             if let error { return reject(error.localizedDescription) }
             guard let file, let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 return reject("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
@@ -490,10 +489,10 @@ final class PluginRuntime {
                 reject(error.localizedDescription)
             }
         }
-        observation = task.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
+        observation.set(task.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
             let value = progress.fractionCompleted
             DispatchQueue.main.async { self?.job.report(value, label: nil) }
-        }
+        })
         track(task)
     }
 
@@ -642,5 +641,20 @@ private final class OutputCollector {
     var result: (stdout: String, stderr: String) {
         lock.lock(); defer { lock.unlock() }
         return (String(decoding: stdout, as: UTF8.self), String(decoding: stderr, as: UTF8.self))
+    }
+}
+
+/// Hält die Beobachtung des Fortschritts eines Downloads, bis er fertig ist
+private final class ObservationHolder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var observation: NSKeyValueObservation?
+
+    func set(_ value: NSKeyValueObservation) {
+        lock.lock(); observation = value; lock.unlock()
+    }
+
+    func invalidate() {
+        lock.lock(); let o = observation; observation = nil; lock.unlock()
+        o?.invalidate()
     }
 }

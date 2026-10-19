@@ -10,7 +10,7 @@ import AppKit
 final class ViewSmokeTests: XCTestCase {
     private var base: URL!
     private var saved: [String: Any] = [:]
-    private let keys = ["language", "twoActionRows", "pinFromShelf", "excludedApps", "openMode", "titleStyle"]
+    private let keys = ["language", "twoActionRows", "pinFromShelf", "excludedApps", "openMode", "titleStyle", "pluginsEnabled"]
 
     override func setUp() async throws {
         try await super.setUp()
@@ -29,6 +29,7 @@ final class ViewSmokeTests: XCTestCase {
         s.excludedApps = saved["excludedApps"] as? [String] ?? []
         s.openMode = (saved["openMode"] as? String).flatMap(OpenMode.init(rawValue:)) ?? .automatic
         s.titleStyle = (saved["titleStyle"] as? String).flatMap(ShelfTitle.init(rawValue:)) ?? .bardrop
+        s.pluginsEnabled = saved["pluginsEnabled"] as? Bool ?? false
         try? FileManager.default.removeItem(at: base)
         try await super.tearDown()
     }
@@ -72,6 +73,7 @@ final class ViewSmokeTests: XCTestCase {
                 settings.titleStyle = variant ? .shelf : .bardrop
                 settings.openMode = variant ? .click : .automatic
                 settings.excludedApps = variant ? ["com.apple.finder", "example.missing.app"] : []
+                settings.pluginsEnabled = variant
                 // Hell und dunkel, auf der Fläche des Fensters wie in der App
                 for appearance in [NSAppearance.Name.aqua, .darkAqua] {
                     let tag = "\(language.rawValue) \(variant) \(appearance == .aqua ? "hell" : "dunkel")"
@@ -81,6 +83,7 @@ final class ViewSmokeTests: XCTestCase {
                     render(page(ItemSettings(settings: settings, store: store)), size: size, "Objekte \(tag)", appearance: appearance)
                     render(page(ActionSettings(settings: settings)), size: size, "Aktionen \(tag)", appearance: appearance)
                     render(page(KeyboardSettings(settings: settings)), size: size, "Tastatur \(tag)", appearance: appearance)
+                    render(page(PluginSettings(settings: settings)), size: size, "Plugins \(tag)", appearance: appearance)
                     render(page(AboutSettings(settings: settings, showOnboarding: {})), size: size, "Über \(tag)", appearance: appearance)
                 }
             }

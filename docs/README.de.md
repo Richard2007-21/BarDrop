@@ -96,6 +96,11 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Der Papierkorb sieht voll oder leer aus wie der Papierkorb deines Mac
 * Auf Wunsch Ordner und Apps per Ziehen auf die Ablage anheften und Aktionen durch Herausziehen entfernen
 
+**Plugins** (optional, standardmäßig aus)
+* Eigene Schritte als `.bdrop`-Dateien: im Rechtsklick-Menü, in der Aktionsleiste oder automatisch beim Ablegen passender Dateitypen und Links
+* In JavaScript geschrieben, mit Rechten, die beim ersten Gebrauch erfragt werden; Ergebnisse erscheinen direkt neben dem Original
+* BarDrop bringt selbst kein Plugin mit. So schreibst du eins: [PLUGINS.de.md](PLUGINS.de.md)
+
 **Einstellungen**
 * Kurze Einführung beim ersten Start: wo die Ablage ist, Ablegen, Aktionen, Kurzbefehl und Öffnen mit dem Zeiger
 * Startet standardmäßig beim Anmelden
@@ -110,6 +115,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 | Leertaste, `⌘Y` | Übersicht (Quick Look) |
 | `↩`, `⌘O` | Öffnen |
 | `⌘R` | Im Finder zeigen |
+| `⌘I` | Informationen (Fenster „Informationen“ des Finders) |
 | `⌘A` | Alle auswählen |
 | `⌘X` | Ausschneiden: in die Zwischenablage und aus der Ablage |
 | `⌘C`, `⌥⌘C` | Kopieren, Pfad kopieren |

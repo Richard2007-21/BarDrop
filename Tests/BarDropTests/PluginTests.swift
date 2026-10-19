@@ -29,7 +29,7 @@ final class PluginTests: XCTestCase {
           "version": "\(version)",
           "icon": {"symbol": "wand.and.stars", "color": "#FF9500"},
           "match": {"extensions": ["txt"], "types": ["public.image"], "links": {"hosts": ["example.com"]}},
-          "permissions": \(permissions.map { "\"\($0)\"" })\(extra)
+          "permissions": [\(permissions.map { "\"\($0)\"" }.joined(separator: ", "))]\(extra)
         }
         """
     }
@@ -286,27 +286,25 @@ final class PluginTests: XCTestCase {
         let store = ShelfStore(baseDirectory: base.appendingPathComponent("shelf"))
         let files = (1...3).map { ShelfFile(url: makeFile("f\($0).txt"), owned: false) }
         AppSettings.shared.stackMultiple = false
-        store.add(files)          // gespeichert: f1, f2, f3 (jeweils vorn eingefügt → f3 zuerst?)
+        store.add(files)          // gespeichert: f1, f2, f3
         let order = store.entries.map { $0.files[0].url.lastPathComponent }
         let middle = store.entries[1].files[0]
 
-        let result = makeFile("result.txt")
-        let added = store.insertResults([result], nextTo: middle.id, newestFirst: true, replacing: false)
+        let added = store.adoptResults([makeFile("result.txt")])
         XCTAssertEqual(added.count, 1)
         XCTAssertTrue(added[0].owned)
+        store.insertResults(added, nextTo: middle.id, newestFirst: true, replacing: false)
         XCTAssertEqual(store.entries.map { $0.files[0].url.lastPathComponent },
                        [order[0], order[1], "result.txt", order[2]])
 
         // Älteste zuerst: in der Anzeige ebenfalls direkt dahinter
-        let second = makeFile("second.txt")
-        store.insertResults([second], nextTo: middle.id, newestFirst: false, replacing: false)
+        store.insertResults(store.adoptResults([makeFile("second.txt")]), nextTo: middle.id, newestFirst: false, replacing: false)
         let shown = store.entries.reversed().map { $0.files[0].url.lastPathComponent }
         let index = try XCTUnwrap(shown.firstIndex(of: middle.url.lastPathComponent))
         XCTAssertEqual(shown[index + 1], "second.txt")
 
         // Ersetzen nimmt das Original aus der Ablage
-        let third = makeFile("third.txt")
-        store.insertResults([third], nextTo: middle.id, newestFirst: true, replacing: true)
+        store.insertResults(store.adoptResults([makeFile("third.txt")]), nextTo: middle.id, newestFirst: true, replacing: true)
         XCTAssertFalse(store.entries.flatMap(\.files).contains { $0.id == middle.id })
         XCTAssertTrue(FileManager.default.fileExists(atPath: middle.url.path))
         AppSettings.shared.stackMultiple = true

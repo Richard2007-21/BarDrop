@@ -139,30 +139,46 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         }
     }
 
-    /// Ergebnis an die Stelle des Platzhalters. Vorschaubilder entstehen schon vorher,
-    /// damit die neue Kachel sofort fertig gezeichnet erscheint und nicht erst beim
-    /// nächsten Öffnen der Ablage.
+    /// Ergebnis an die Stelle des Platzhalters. Die Vorschaubilder entstehen schon, solange
+    /// noch der Platzhalter steht: Die neue Kachel erscheint dann sofort fertig gezeichnet,
+    /// nicht erst als leere Fläche oder beim nächsten Öffnen der Ablage.
     private func deliver(_ job: PluginJob, _ urls: [URL]) {
         guard let store, !urls.isEmpty else {
             removeJob(job)
             return
         }
-        let replace = job.plugin.manifest.canReplaceOriginal == true && manager.state(job.plugin.id).replaceOriginal
-        let added = store.insertResults(urls, nextTo: job.anchorFileID,
-                                        newestFirst: settings.sortOrder == .newestFirst, replacing: replace)
-        removeJob(job, animated: false)
+        let files = store.adoptResults(urls)
+        guard !files.isEmpty else { return removeJob(job) }
         let size = CGFloat(settings.tileIconSize)
-        Task { @MainActor in
-            for file in added where ThumbnailView.expectsPreview(file.url) {
-                _ = await Thumbnails.load(file.url, size: size)
+        Task { @MainActor [weak self] in
+            // Höchstens kurz warten: Liefert Quick Look nichts, kommt das Symbol
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    for file in files where ThumbnailView.expectsPreview(file.url) {
+                        _ = await Thumbnails.load(file.url, size: size)
+                    }
+                }
+                group.addTask { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+                await group.next()
+                group.cancelAll()
             }
-            NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
+            self?.place(job, files)
         }
-        if let actions, !added.isEmpty {
+    }
+
+    private func place(_ job: PluginJob, _ files: [ShelfFile]) {
+        guard let store else { return }
+        for file in files { Thumbnails.shownOnce.insert(file.url.path) }
+        let replace = job.plugin.manifest.canReplaceOriginal == true && manager.state(job.plugin.id).replaceOriginal
+        store.insertResults(files, nextTo: job.anchorFileID,
+                            newestFirst: settings.sortOrder == .newestFirst, replacing: replace)
+        removeJob(job, animated: false)
+        NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
+        if let actions {
+            let ids = Set(files.map(\.id))
             if actions.isInStack {
-                actions.ui.memberSelection = Set(added.map(\.id))
+                actions.ui.memberSelection = ids.intersection(actions.stackFiles.map(\.id))
             } else {
-                let ids = Set(added.map(\.id))
                 actions.ui.selection = Set(store.entries.filter { $0.files.contains { ids.contains($0.id) } }.map(\.id))
             }
         }

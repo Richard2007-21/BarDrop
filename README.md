@@ -96,6 +96,11 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * The Trash looks full or empty like the Trash of your Mac
 * Optionally pin a folder or app by dragging it onto the shelf, and remove an action by dragging it out
 
+**Plugins** (optional, off by default)
+* Your own steps as `.bdrop` files: in the right-click menu, in the action bar, or automatically when you drop a matching file type or link
+* Written in JavaScript, with permissions that are asked on first use; results appear right next to the original
+* BarDrop doesn’t come with any plugin. How to write one: [docs/PLUGINS.md](docs/PLUGINS.md)
+
 **Settings**
 * A short introduction on first launch: where the shelf is, dropping, actions, the shortcut and opening with the pointer
 * Opens at login by default
@@ -110,6 +115,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 | Space, `⌘Y` | Quick Look |
 | `↩`, `⌘O` | Open |
 | `⌘R` | Show in Finder |
+| `⌘I` | Get Info (Finder’s Info window) |
 | `⌘A` | Select all |
 | `⌘X` | Cut: to the clipboard and out of the shelf |
 | `⌘C`, `⌥⌘C` | Copy, copy path |

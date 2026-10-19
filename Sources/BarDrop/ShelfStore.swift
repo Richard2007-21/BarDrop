@@ -803,12 +803,9 @@ final class ShelfStore: ObservableObject {
         return nil
     }
 
-    /// Übernimmt fertige Dateien eines Plugins in den eigenen Speicher und legt sie direkt
-    /// neben das Original (in der angezeigten Reihenfolge dahinter; in einem Stapel hinter
-    /// die Datei im Stapel). Mit `replacing` wird das Original aus der Ablage genommen
-    /// (widerrufbar). Liegt das Original nicht mehr in der Ablage, kommen sie nach vorn.
-    @discardableResult
-    func insertResults(_ urls: [URL], nextTo fileID: UUID, newestFirst: Bool, replacing: Bool) -> [ShelfFile] {
+    /// Übernimmt fertige Dateien eines Plugins in den eigenen Speicher (noch nicht in die
+    /// Ablage, damit ihre Vorschau schon entstehen kann).
+    func adoptResults(_ urls: [URL]) -> [ShelfFile] {
         let fm = FileManager.default
         var files: [ShelfFile] = []
         for url in urls {
@@ -823,10 +820,18 @@ final class ShelfStore: ObservableObject {
                 diagnostics?.failure("plugin", "Ergebnis übernehmen fehlgeschlagen", error)
             }
         }
-        guard !files.isEmpty else { return [] }
+        return files
+    }
+
+    /// Legt übernommene Dateien eines Plugins direkt neben das Original (in der angezeigten
+    /// Reihenfolge dahinter; in einem Stapel hinter die Datei im Stapel). Mit `replacing`
+    /// wird das Original aus der Ablage genommen (widerrufbar). Liegt das Original nicht
+    /// mehr in der Ablage, kommen sie nach vorn.
+    func insertResults(_ files: [ShelfFile], nextTo fileID: UUID, newestFirst: Bool, replacing: Bool) {
+        guard !files.isEmpty else { return }
         guard let pos = position(of: fileID) else {
             insertWithoutAnimation { $0.insert(contentsOf: files.map { ShelfEntry(files: [$0]) }, at: 0) }
-            return files
+            return
         }
         var updated = entries
         if updated[pos.entry].isStack {
@@ -841,6 +846,5 @@ final class ShelfStore: ObservableObject {
         if replacing {
             takeOut([fileID], undoable: true)
         }
-        return files
     }
 }
