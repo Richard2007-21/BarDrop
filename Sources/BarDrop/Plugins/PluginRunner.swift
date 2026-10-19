@@ -83,13 +83,19 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         guard !automatic.isEmpty else { return }
         var started: [String: Int] = [:]
         var blocked: InstalledPlugin?
+        var declined: Set<String> = []
         for file in files {
             let item = PluginItem(url: file.url)
             guard let plugin = automatic.first(where: { PluginMatcher.matches($0.manifest.match, item) }) else { continue }
-            // Automatisch nur mit allen nötigen Rechten (beim Einschalten erteilt) und Zustimmung
-            guard readyForAutomatic(plugin), approveTools(plugin) else {
+            // Automatisch nur mit Zustimmung, allen Rechten und erlaubten Programmen. Fehlt
+            // etwas (etwa nach einem Update, das die Rechte zurücksetzt), jetzt fragen: Wer
+            // gerade abgelegt hat, sitzt vor dem Mac. Je Ablegen nur einmal je Plugin.
+            guard !declined.contains(plugin.id), prepareForDrop(plugin) else {
+                if !declined.contains(plugin.id) {
+                    PluginLog.shared.record(plugin.id, "fehler", "automatisch nicht gestartet: Zustimmung, Rechte oder Programme nicht erteilt")
+                }
+                declined.insert(plugin.id)
                 blocked = plugin
-                PluginLog.shared.record(plugin.id, "fehler", "automatisch nicht gestartet: Zustimmung, Rechte oder Programme fehlen")
                 continue
             }
             enqueue(PluginJob(plugin: plugin, item: item, anchorFileID: file.id, automatic: true,
@@ -101,19 +107,27 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         } else if started.count > 1 {
             actions?.announce(L("\(started.count) plugins active", "\(started.count) Plugins aktiv"), duration: 1.5)
         } else if let blocked {
-            actions?.announce(L("\(blocked.manifest.title) needs permission in Settings",
-                                "\(blocked.manifest.title) braucht eine Erlaubnis in den Einstellungen"), duration: 2.5)
+            actions?.announce(L("\(blocked.manifest.title) wasn’t started", "\(blocked.manifest.title) nicht gestartet"), duration: 2)
         }
     }
 
-    /// Programme, die ein automatisches Plugin laden muss: einmal erlauben lassen (für
-    /// Plugins, deren Automatik schon vor dieser Abfrage eingeschaltet wurde)
-    private func approveTools(_ plugin: InstalledPlugin) -> Bool {
-        for tool in plugin.manifest.tools ?? [] where !manager.state(plugin.id).approvedTools.contains(tool.id) {
-            guard PluginDialogs.allowDownload(of: tool, for: plugin, ui: actions?.ui) else { return false }
-            manager.update(plugin.id) { $0.approvedTools.append(tool.id) }
+    /// Zustimmung, Rechte und Programme eines automatischen Plugins: was fehlt, beim
+    /// Ablegen erfragen (ohne Dialoge, etwa in Tests, nur prüfen)
+    private func prepareForDrop(_ plugin: InstalledPlugin) -> Bool {
+        let missingTools = (plugin.manifest.tools ?? []).filter { !manager.state(plugin.id).approvedTools.contains($0.id) }
+        if readyForAutomatic(plugin) && missingTools.isEmpty { return true }
+        guard showsErrorDialogs else { return false }
+        let ui = actions?.ui
+        guard PluginDialogs.confirmConsent(plugin, manager: manager, ui: ui) else { return false }
+        for permission in plugin.manifest.allPermissions where !manager.isGranted(permission, for: plugin) {
+            guard PluginDialogs.allow(permission, for: plugin, ui: ui) else { return false }
+            manager.grant(permission, for: plugin)
         }
-        return true
+        for tool in missingTools {
+            guard PluginDialogs.allowDownload(of: tool, for: plugin, ui: ui) else { return false }
+            manager.update(plugin.id) { s in if !s.approvedTools.contains(tool.id) { s.approvedTools.append(tool.id) } }
+        }
+        return readyForAutomatic(plugin)
     }
 
     /// „Original ersetzen“ ist für dieses Plugin an

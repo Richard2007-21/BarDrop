@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.31.0-beta.5
+* Plugins: an automatic plugin that is missing a permission (for example after an update of the plugin) now asks for it when you drop something, instead of silently not starting
+* Plugins: while a program is downloaded for a plugin, the placeholder shows the progress in percent; the plugin log notes the size and how long it took
+
 ## 1.31.0-beta.4
 * **New:** Plugin log. Settings → Plugins → Log keeps a separate file of what each plugin did: starts, results, errors, permissions, downloaded programs, programs run and internet requests. It is kept apart from BarDrop’s diagnostic log, is off by default, and stays on this Mac. `bardrop.log` and `console.log` now write there
 * Plugins in Settings carry a BETA label

@@ -614,7 +614,7 @@ final class PluginRuntime {
             defer {
                 if loading { DispatchQueue.main.async { self.job.report(nil, label: "", force: true) } }
             }
-            return try tools.ensure(tool, ask: {
+            return try tools.ensure(tool, owner: plugin.id, ask: {
                 self.lock.lock()
                 let approved = self.approvedTools.contains(tool.id)
                 self.lock.unlock()
@@ -626,7 +626,11 @@ final class PluginRuntime {
                     DispatchQueue.main.async { self.onToolApproved(tool.id) }
                 }
                 return allowed
-            }, cancelled: { self.isCancelled })
+            }, cancelled: { self.isCancelled }, progress: { fraction in
+                DispatchQueue.main.async {
+                    self.job.report(fraction, label: L("Loading \(tool.name) \(Int(fraction * 100))%", "Lädt \(tool.name) \(Int(fraction * 100)) %"))
+                }
+            })
         }
         if name.hasPrefix("/") {
             guard FileManager.default.isExecutableFile(atPath: name) else {

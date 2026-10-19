@@ -66,7 +66,9 @@ final class PluginTools {
 
     /// Liefert das Programm; lädt es beim ersten Mal nach Zustimmung (`ask`, auf dem
     /// Hauptthread gezeigt). Blockiert den aufrufenden (Hintergrund-)Thread.
-    func ensure(_ tool: PluginTool, ask: () -> Bool, cancelled: () -> Bool) throws -> URL {
+    /// `owner`: Plugin, für das geladen wird (fürs Protokoll); `progress`: Anteil 0…1 beim Laden.
+    func ensure(_ tool: PluginTool, owner: String = "", ask: () -> Bool, cancelled: () -> Bool,
+                progress: (Double) -> Void = { _ in }) throws -> URL {
         // Mehrere Plugins gleichzeitig (z. B. zwei abgelegte Links): nur einer lädt, die
         // anderen warten und nehmen dann die fertige Datei
         loadLock.lock()
@@ -75,12 +77,21 @@ final class PluginTools {
         // Ein veraltetes, aber vorhandenes Programm wird ohne erneute Frage aktualisiert
         let hadVersion = FileManager.default.fileExists(atPath: binary(tool).path)
         guard hadVersion || ask() else { throw ToolError.declined }
-        PluginLog.shared.record(tool.id, "programm", "lade \(tool.resolvedURL)")
+        let who = owner.isEmpty ? tool.id : owner
+        PluginLog.shared.record(who, "programm", "\(tool.id): lade \(tool.resolvedURL)")
+        let started = Date()
         let expected = try expectedChecksum(tool)
-        let file = try fetch(URL(string: tool.resolvedURL)!, cancelled: cancelled)
+        let file: URL
+        do {
+            file = try fetch(URL(string: tool.resolvedURL)!, cancelled: cancelled, progress: progress)
+        } catch {
+            PluginLog.shared.record(who, "programm", "\(tool.id): Laden nach \(String(format: "%.1f", Date().timeIntervalSince(started))) s beendet: \((error as? ToolError)?.message ?? error.localizedDescription)")
+            throw error
+        }
+        let size = ((try? FileManager.default.attributesOfItem(atPath: file.path))?[.size] as? Int) ?? 0
         defer { try? FileManager.default.removeItem(at: file) }
         guard PluginPackage.sha256(of: file)?.lowercased() == expected else {
-            PluginLog.shared.record(tool.id, "programm", "Prüfsumme passt nicht, gelöscht")
+            PluginLog.shared.record(who, "programm", "\(tool.id): Prüfsumme passt nicht, gelöscht")
             throw ToolError.checksum
         }
         let fm = FileManager.default
@@ -110,7 +121,7 @@ final class PluginTools {
         removexattr(target.path, "com.apple.quarantine", 0)
         let meta = Meta(url: tool.resolvedURL, sha256: expected, fetched: Date())
         try JSONEncoder().encode(meta).write(to: folder(tool).appendingPathComponent("meta.json"))
-        PluginLog.shared.record(tool.id, "programm", "geladen und geprüft (\(expected.prefix(12)))")
+        PluginLog.shared.record(who, "programm", "\(tool.id): geladen und geprüft, \(size / 1_000_000) MB in \(String(format: "%.1f", Date().timeIntervalSince(started))) s (\(expected.prefix(12)))")
         return target
     }
 
@@ -142,7 +153,7 @@ final class PluginTools {
         return nil
     }
 
-    private func fetch(_ url: URL, cancelled: () -> Bool) throws -> URL {
+    private func fetch(_ url: URL, cancelled: () -> Bool, progress: (Double) -> Void) throws -> URL {
         let semaphore = DispatchSemaphore(value: 0)
         var result: Result<URL, Error> = .failure(ToolError.download(""))
         let task = URLSession.shared.downloadTask(with: url) { file, response, error in
@@ -160,8 +171,10 @@ final class PluginTools {
             semaphore.signal()
         }
         task.resume()
-        while semaphore.wait(timeout: .now() + 0.5) == .timedOut {
+        while semaphore.wait(timeout: .now() + 0.25) == .timedOut {
             if cancelled() { task.cancel() }
+            let expected = task.countOfBytesExpectedToReceive
+            if expected > 0 { progress(Double(task.countOfBytesReceived) / Double(expected)) }
         }
         return try result.get()
     }

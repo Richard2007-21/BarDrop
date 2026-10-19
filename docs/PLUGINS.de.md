@@ -2,7 +2,7 @@
 
 [English](PLUGINS.md) · Deutsch
 
-Diese Datei beschreibt das Plugin-System von BarDrop vollständig und genau so, wie der Code es umsetzt (Stand 1.31.0 Beta 4). Was hier nicht steht, gibt es nicht. Wer ein Plugin schreibt, hält sich an diese Datei und prüft das Ergebnis mit `scripts/check_plugin.py` (Abschnitt 11).
+Diese Datei beschreibt das Plugin-System von BarDrop vollständig und genau so, wie der Code es umsetzt (Stand 1.31.0 Beta 5). Was hier nicht steht, gibt es nicht. Wer ein Plugin schreibt, hält sich an diese Datei und prüft das Ergebnis mit `scripts/check_plugin.py` (Abschnitt 11).
 
 Quellcode: `Sources/BarDrop/Plugins/`. Ändert sich dort etwas, wird diese Datei, ihre englische Fassung und `scripts/check_plugin.py` im selben Commit angepasst.
 
@@ -145,7 +145,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 **Automatisch beim Ablegen (`automatic`):** Je Plugin ein Schalter, standardmäßig aus (Ausnahme 3.1 `automaticByDefault`). Es zählt nur, was der Nutzer selbst in die Ablage legt: Ziehen und ⌘V. Nicht: Bildschirmfotos, Ergebnisse von Aktionen und Plugins, Widerrufen, die Einführung. Für jedes abgelegte Objekt läuft **höchstens ein** Plugin: das erste in der Liste der Einstellungen, das eingeschaltet ist, automatisch läuft und passt. Die Reihenfolge ändern die Pfeile in den Details eines Plugins. Oben in der Ablage, wo sonst „1 von 3 ausgewählt“ steht, erscheint kurz „Plugin … aktiv“.
 
-Ein automatisches Plugin läuft nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`consent`) gegeben, alle Rechte aus `permissions` erteilt, alle Programme aus `tools` erlaubt. Beim Einschalten von „Automatisch beim Ablegen“ fragt BarDrop all das ab. Fehlt nur die Erlaubnis für ein Programm (Plugins aus Beta 1), fragt BarDrop beim nächsten Ablegen einmal nach. Fehlt anderes, läuft es nicht, und oben steht „… braucht eine Erlaubnis in den Einstellungen“. Während eines automatischen Laufs fragt das Plugin nie.
+Ein automatisches Plugin läuft nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`consent`) gegeben, alle Rechte aus `permissions` erteilt, alle Programme aus `tools` erlaubt. Beim Einschalten von „Automatisch beim Ablegen“ fragt BarDrop all das ab. Fehlt später etwas, etwa weil ein Update des Plugins die Rechte zurückgesetzt hat, fragt BarDrop beim nächsten Ablegen danach, einmal je Ablegen. Lehnt man ab, läuft es nicht, und oben steht „… nicht gestartet“. Während eines automatischen Laufs fragt das Plugin nie.
 
 **Gleichzeitig:** Höchstens drei Plugins laufen gleichzeitig, weitere warten in der Reihenfolge, in der sie gestartet wurden (ihr Platzhalter zeigt eine Uhr und „Wartet“). Dasselbe Plugin startet für dieselbe Datei nicht ein zweites Mal, solange es noch läuft; oben erscheint dann „… läuft schon“.
 
@@ -201,7 +201,7 @@ Beispiel für ein Programm im Archiv:
   "archive": "zip", "executable": "tool", "license": "MIT", "refreshDays": 30 }
 ```
 
-Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, Lizenz und dem Hinweis, dass das Programm mit denselben Rechten läuft wie das Plugin). Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` mit `meta.json` daneben. Die Erlaubnis wird je Plugin gespeichert und gilt danach auch für automatische Läufe. Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
+Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, Lizenz und dem Hinweis, dass das Programm mit denselben Rechten läuft wie das Plugin). Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“ mit Prozent), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` mit `meta.json` daneben. Die Erlaubnis wird je Plugin gespeichert und gilt danach auch für automatische Läufe. Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
 
 ## 8. Ergebnis
 

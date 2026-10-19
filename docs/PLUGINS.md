@@ -2,7 +2,7 @@
 
 English · [Deutsch](PLUGINS.de.md)
 
-This file describes BarDrop’s plugin system completely and exactly as the code implements it (as of 1.31.0 Beta 4). What isn’t written here doesn’t exist. Anyone writing a plugin follows this file and checks the result with `scripts/check_plugin.py` (section 11).
+This file describes BarDrop’s plugin system completely and exactly as the code implements it (as of 1.31.0 Beta 5). What isn’t written here doesn’t exist. Anyone writing a plugin follows this file and checks the result with `scripts/check_plugin.py` (section 11).
 
 Source: `Sources/BarDrop/Plugins/`. When something changes there, this file, its German version and `scripts/check_plugin.py` are updated in the same commit.
 
@@ -145,7 +145,7 @@ BarDrop always stores links itself as `.webloc`.
 
 **Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. The arrows in a plugin’s details change the order. Where the shelf usually shows “1 of 3 selected”, it briefly shows “Plugin … active”.
 
-An automatic plugin only runs if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. Turning on “Automatically when dropped” asks for all of that. If only a program’s permission is missing (plugins from Beta 1), BarDrop asks once at the next drop. If anything else is missing, it doesn’t run, and the shelf shows “… needs permission in Settings”. During an automatic run, a plugin never asks.
+An automatic plugin only runs if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. Turning on “Automatically when dropped” asks for all of that. If something is missing later, for example because an update of the plugin reset its permissions, BarDrop asks for it at the next drop, once per drop. If you decline, it doesn’t run, and the shelf shows “… wasn’t started”. During an automatic run, a plugin never asks.
 
 **At the same time:** at most three plugins run at once; more wait in the order they were started (their placeholder shows a clock and “Waiting”). The same plugin doesn’t start a second time for the same file while it is still running; the shelf then shows “… is already running”.
 
@@ -201,7 +201,7 @@ Example of a program inside an archive:
   "archive": "zip", "executable": "tool", "license": "MIT", "refreshDays": 30 }
 ```
 
-Sequence: if the file is missing, BarDrop asks (“Download …?” with origin, license and the note that the program runs with the same rights as the plugin). After “Download” it downloads (the placeholder shows “Loading …”), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` with `meta.json` next to it. The permission is stored per plugin and then also applies to automatic runs. If two runs need it at the same time, only one downloads, the other waits. Removing a plugin keeps loaded programs.
+Sequence: if the file is missing, BarDrop asks (“Download …?” with origin, license and the note that the program runs with the same rights as the plugin). After “Download” it downloads (the placeholder shows “Loading …” with percent), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` with `meta.json` next to it. The permission is stored per plugin and then also applies to automatic runs. If two runs need it at the same time, only one downloads, the other waits. Removing a plugin keeps loaded programs.
 
 ## 8. Result
 
