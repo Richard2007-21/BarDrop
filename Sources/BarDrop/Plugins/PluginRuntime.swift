@@ -43,7 +43,7 @@ final class PluginJob: ObservableObject, Identifiable {
     func resume() { runtime?.setPaused(false) }
     func cancel() { runtime?.cancel() }
 
-    fileprivate func report(_ value: Double?, label newLabel: String?, force: Bool = false) {
+    func report(_ value: Double?, label newLabel: String?, force: Bool = false) {
         let clamped = value.map { min(max($0, 0), 1) }
         let now = Date()
         guard force || now.timeIntervalSince(lastPublished) > 0.1 || clamped == 1 else { return }

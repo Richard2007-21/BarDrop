@@ -102,7 +102,7 @@ enum PluginImporter {
         }
         let existing = manager.plugin(manifest.id)
         let alert = PluginDialogs.makeAlert(manifest)
-        if let existing {
+        if existing != nil {
             alert.messageText = L("Update “\(manifest.name.text)”?", "„\(manifest.name.text)“ aktualisieren?")
         } else {
             alert.messageText = L("Install “\(manifest.name.text)”?", "„\(manifest.name.text)“ installieren?")

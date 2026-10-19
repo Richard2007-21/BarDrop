@@ -6,14 +6,21 @@ import UniformTypeIdentifiers
 /// (zuerst die Standard-Plugins, dann eigene), ganz unten „Plugin importieren“.
 struct PluginSettings: View {
     @ObservedObject var settings: AppSettings
-    @ObservedObject private var manager = PluginManager.shared
+    @ObservedObject private var manager: PluginManager
     @State private var expanded: String?
     @State private var importFrame: CGRect = .zero
 
+    /// `manager` und `expanded` nur für Tests und Vorschaubilder
+    init(settings: AppSettings, manager: PluginManager = .shared, expanded: String? = nil) {
+        self.settings = settings
+        self.manager = manager
+        _expanded = State(initialValue: expanded)
+    }
+
     var body: some View {
         SettingsPage {
-            SettingsSection(note: L("Plugins add their own entries to the right-click menu, the action bar or run when you drop matching items. BarDrop doesn’t come with any plugin; when you turn this on, it loads the standard plugins from the BarDrop catalog, turned off.",
-                                    "Plugins ergänzen eigene Einträge im Rechtsklick und in der Aktionsleiste oder laufen beim Ablegen passender Objekte. BarDrop bringt selbst kein Plugin mit; beim Einschalten lädt es die Standard-Plugins aus dem Katalog von BarDrop, ausgeschaltet.")) {
+            SettingsSection(note: L("Plugins add their own entries to the right-click menu and the action bar, or run when you drop matching items. BarDrop doesn’t come with any plugin. When you turn this on, BarDrop loads the standard plugins from its catalog; they stay off until you turn them on.",
+                                    "Plugins ergänzen eigene Einträge im Rechtsklick und in der Aktionsleiste oder laufen beim Ablegen passender Objekte. BarDrop bringt selbst kein Plugin mit. Beim Einschalten lädt BarDrop die Standard-Plugins aus seinem Katalog; sie bleiben aus, bis du sie einschaltest.")) {
                 ToggleRow(L("Use plugins", "Plugins verwenden"), isOn: $settings.pluginsEnabled)
             }
 

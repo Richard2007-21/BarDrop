@@ -90,6 +90,52 @@ final class ViewSmokeTests: XCTestCase {
         }
     }
 
+    /// Plugin-Reiter mit einem aufgeklappten Plugin und der Platzhalter eines laufenden Plugins
+    func testPluginViewsRender() throws {
+        let settings = AppSettings.shared
+        settings.pluginsEnabled = true
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let folder = base.appendingPathComponent("plugin-src", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let manifest = """
+        {"id": "io.github.test.preview", "name": {"en": "Make Thumbnail", "de": "Miniatur erstellen"},
+         "description": {"en": "Smaller copy of an image", "de": "Kleinere Kopie eines Bildes"},
+         "version": "1.2.0", "author": "zzuuuiii", "icon": {"symbol": "photo.on.rectangle", "color": "#FF9500"},
+         "match": {"types": ["public.image"], "links": {"hosts": ["example.com"]}},
+         "permissions": ["run"], "canReplaceOriginal": true,
+         "settings": [{"key": "size", "type": "choice", "title": {"en": "Size", "de": "Größe"}, "default": "m",
+                       "options": [{"value": "s", "title": "S"}, {"value": "m", "title": "M"}, {"value": "l", "title": "L"}]},
+                      {"key": "keep", "type": "toggle", "title": {"en": "Keep metadata", "de": "Metadaten behalten"}}]}
+        """
+        try manifest.write(to: folder.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try "function run(item) {}".write(to: folder.appendingPathComponent("main.js"), atomically: true, encoding: .utf8)
+        let file = base.appendingPathComponent("preview.bdrop")
+        try PluginPackage.pack(folder, to: file)
+        let plugin = try manager.install(try manager.inspect(file), standard: false)
+        manager.update(plugin.id) { $0.enabled = true }
+
+        for language in [AppLanguage.english, .german] {
+            settings.language = language
+            for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+                render(page(PluginSettings(settings: settings, manager: manager, expanded: plugin.id)),
+                       size: CGSize(width: 520, height: 900),
+                       "Plugins Plugin \(language.rawValue) \(appearance == .aqua ? "hell" : "dunkel")", appearance: appearance)
+            }
+        }
+
+        let store = ShelfStore(baseDirectory: base.appendingPathComponent("shelf"))
+        let ui = ShelfUIModel()
+        let actions = ShelfActions(store: store, ui: ui, settings: settings)
+        let job = PluginJob(plugin: plugin, item: PluginItem(url: file), anchorFileID: UUID(), automatic: false)
+        job.report(0.4, label: nil, force: true)
+        let waiting = PluginJob(plugin: plugin, item: PluginItem(url: file), anchorFileID: UUID(), automatic: false)
+        render(HStack { PluginJobTile(job: job, ui: ui, actions: actions); PluginJobTile(job: waiting, ui: ui, actions: actions) }
+                .frame(width: 220).padding().background(Color.black),
+               size: CGSize(width: 260, height: 160), "Plugin Platzhalter", appearance: .darkAqua)
+        let menu = actions.menu(for: job)
+        XCTAssertTrue(menu.items.first?.title.contains("40") == true)
+    }
+
     func testIntroductionPagesRender() {
         _ = NSApplication.shared
         let settings = AppSettings.shared

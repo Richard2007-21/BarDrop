@@ -150,12 +150,13 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         let files = store.adoptResults(urls)
         guard !files.isEmpty else { return removeJob(job) }
         let size = CGFloat(settings.tileIconSize)
+        let previews = files.map(\.url).filter(ThumbnailView.expectsPreview)
         Task { @MainActor [weak self] in
             // Höchstens kurz warten: Liefert Quick Look nichts, kommt das Symbol
             await withTaskGroup(of: Void.self) { group in
                 group.addTask {
-                    for file in files where ThumbnailView.expectsPreview(file.url) {
-                        _ = await Thumbnails.load(file.url, size: size)
+                    for url in previews {
+                        _ = await Thumbnails.load(url, size: size)
                     }
                 }
                 group.addTask { try? await Task.sleep(nanoseconds: 1_500_000_000) }
