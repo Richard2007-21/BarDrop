@@ -309,4 +309,56 @@ final class PluginTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: middle.url.path))
         AppSettings.shared.stackMultiple = true
     }
+
+    // MARK: Fehlerfälle aus 1.31.0 Beta 1
+
+    /// Gespeicherter Zustand einer älteren Fassung (ohne neue Schlüssel) bleibt lesbar
+    func testOlderPluginStateStillDecodes() throws {
+        let old = #"{"enabled": true, "replaceOriginal": false, "values": {}, "granted": ["run"], "consented": true, "isStandard": false}"#
+        let state = try JSONDecoder().decode(PluginState.self, from: Data(old.utf8))
+        XCTAssertTrue(state.enabled)
+        XCTAssertEqual(state.granted, [.run])
+        XCTAssertTrue(state.approvedTools.isEmpty)
+    }
+
+    /// Link aus dem Browser mit Vorschaubild: Ist ein Plugin für den Link zuständig, wird
+    /// der Link übernommen, nicht das Bild
+    func testLinkWantedByPluginBeatsThumbnail() throws {
+        let png = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 4, pixelsHigh: 4, bitsPerSample: 8,
+                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                   bytesPerRow: 0, bitsPerPixel: 0)!.representation(using: .png, properties: [:])!
+        func importDrag() -> [ShelfFile] {
+            let pb = NSPasteboard(name: NSPasteboard.Name("BarDropPlugin-\(UUID().uuidString)"))
+            defer { pb.releaseGlobally() }
+            pb.clearContents()
+            let item = NSPasteboardItem()
+            item.setString("https://www.example.com/watch?v=abc", forType: .URL)
+            item.setString("Video", forType: NSPasteboard.PasteboardType("public.url-name"))
+            item.setData(png, forType: NSPasteboard.PasteboardType("public.png"))
+            pb.writeObjects([item])
+            let importer = ContentImporter(storage: base.appendingPathComponent("items"), convertImages: true)
+            let done = expectation(description: "Import")
+            var result: [ShelfFile] = []
+            importer.importContent(of: pb) { files in
+                result = files
+                done.fulfill()
+            }
+            wait(for: [done], timeout: 10)
+            return result
+        }
+        defer { PasteboardSnapshot.linkWanted = nil }
+        PasteboardSnapshot.linkWanted = { $0.host == "www.example.com" }
+        let wanted = importDrag()
+        XCTAssertEqual(wanted.first?.url.pathExtension, "webloc")
+        XCTAssertEqual(PluginItem.readWebloc(try XCTUnwrap(wanted.first?.url))?.absoluteString, "https://www.example.com/watch?v=abc")
+
+        PasteboardSnapshot.linkWanted = { _ in false }
+        XCTAssertEqual(importDrag().first?.url.pathExtension, "png")
+    }
+
+    func testConsoleLogDoesNotFail() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, script: "function run(item) { console.log('hi', {a: 1}); bardrop.writeFile('ok.txt', 'ok'); }")
+        XCTAssertEqual(try run(plugin, on: makeFile("a.txt")).get().map(\.lastPathComponent), ["ok.txt"])
+    }
 }

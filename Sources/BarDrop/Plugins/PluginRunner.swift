@@ -75,7 +75,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             let item = PluginItem(url: file.url)
             guard let plugin = automatic.first(where: { PluginMatcher.matches($0.manifest.match, item) }) else { continue }
             // Automatisch nur mit allen nötigen Rechten (beim Einschalten erteilt) und Zustimmung
-            guard readyForAutomatic(plugin) else { blocked = plugin; continue }
+            guard readyForAutomatic(plugin), approveTools(plugin) else { blocked = plugin; continue }
             enqueue(PluginJob(plugin: plugin, item: item, anchorFileID: file.id, automatic: true))
             started[plugin.manifest.title, default: 0] += 1
         }
@@ -87,6 +87,16 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             actions?.announce(L("\(blocked.manifest.title) needs permission in Settings",
                                 "\(blocked.manifest.title) braucht eine Erlaubnis in den Einstellungen"), duration: 2.5)
         }
+    }
+
+    /// Programme, die ein automatisches Plugin laden muss: einmal erlauben lassen (für
+    /// Plugins, deren Automatik schon vor dieser Abfrage eingeschaltet wurde)
+    private func approveTools(_ plugin: InstalledPlugin) -> Bool {
+        for tool in plugin.manifest.tools ?? [] where !manager.state(plugin.id).approvedTools.contains(tool.id) {
+            guard PluginDialogs.allowDownload(of: tool, for: plugin, ui: actions?.ui) else { return false }
+            manager.update(plugin.id) { $0.approvedTools.append(tool.id) }
+        }
+        return true
     }
 
     /// Hat das Plugin alles, um ohne Rückfrage zu laufen?
@@ -107,7 +117,11 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             job: job, workDirectory: work, tools: tools, prompter: self,
             settingsValues: manager.settingsValues(of: plugin),
             granted: Set(plugin.manifest.allPermissions.filter { manager.isGranted($0, for: plugin) }),
+            approvedTools: Set(manager.state(plugin.id).approvedTools),
             onGrant: { [weak self] permission in self?.manager.grant(permission, for: plugin) },
+            onToolApproved: { [weak self] tool in
+                self?.manager.update(plugin.id) { s in if !s.approvedTools.contains(tool) { s.approvedTools.append(tool) } }
+            },
             onNotify: { [weak self] text in self?.actions?.announce(text, duration: 2) }
         )
         runtimes[job.id] = runtime
@@ -126,12 +140,14 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         switch result {
         case .success(let urls):
             Diagnostics.shared.record("plugin", "done \(job.plugin.id) results=\(urls.count)")
+            manager.lastErrors.removeValue(forKey: job.plugin.id)
             deliver(job, urls)
         case .failure(.cancelled):
             removeJob(job)
             actions?.announce(L("Cancelled", "Abgebrochen"), duration: 1.5)
         case .failure(let error):
             Diagnostics.shared.failure("plugin", "\(job.plugin.id) failed: \(error.message.prefix(200))")
+            manager.lastErrors[job.plugin.id] = String(error.message.prefix(600))
             removeJob(job)
             NSSound.beep()
             actions?.announce(L("\(job.title) didn’t work", "\(job.title) hat nicht geklappt"), duration: 2.5)

@@ -63,6 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         Updater.shared.start()
         PluginManager.shared.start()
+        // Links, für die ein Plugin zuständig ist, als Link übernehmen (nicht als Vorschaubild)
+        PasteboardSnapshot.linkWanted = { url in
+            AppSettings.shared.pluginsEnabled && PluginManager.shared.wantsLink(url)
+        }
         // .bdrop-Dateien, die vor dem Start geöffnet wurden
         let early = pendingPluginFiles
         pendingPluginFiles = []

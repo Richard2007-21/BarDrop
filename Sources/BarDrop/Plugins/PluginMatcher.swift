@@ -73,6 +73,12 @@ struct PluginItem: Equatable {
 
 /// Entscheidet, ob ein Plugin für ein Objekt zuständig ist.
 enum PluginMatcher {
+    /// Passt die Adresse zu den Link-Regeln (ohne Typen und Endungen)?
+    static func matchesLink(_ match: PluginMatch, _ link: URL) -> Bool {
+        guard let rules = match.links else { return false }
+        return matchesHost(link, rules.hosts ?? []) || matchesPattern(link, rules.patterns ?? [])
+    }
+
     static func matches(_ match: PluginMatch, _ item: PluginItem) -> Bool {
         if item.kind == .link, let link = item.link, let rules = match.links {
             if matchesHost(link, rules.hosts ?? []) || matchesPattern(link, rules.patterns ?? []) { return true }

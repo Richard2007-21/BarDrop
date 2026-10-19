@@ -1,13 +1,15 @@
-* **New:** Plugins. Settings → Plugins (off by default) adds your own steps as `.bdrop` files: in the right-click menu below the usual entries, in the action bar, or automatically when you drop a matching file type or link. Plugins are written in JavaScript, ask for permissions (internet, running programs, clipboard) the first time they need them, and put their results right next to the original. BarDrop doesn’t come with any plugin; how to write one is in docs/PLUGINS.md
-* While a plugin runs, a placeholder with a ring stands next to the original; its right-click menu shows the progress in percent and can pause, resume and cancel
-* Double-clicking a `.bdrop` file shows what the plugin wants to do and its script before anything is installed
-* ⌘I (and Get Info in the right-click menu) opens the Finder’s Info window for the selected items
-* The action bar has a clean edge instead of the soft fade above it
+* **Fixed:** Links dragged from a web page together with a preview image (for example a video from YouTube) are kept as a link when a turned-on plugin is made for that link, instead of saving the preview image
+* **Fixed:** Plugins that run automatically and need a program (`tools`) no longer fail silently on their first run. Turning on “Automatically when dropped” now also asks whether the program may be loaded; plugins whose automatic mode was turned on in Beta 1 ask once at the next drop
+* Settings → Plugins shows the last error of a plugin, with Copy
+* Plugin scripts can use `console.log`; it goes to the diagnostic log like `bardrop.log`
+* Two plugins that need the same program at the same time no longer load it twice
+* docs/PLUGINS.md is now an exact reference, with a checker for plugins (scripts/check_plugin.py)
 
 <!-- de -->
 
-* **Neu:** Plugins. Einstellungen → Plugins (standardmäßig aus) ergänzt eigene Schritte als `.bdrop`-Dateien: im Rechtsklick-Menü unter den gewohnten Einträgen, in der Aktionsleiste oder automatisch beim Ablegen passender Dateitypen und Links. Plugins sind in JavaScript geschrieben, fragen beim ersten Gebrauch nach ihren Rechten (Internet, Programme ausführen, Zwischenablage) und legen ihre Ergebnisse direkt neben das Original. BarDrop bringt selbst kein Plugin mit; wie man eins schreibt, steht in docs/PLUGINS.de.md
-* Solange ein Plugin läuft, steht neben dem Original ein Platzhalter mit einem Ring; sein Rechtsklick-Menü zeigt den Fortschritt in Prozent und kann anhalten, fortsetzen und abbrechen
-* Ein Doppelklick auf eine `.bdrop`-Datei zeigt, was das Plugin tun will, und sein Skript, bevor etwas installiert wird
-* ⌘I (und „Informationen“ im Rechtsklick-Menü) öffnet das Fenster „Informationen“ des Finders für die ausgewählten Objekte
-* Die Aktionsleiste hat eine klare Kante statt des weichen Übergangs darüber
+* **Behoben:** Links, die zusammen mit einem Vorschaubild aus einer Webseite gezogen werden (zum Beispiel ein Video von YouTube), bleiben ein Link, wenn ein eingeschaltetes Plugin für diesen Link gemacht ist, statt dass das Vorschaubild gespeichert wird
+* **Behoben:** Plugins, die automatisch laufen und ein Programm brauchen (`tools`), scheitern beim ersten Lauf nicht mehr still. Beim Einschalten von „Automatisch beim Ablegen“ fragt BarDrop jetzt auch, ob das Programm geladen werden darf; Plugins, deren Automatik schon in Beta 1 an war, fragen einmal beim nächsten Ablegen
+* Einstellungen → Plugins zeigt den letzten Fehler eines Plugins, mit „Kopieren“
+* Plugin-Skripte können `console.log` verwenden; es landet wie `bardrop.log` im Diagnoseprotokoll
+* Zwei Plugins, die gleichzeitig dasselbe Programm brauchen, laden es nicht mehr doppelt
+* docs/PLUGINS.de.md ist jetzt eine genaue Referenz, mit einem Prüfprogramm für Plugins (scripts/check_plugin.py)

@@ -72,6 +72,11 @@ enum PluginDialogs {
             guard allow(permission, for: plugin, ui: nil) else { return false }
             manager.grant(permission, for: plugin)
         }
+        // Programme, die das Plugin laden muss: jetzt erlauben, beim Ablegen fragt niemand
+        for tool in plugin.manifest.tools ?? [] where !manager.state(plugin.id).approvedTools.contains(tool.id) {
+            guard allowDownload(of: tool, for: plugin, ui: nil) else { return false }
+            manager.update(plugin.id) { $0.approvedTools.append(tool.id) }
+        }
         return true
     }
 }

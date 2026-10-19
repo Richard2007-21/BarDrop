@@ -32,7 +32,26 @@ struct PluginState: Codable, Equatable {
     var grantedFingerprint: String?
     /// Dem Hinweis des Plugins (`consent`) zugestimmt
     var consented = false
+    /// Programme (`tools`), deren Download der Nutzer schon erlaubt hat. Gilt auch für
+    /// automatische Läufe, die selbst nie fragen.
+    var approvedTools: [String] = []
     var isStandard = false
+
+    init() {}
+
+    /// Fehlende Schlüssel (ältere Fassungen) bekommen ihren Standard, statt alles zu verwerfen
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        automatic = try c.decodeIfPresent(Bool.self, forKey: .automatic)
+        replaceOriginal = try c.decodeIfPresent(Bool.self, forKey: .replaceOriginal) ?? false
+        values = try c.decodeIfPresent([String: PluginValue].self, forKey: .values) ?? [:]
+        granted = (try c.decodeIfPresent([String].self, forKey: .granted) ?? []).compactMap(PluginPermission.init(rawValue:))
+        grantedFingerprint = try c.decodeIfPresent(String.self, forKey: .grantedFingerprint)
+        consented = try c.decodeIfPresent(Bool.self, forKey: .consented) ?? false
+        approvedTools = try c.decodeIfPresent([String].self, forKey: .approvedTools) ?? []
+        isStandard = try c.decodeIfPresent(Bool.self, forKey: .isStandard) ?? false
+    }
 }
 
 /// Eintrag im Katalog (index.json). Der Katalog kennt nur Plugins, die geprüft wurden.
@@ -83,6 +102,8 @@ final class PluginManager: ObservableObject {
     @Published private(set) var syncFailed = false
     /// Plugins, deren Ordner nicht mehr lesbar ist (z. B. nach dem Bearbeiten): Fehlertext
     @Published private(set) var broken: [String: String] = [:]
+    /// Letzter Fehler je Plugin (nur bis zum Beenden), sichtbar in den Einstellungen
+    @Published var lastErrors: [String: String] = [:]
 
     let baseDirectory: URL
     private var pluginsDirectory: URL { baseDirectory.appendingPathComponent("Plugins", isDirectory: true) }
@@ -221,6 +242,12 @@ final class PluginManager: ObservableObject {
     var activePlugins: [InstalledPlugin] {
         guard AppSettings.shared.pluginsEnabled else { return [] }
         return plugins.filter { state($0.id).enabled }
+    }
+
+    /// Braucht ein eingeschaltetes Plugin diese Adresse als Link? (Beim Hineinziehen aus dem
+    /// Browser kommt oft ein Vorschaubild mit; dann wird trotzdem der Link übernommen.)
+    func wantsLink(_ url: URL) -> Bool {
+        activePlugins.contains { PluginMatcher.matchesLink($0.manifest.match, url) }
     }
 
     func isAutomatic(_ plugin: InstalledPlugin) -> Bool {

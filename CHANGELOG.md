@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.31.0-beta.2
+* **Fixed:** Links dragged from a web page together with a preview image (for example a video from YouTube) are kept as a link when a turned-on plugin is made for that link, instead of saving the preview image
+* **Fixed:** Plugins that run automatically and need a program (`tools`) no longer fail silently on their first run. Turning on “Automatically when dropped” now also asks whether the program may be loaded; plugins whose automatic mode was turned on in Beta 1 ask once at the next drop
+* Settings → Plugins shows the last error of a plugin, with Copy
+* Plugin scripts can use `console.log`; it goes to the diagnostic log like `bardrop.log`
+* Two plugins that need the same program at the same time no longer load it twice
+* docs/PLUGINS.md is now an exact reference, with a checker for plugins (scripts/check_plugin.py)
+
 ## 1.31.0-beta.1
 * **New:** Plugins. Settings → Plugins (off by default) adds your own steps as `.bdrop` files: in the right-click menu below the usual entries, in the action bar, or automatically when you drop a matching file type or link. Plugins are written in JavaScript, ask for permissions (internet, running programs, clipboard) the first time they need them, and put their results right next to the original. BarDrop doesn’t come with any plugin; how to write one is in docs/PLUGINS.md
 * While a plugin runs, a placeholder with a ring stands next to the original; its right-click menu shows the progress in percent and can pause, resume and cancel

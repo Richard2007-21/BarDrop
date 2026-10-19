@@ -59,6 +59,17 @@ final class ContentImporter {
         // Dateien aus dem Finder: nur referenzieren, auch wenn zusätzlich ein Versprechen anliegt
         let onlyUserFiles = !fileURLs.isEmpty && fileURLs.allSatisfy(Self.isUserFile)
 
+        // 0. Ein Link, für den ein eingeschaltetes Plugin zuständig ist (z. B. ein Video aus
+        // dem Browser gezogen): als Link übernehmen, nicht als Vorschaubild, das oft dabei ist
+        if fileURLs.isEmpty || !onlyUserFiles {
+            let snapshot = PasteboardSnapshot(pb)
+            if snapshot.prefersLink, let link = snapshot.webURL, let webloc = writeWebloc(link, title: snapshot.urlTitle) {
+                Log.importing.info("Link für ein Plugin übernommen")
+                finish([ShelfFile(url: webloc, owned: true)], completion)
+                return
+            }
+        }
+
         // 1. Datei-Versprechen (Safari, Chrome, Fotos, Mail …)
         if !promises.isEmpty && !onlyUserFiles {
             // Inhalte sichern, solange das Drag-Pasteboard noch gültig ist
@@ -623,6 +634,12 @@ struct PasteboardSnapshot {
     var webURL: URL?
     var urlTitle: String?
     var text: String?
+    /// Ein eingeschaltetes Plugin ist für `webURL` zuständig: als Link übernehmen
+    var prefersLink = false
+
+    /// Fragt, ob ein Plugin einen Link als Link braucht (gesetzt beim Start der App;
+    /// nur auf dem Hauptthread aufgerufen, dort entsteht der Schnappschuss)
+    static var linkWanted: ((URL) -> Bool)?
 
     static let imageTypes: [(NSPasteboard.PasteboardType, String)] = [
         (NSPasteboard.PasteboardType("public.png"), "png"),
@@ -663,6 +680,9 @@ struct PasteboardSnapshot {
         if webURL == nil, let t = text, let u = URL(string: t.trimmingCharacters(in: .whitespacesAndNewlines)),
            let scheme = u.scheme, ["http", "https"].contains(scheme), !t.contains(" ") {
             webURL = u
+        }
+        if let webURL, let wanted = Self.linkWanted, Thread.isMainThread {
+            prefersLink = wanted(webURL)
         }
     }
 

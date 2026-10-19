@@ -233,6 +233,16 @@ private struct PluginDetails: View {
                 PluginSettingRow(spec: spec, plugin: plugin, manager: manager)
                 divider
             }
+            if let error = manager.lastErrors[plugin.id] {
+                SettingsRow(L("Last error", "Letzter Fehler"), subtitle: error) {
+                    Button(L("Copy", "Kopieren")) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(error, forType: .string)
+                    }
+                    .buttonStyle(KlackButtonStyle())
+                }
+                divider
+            }
             SettingsRow(L("Works with", "Passt zu")) {
                 Text(PluginSummary.matches(manifest.match))
                     .font(.system(size: 12))

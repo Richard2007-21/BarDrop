@@ -6,6 +6,8 @@ import Foundation
 final class PluginTools {
     let directory: URL
 
+    private let loadLock = NSLock()
+
     init(directory: URL) {
         self.directory = directory
     }
@@ -60,6 +62,10 @@ final class PluginTools {
     /// Liefert das Programm; lädt es beim ersten Mal nach Zustimmung (`ask`, auf dem
     /// Hauptthread gezeigt). Blockiert den aufrufenden (Hintergrund-)Thread.
     func ensure(_ tool: PluginTool, ask: () -> Bool, cancelled: () -> Bool) throws -> URL {
+        // Mehrere Plugins gleichzeitig (z. B. zwei abgelegte Links): nur einer lädt, die
+        // anderen warten und nehmen dann die fertige Datei
+        loadLock.lock()
+        defer { loadLock.unlock() }
         if let url = installed(tool) { return url }
         // Ein veraltetes, aber vorhandenes Programm wird ohne erneute Frage aktualisiert
         let hadVersion = FileManager.default.fileExists(atPath: binary(tool).path)

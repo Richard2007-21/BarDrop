@@ -91,7 +91,10 @@ final class PluginRuntime {
     /// liest die Verwaltung nicht selbst
     private let settingsValues: [String: Any]
     private var granted: Set<PluginPermission>
+    /// Programme, deren Download schon erlaubt ist (gilt auch ohne Rückfrage)
+    private var approvedTools: Set<String>
     private let onGrant: (PluginPermission) -> Void
+    private let onToolApproved: (String) -> Void
     private let onNotify: (String) -> Void
 
     private var context: JSContext?
@@ -108,8 +111,9 @@ final class PluginRuntime {
     var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return _cancelled }
 
     init(job: PluginJob, workDirectory: URL, tools: PluginTools, prompter: PluginPrompter?,
-         settingsValues: [String: Any], granted: Set<PluginPermission>,
-         onGrant: @escaping (PluginPermission) -> Void, onNotify: @escaping (String) -> Void) {
+         settingsValues: [String: Any], granted: Set<PluginPermission>, approvedTools: Set<String> = [],
+         onGrant: @escaping (PluginPermission) -> Void, onToolApproved: @escaping (String) -> Void = { _ in },
+         onNotify: @escaping (String) -> Void) {
         self.job = job
         self.plugin = job.plugin
         self.workDirectory = workDirectory
@@ -118,7 +122,9 @@ final class PluginRuntime {
         self.prompter = prompter
         self.settingsValues = settingsValues
         self.granted = granted
+        self.approvedTools = approvedTools
         self.onGrant = onGrant
+        self.onToolApproved = onToolApproved
         self.onNotify = onNotify
         self.queue = DispatchQueue(label: "BarDrop.plugin.\(job.plugin.id)", qos: .userInitiated)
         job.runtime = self
@@ -142,6 +148,17 @@ final class PluginRuntime {
                 self?.finish(.failure(.script(text)))
             }
             installAPI(in: context)
+            // console.log & Co. landen im Diagnoseprotokoll (JavaScriptCore kennt kein console)
+            context.evaluateScript("""
+            var console = (function () {
+              function line(args) { return Array.prototype.map.call(args, function (a) {
+                try { return typeof a === 'string' ? a : JSON.stringify(a); } catch (e) { return String(a); } }).join(' '); }
+              return { log: function () { bardrop.log(line(arguments)); },
+                       info: function () { bardrop.log(line(arguments)); },
+                       warn: function () { bardrop.log('warn: ' + line(arguments)); },
+                       error: function () { bardrop.log('error: ' + line(arguments)); } };
+            })();
+            """)
             context.evaluateScript(plugin.script, withSourceURL: plugin.scriptURL)
             guard self.completion != nil else { return }
             guard context.objectForKeyedSubscript("run")?.isObject == true else {
@@ -529,8 +546,17 @@ final class PluginRuntime {
     private func resolveExecutable(_ name: String, automatic: Bool, plugin: InstalledPlugin) throws -> URL {
         if let tool = plugin.manifest.tools?.first(where: { $0.id == name }) {
             return try tools.ensure(tool, ask: {
+                self.lock.lock()
+                let approved = self.approvedTools.contains(tool.id)
+                self.lock.unlock()
+                if approved { return true }
                 guard !automatic, let prompter = self.prompter else { return false }
-                return DispatchQueue.main.sync { prompter.allowDownload(of: tool, for: plugin) }
+                let allowed = DispatchQueue.main.sync { prompter.allowDownload(of: tool, for: plugin) }
+                if allowed {
+                    self.lock.lock(); self.approvedTools.insert(tool.id); self.lock.unlock()
+                    DispatchQueue.main.async { self.onToolApproved(tool.id) }
+                }
+                return allowed
             }, cancelled: { self.isCancelled })
         }
         if name.hasPrefix("/") {
