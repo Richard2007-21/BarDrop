@@ -2,7 +2,7 @@
 
 English · [Deutsch](PLUGINS.de.md)
 
-This file describes BarDrop’s plugin system completely and exactly as the code implements it (as of 1.31.0 Beta 2). What isn’t written here doesn’t exist. Anyone writing a plugin follows this file and checks the result with `scripts/check_plugin.py` (section 11).
+This file describes BarDrop’s plugin system completely and exactly as the code implements it (as of 1.31.0 Beta 3). What isn’t written here doesn’t exist. Anyone writing a plugin follows this file and checks the result with `scripts/check_plugin.py` (section 11).
 
 Source: `Sources/BarDrop/Plugins/`. When something changes there, this file, its German version and `scripts/check_plugin.py` are updated in the same commit.
 
@@ -31,7 +31,7 @@ BarDrop unpacks with `/usr/bin/ditto`. An installed plugin lives in `~/Library/A
 
 **Making one:** `python3 scripts/check_plugin.py MyPlugin/ --pack` checks the folder and writes `MyPlugin.bdrop`. By hand: `ditto -c -k --norsrc --noextattr MyPlugin MyPlugin.bdrop`, or “Compress” in the Finder and rename `.zip` to `.bdrop`.
 
-**Installing:** double-click the file, or Settings → Plugins → Import Plugin. BarDrop shows the name, permissions, programs to load and the script, with a note that the plugin isn’t from the catalog. Nothing is installed before “Install”. If a plugin with the same `id` exists, the button says “Update”. A standard plugin from the catalog can’t be replaced by an import. After importing, BarDrop turns on “Use plugins”; the plugin itself stays off.
+**Installing:** double-click the file, or Settings → Plugins → Import Plugin. BarDrop shows the name, permissions, programs to load and the script, with a note that the plugin isn’t from the catalog. Nothing is installed before “Install”. If a plugin with the same `id` exists, the button says “Update”. A standard plugin from the catalog can’t be replaced by an import. After importing, BarDrop turns on “Use plugins”; the plugin itself stays off. If an installed plugin can no longer be read (for example after editing it), it appears in the list with the error, with “Show in Finder” and, except for standard plugins, “Remove”.
 
 ## 3. manifest.json
 
@@ -147,7 +147,7 @@ BarDrop always stores links itself as `.webloc`.
 
 An automatic plugin only runs if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. Turning on “Automatically when dropped” asks for all of that. If only a program’s permission is missing (plugins from Beta 1), BarDrop asks once at the next drop. If anything else is missing, it doesn’t run, and the shelf shows “… needs permission in Settings”. During an automatic run, a plugin never asks.
 
-**At the same time:** at most three plugins run at once; more wait in the order they were started.
+**At the same time:** at most three plugins run at once; more wait in the order they were started (their placeholder shows a clock and “Waiting”). The same plugin doesn’t start a second time for the same file while it is still running; the shelf then shows “… is already running”.
 
 ## 6. Permissions
 
@@ -160,7 +160,8 @@ An automatic plugin only runs if it can run **without asking**: consent given (`
 * A call without the permission in `permissions` fails **immediately** with `Permission “…” is missing in manifest.json`, without asking.
 * Listed but not yet granted: for right-click and action bar, BarDrop asks **once**. “Don’t Allow” makes the call fail (`fetch`, `download`, `run` are rejected, `setClipboard` does nothing) and asks again next time. Automatic runs never ask.
 * Granted permissions apply to **exactly this code**: a SHA-256 over `manifest.json` and the script. Any change to either file resets all permissions. Updates from the catalog keep the permissions the plugin still needs.
-* Settings → Plugins → plugin → Permissions → Reset takes all permissions back.
+* The dialog asks “Allow “…” to access the internet?”, “Allow “…” to run programs?” or “Allow “…” to use the clipboard?”, with “Allow” and “Don’t Allow”.
+* Settings → Plugins → plugin → Permissions shows “allowed” or “asks first” for each permission. “Allow” asks for all missing permissions and programs right away (for example after an edited script lost its permissions), “Reset” takes all permissions back.
 * There is **no macOS sandbox** around plugins. Without permissions, the script can only use the calls in 9. A program started with `run`, however, has the user’s full rights.
 
 ## 7. tools: programs loaded on demand
@@ -187,20 +188,20 @@ BarDrop never ships third-party programs. A plugin can name programs that BarDro
 | `homepage` | no | Stored. |
 | `refreshDays` | no | After this many days, BarDrop loads the file again on next use, without asking again. Without it: never. |
 
-Sequence: if the file is missing, BarDrop asks (“Load …?” with origin and license). After “Load” it downloads, compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` with `meta.json` next to it. The permission is stored per plugin and then also applies to automatic runs. If two runs need it at the same time, only one downloads, the other waits. Removing a plugin keeps loaded programs.
+Sequence: if the file is missing, BarDrop asks (“Download …?” with origin, license and the note that the program runs with the same rights as the plugin). After “Download” it downloads (the placeholder shows “Loading …”), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` with `meta.json` next to it. The permission is stored per plugin and then also applies to automatic runs. If two runs need it at the same time, only one downloads, the other waits. Removing a plugin keeps loaded programs.
 
 ## 8. Result
 
 * `run(item)` ends without an error (also an `async` `run` whose promise resolves): **success**. The return value isn’t used.
-* `run` throws or its promise is rejected: **failure**. Nothing is added. For right-click and action bar BarDrop shows the message (`error.message`) in a dialog; for automatic runs only briefly “… didn’t work”. Either way, the message appears in Settings under “Last error” (until quitting).
+* `run` throws or its promise is rejected: **failure**. Nothing is added. For right-click and action bar BarDrop shows the message in a dialog: `error.message`, for error types other than `Error` with the type in front (`TypeError: …`), for errors in the script with file and line after it (`(main.js:12)`); for automatic runs only briefly “… didn’t work”. Either way, the message appears in Settings under “Last error” (until quitting).
 * On success, all **top-level entries** of the output folder are taken, sorted by name, **folders included**. Excluded are names starting with `.` and the extensions `part`, `ytdl`, `tmp`, `download`, `crdownload`. If the folder is empty, only the placeholder disappears.
 * The files are moved into BarDrop’s storage and inserted **right after the original** (in the order the user sees; in a stack, after the original inside the stack). They appear immediately with their preview and are selected. If the original is no longer in the shelf, they are added like newly dropped items.
 * “Replace original” (only with `canReplaceOriginal`, the user’s switch): the original is then taken **out of the shelf**, never deleted; ⌘Z brings it back.
 
-**Placeholder:** while a plugin runs, a ring with the plugin’s symbol and name (or the `label` from `bardrop.progress`) stands next to the original. Without progress a short arc spins; with progress the ring fills. Right-click: progress in percent (updates while the menu is open), “Pause” or “Resume”, “Cancel”.
+**Placeholder:** while a plugin runs, a ring with the plugin’s symbol and name (or the `label` from `bardrop.progress`) stands next to the original. Without progress a short arc spins; with progress the ring fills. Right-click: progress in percent (updates while the menu is open), “Pause” or “Resume”, “Cancel”. A plugin that is still waiting only offers “Cancel”.
 
-* **Pause:** started programs get `SIGSTOP`, downloads pause. The script itself and `bardrop.sleep` keep running.
-* **Cancel:** programs get `SIGTERM`, requests are cancelled, the result is discarded.
+* **Pause:** started programs and every program they started themselves get `SIGSTOP`, downloads pause. The script itself and `bardrop.sleep` keep running.
+* **Cancel:** started programs and their child programs get `SIGTERM`, requests are cancelled, the result is discarded.
 * Quitting BarDrop cancels running plugins.
 
 ## 9. The script
@@ -234,9 +235,9 @@ Every call used with `await` returns a promise.
 | Call | Permission | Result and rules |
 | --- | --- | --- |
 | `bardrop.outputDirectory` | | Path of the output folder (text). The result goes here. |
-| `bardrop.writeFile(name, text)` | | Writes `text` as UTF-8 to the output folder. Returns the path. The name is cleaned (9.4); if it exists, the file becomes `Name 2.txt` etc. |
+| `bardrop.writeFile(name, text)` | | Writes `text` as UTF-8 to the output folder (other values become text as with `String()`, so objects become `[object Object]`: use `JSON.stringify` first). `name` must be text, `text` must not be `undefined` or `null`, otherwise error. Returns the path. The name is cleaned (9.4); if it exists, the file becomes `Name 2.txt` etc. |
 | `bardrop.createLink(url, title)` | | Creates `<title>.webloc` in the output folder (without `title`: the domain). `url` needs a scheme (`https:`). Returns the path. Invalid address: error. |
-| `bardrop.readFile(path)` | | Reads a file as text (UTF-8, invalid bytes replaced), at most 20 MB. Allowed only: `item.path` itself, files in the output folder, files in the plugin’s own folder. Otherwise error. Binary data can’t be read this way; use `bardrop.run`. |
+| `bardrop.readFile(path)` | | Reads a file as text (UTF-8, invalid bytes replaced), at most 20 MB. A path that doesn’t start with `/` is relative to the output folder. Allowed only: `item.path` itself, files in the output folder, files in the plugin’s own folder. Otherwise error. Binary data can’t be read this way; use `bardrop.run`. |
 | `bardrop.progress(fraction, label)` | | `fraction` 0 to 1 (clamped); not a number (e.g. `null`) means “no progress”. `label` optional, at most 60 characters, replaces the name under the placeholder. The display updates at most every 100 ms. |
 | `bardrop.notify(text)` | | Short note at the top of the shelf, at most 80 characters, about 2 seconds. |
 | `bardrop.isCancelled()` | | `true` once the user cancelled. Check it in long loops. |
@@ -244,7 +245,7 @@ Every call used with `await` returns a promise.
 | `bardrop.log(text)` | | Line in the diagnostic log (beta versions with the log turned on), at most 300 characters. |
 | `await bardrop.fetch(url, options)` | `network` | `options` optional: `method` (text), `headers` (object), `body` (text). Only `http`/`https`, 60 s timeout, user agent `BarDrop/<version>`. Returns `{status, url, headers, text}`; `headers` with lowercased names, `text` at most 20 MB. Rejected only on network errors, **not** on status 404 or 500: check `status` yourself. |
 | `await bardrop.download(url, options)` | `network` | Downloads into the output folder, with progress on the placeholder. `options` optional: `name`, `method`, `headers`. File name: `name`, else the server’s suggestion, else the last part of the address (cleaned, 9.4). Returns the path. Rejected on network errors or a status outside 200 to 299. |
-| `await bardrop.run(command, args, options)` | `run` | Starts a program and waits until it ends. `command`: an `id` from `tools`, an absolute path, or a name looked up in `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/opt/homebrew/bin`, `/usr/local/bin`. `args`: a list, every element becomes text; there is **no shell** (no wildcards, no redirection; use `"/bin/sh", ["-c", "…"]` for that). Working folder is the output folder. Environment: BarDrop’s, plus `PATH` = tools folder and the search locations above, `BARDROP_OUTPUT` = output folder. No input (stdin empty). `options.onOutput(line)` is called for every line of stdout and stderr; lines end at `\n` **and** `\r`, empty lines are dropped. Returns `{code, stdout, stderr}` (at most 1 MB each). A code other than 0 is **not** rejected: check `code` yourself. Rejected if the program isn’t found, can’t start, the permission is missing or the run was cancelled. |
+| `await bardrop.run(command, args, options)` | `run` | Starts a program and waits until it ends. `command`: an `id` from `tools`, an absolute path, or a name looked up in `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/opt/homebrew/bin`, `/usr/local/bin`. `args`: a list, every element becomes text; there is **no shell** (no wildcards, no redirection; use `"/bin/sh", ["-c", "…"]` for that). Working folder is the output folder. Environment: BarDrop’s, plus `PATH` = tools folder and the search locations above, `BARDROP_OUTPUT` = output folder. No input (stdin empty). `options.onOutput(line)` is called for every line of stdout and stderr, each split on its own; lines end at `\n` **and** `\r`, empty lines are dropped, lines over 64 KB are split. All lines arrive before `run` returns its result. An error in `onOutput` ends the whole run with that error. Returns `{code, stdout, stderr}` (at most 1 MB each). A code other than 0 is **not** rejected: check `code` yourself. Rejected if the program isn’t found, can’t start, the permission is missing or the run was cancelled. |
 | `bardrop.setClipboard(text)` | `clipboard` | Puts text on the clipboard. |
 | `bardrop.settings` | | Values of the settings (3.3) and `replaceOriginal`. |
 | `bardrop.language` | | `"de"` or `"en"`, like the app. |

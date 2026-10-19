@@ -2,7 +2,7 @@
 
 [English](PLUGINS.md) · Deutsch
 
-Diese Datei beschreibt das Plugin-System von BarDrop vollständig und genau so, wie der Code es umsetzt (Stand 1.31.0 Beta 2). Was hier nicht steht, gibt es nicht. Wer ein Plugin schreibt, hält sich an diese Datei und prüft das Ergebnis mit `scripts/check_plugin.py` (Abschnitt 11).
+Diese Datei beschreibt das Plugin-System von BarDrop vollständig und genau so, wie der Code es umsetzt (Stand 1.31.0 Beta 3). Was hier nicht steht, gibt es nicht. Wer ein Plugin schreibt, hält sich an diese Datei und prüft das Ergebnis mit `scripts/check_plugin.py` (Abschnitt 11).
 
 Quellcode: `Sources/BarDrop/Plugins/`. Ändert sich dort etwas, wird diese Datei, ihre englische Fassung und `scripts/check_plugin.py` im selben Commit angepasst.
 
@@ -31,7 +31,7 @@ Entpackt wird mit `/usr/bin/ditto`. Installiert liegt ein Plugin in `~/Library/A
 
 **Erzeugen:** `python3 scripts/check_plugin.py MeinPlugin/ --pack` prüft den Ordner und erzeugt `MeinPlugin.bdrop`. Von Hand geht es mit `ditto -c -k --norsrc --noextattr MeinPlugin MeinPlugin.bdrop` oder mit „Komprimieren“ im Finder und anschließendem Umbenennen von `.zip` in `.bdrop`.
 
-**Installieren:** Doppelklick auf die Datei oder Einstellungen → Plugins → Plugin importieren. BarDrop zeigt Name, Rechte, nachzuladende Programme und das Skript, mit dem Hinweis, dass das Plugin nicht aus dem Katalog stammt. Installiert wird erst nach „Installieren“. Ist ein Plugin mit derselben `id` schon da, heißt der Knopf „Aktualisieren“. Ein Standard-Plugin aus dem Katalog lässt sich nicht durch einen Import ersetzen. Nach dem Import schaltet BarDrop „Plugins verwenden“ ein; das Plugin selbst bleibt aus.
+**Installieren:** Doppelklick auf die Datei oder Einstellungen → Plugins → Plugin importieren. BarDrop zeigt Name, Rechte, nachzuladende Programme und das Skript, mit dem Hinweis, dass das Plugin nicht aus dem Katalog stammt. Installiert wird erst nach „Installieren“. Ist ein Plugin mit derselben `id` schon da, heißt der Knopf „Aktualisieren“. Ein Standard-Plugin aus dem Katalog lässt sich nicht durch einen Import ersetzen. Nach dem Import schaltet BarDrop „Plugins verwenden“ ein; das Plugin selbst bleibt aus. Lässt sich ein installiertes Plugin nicht mehr lesen (etwa nach dem Bearbeiten), steht es mit der Fehlermeldung in der Liste, mit „Im Finder zeigen“ und, außer bei Standard-Plugins, „Entfernen“.
 
 ## 3. manifest.json
 
@@ -147,7 +147,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 Ein automatisches Plugin läuft nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`consent`) gegeben, alle Rechte aus `permissions` erteilt, alle Programme aus `tools` erlaubt. Beim Einschalten von „Automatisch beim Ablegen“ fragt BarDrop all das ab. Fehlt nur die Erlaubnis für ein Programm (Plugins aus Beta 1), fragt BarDrop beim nächsten Ablegen einmal nach. Fehlt anderes, läuft es nicht, und oben steht „… braucht eine Erlaubnis in den Einstellungen“. Während eines automatischen Laufs fragt das Plugin nie.
 
-**Gleichzeitig:** Höchstens drei Plugins laufen gleichzeitig, weitere warten in der Reihenfolge, in der sie gestartet wurden.
+**Gleichzeitig:** Höchstens drei Plugins laufen gleichzeitig, weitere warten in der Reihenfolge, in der sie gestartet wurden (ihr Platzhalter zeigt eine Uhr und „Wartet“). Dasselbe Plugin startet für dieselbe Datei nicht ein zweites Mal, solange es noch läuft; oben erscheint dann „… läuft schon“.
 
 ## 6. Rechte
 
@@ -160,7 +160,8 @@ Ein automatisches Plugin läuft nur, wenn es **ohne Rückfrage** laufen kann: Zu
 * Ein Aufruf ohne das Recht in `permissions` scheitert **sofort** mit dem Fehler `Permission “…” is missing in manifest.json`, ohne Frage.
 * Steht das Recht im Manifest, ist aber noch nicht erteilt: Bei Rechtsklick und Aktionsleiste fragt BarDrop **einmal**. „Nicht erlauben“ lässt den Aufruf scheitern (`fetch`, `download`, `run` werden abgelehnt, `setClipboard` tut nichts) und fragt beim nächsten Lauf erneut. Bei automatischen Läufen fragt BarDrop nie.
 * Erteilte Rechte gelten für **genau diesen Code**: eine SHA-256-Prüfsumme über `manifest.json` und das Skript. Jede Änderung an einer der beiden Dateien setzt alle Rechte zurück. Aktualisierungen aus dem Katalog behalten Rechte, die das Plugin weiter braucht.
-* Einstellungen → Plugins → Plugin → Rechte → Zurücksetzen nimmt alle Rechte zurück.
+* Der Dialog fragt „Darf „…“ auf das Internet zugreifen?“, „Darf „…“ Programme ausführen?“ bzw. „Darf „…“ die Zwischenablage verwenden?“, mit „Erlauben“ und „Nicht erlauben“.
+* Einstellungen → Plugins → Plugin → Rechte zeigt je Recht „erlaubt“ oder „fragt zuerst“. „Erlauben“ fragt sofort nach allen fehlenden Rechten und Programmen (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat), „Zurücksetzen“ nimmt alle Rechte zurück.
 * Es gibt **keine Sandbox von macOS** um Plugins. Das Skript selbst kann ohne Rechte nur die Aufrufe aus 9 nutzen. Ein mit `run` gestartetes Programm hat aber die vollen Rechte des Benutzers.
 
 ## 7. tools: nachgeladene Programme
@@ -187,20 +188,20 @@ BarDrop liefert nie Programme Dritter mit. Ein Plugin kann Programme nennen, die
 | `homepage` | nein | Wird gespeichert. |
 | `refreshDays` | nein | Nach so vielen Tagen lädt BarDrop die Datei beim nächsten Gebrauch neu, ohne erneut zu fragen. Ohne Angabe nie. |
 
-Ablauf: Fehlt die Datei, fragt BarDrop („… laden?“ mit Herkunft und Lizenz). Nach „Laden“ wird geladen, die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` mit `meta.json` daneben. Die Erlaubnis wird je Plugin gespeichert und gilt danach auch für automatische Läufe. Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
+Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, Lizenz und dem Hinweis, dass das Programm mit denselben Rechten läuft wie das Plugin). Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` mit `meta.json` daneben. Die Erlaubnis wird je Plugin gespeichert und gilt danach auch für automatische Läufe. Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
 
 ## 8. Ergebnis
 
 * `run(item)` endet ohne Fehler (auch ein `async`-`run`, dessen Versprechen erfüllt wird): **Erfolg**. Der Rückgabewert wird nicht verwendet.
-* Wirft `run` einen Fehler oder wird das Versprechen abgelehnt: **Fehlschlag**. Es kommt nichts in die Ablage. Bei Rechtsklick und Aktionsleiste zeigt BarDrop die Meldung (`error.message`) in einem Dialog; bei automatischen Läufen nur kurz „… hat nicht geklappt“. In beiden Fällen steht die Meldung in den Einstellungen unter „Letzter Fehler“ (bis zum Beenden).
+* Wirft `run` einen Fehler oder wird das Versprechen abgelehnt: **Fehlschlag**. Es kommt nichts in die Ablage. Bei Rechtsklick und Aktionsleiste zeigt BarDrop die Meldung in einem Dialog: `error.message`, bei Fehlertypen außer `Error` mit dem Typ davor (`TypeError: …`), bei Fehlern im Skript mit Datei und Zeile dahinter (`(main.js:12)`); bei automatischen Läufen nur kurz „… hat nicht geklappt“. In beiden Fällen steht die Meldung in den Einstellungen unter „Letzter Fehler“ (bis zum Beenden).
 * Bei Erfolg werden alle **Einträge der obersten Ebene** im Ausgabeordner übernommen, alphabetisch sortiert, **Ordner eingeschlossen**. Ausgenommen sind Namen, die mit `.` beginnen, und die Endungen `part`, `ytdl`, `tmp`, `download`, `crdownload`. Ist der Ordner leer, verschwindet nur der Platzhalter.
 * Die Dateien werden in den Speicher von BarDrop verschoben und **direkt hinter dem Original** eingefügt (in der Reihenfolge, die der Nutzer sieht; liegt das Original in einem Stapel, hinter ihm im Stapel). Sie erscheinen sofort mit Vorschau und sind danach ausgewählt. Liegt das Original nicht mehr in der Ablage, kommen sie dazu wie neu abgelegte Objekte.
 * „Original ersetzen“ (nur mit `canReplaceOriginal`, Schalter des Nutzers): Das Original wird danach **aus der Ablage** genommen, nie gelöscht; ⌘Z holt es zurück.
 
-**Platzhalter:** Während ein Plugin läuft, steht neben dem Original ein Ring mit dem Symbol des Plugins und dem Namen (oder dem `label` aus `bardrop.progress`). Ohne Fortschritt dreht ein kurzer Bogen, mit Fortschritt füllt sich der Ring. Rechtsklick: Fortschritt in Prozent (läuft im offenen Menü mit), „Anhalten“ bzw. „Fortsetzen“, „Abbrechen“.
+**Platzhalter:** Während ein Plugin läuft, steht neben dem Original ein Ring mit dem Symbol des Plugins und dem Namen (oder dem `label` aus `bardrop.progress`). Ohne Fortschritt dreht ein kurzer Bogen, mit Fortschritt füllt sich der Ring. Rechtsklick: Fortschritt in Prozent (läuft im offenen Menü mit), „Anhalten“ bzw. „Fortsetzen“, „Abbrechen“. Wartet ein Plugin noch, gibt es nur „Abbrechen“.
 
-* **Anhalten:** gestartete Programme bekommen `SIGSTOP`, Downloads pausieren. Das Skript selbst und `bardrop.sleep` laufen weiter.
-* **Abbrechen:** Programme bekommen `SIGTERM`, Anfragen werden abgebrochen, das Ergebnis wird verworfen.
+* **Anhalten:** gestartete Programme und alle Programme, die diese selbst gestartet haben, bekommen `SIGSTOP`, Downloads pausieren. Das Skript selbst und `bardrop.sleep` laufen weiter.
+* **Abbrechen:** gestartete Programme und ihre Unterprogramme bekommen `SIGTERM`, Anfragen werden abgebrochen, das Ergebnis wird verworfen.
 * Beim Beenden von BarDrop werden laufende Plugins abgebrochen.
 
 ## 9. Das Skript
@@ -234,9 +235,9 @@ Alle Aufrufe mit `await` liefern ein Versprechen.
 | Aufruf | Recht | Ergebnis und Regeln |
 | --- | --- | --- |
 | `bardrop.outputDirectory` | | Pfad des Ausgabeordners (Text). Dort liegt am Ende das Ergebnis. |
-| `bardrop.writeFile(name, text)` | | Schreibt `text` als UTF-8 in den Ausgabeordner. Liefert den Pfad. Der Name wird bereinigt (siehe 9.4); gibt es ihn schon, heißt die Datei `Name 2.txt` usw. |
+| `bardrop.writeFile(name, text)` | | Schreibt `text` als UTF-8 in den Ausgabeordner (andere Werte werden wie mit `String()` zu Text, Objekte also zu `[object Object]`: vorher `JSON.stringify` verwenden). `name` muss Text sein, `text` darf nicht `undefined` oder `null` sein, sonst Fehler. Liefert den Pfad. Der Name wird bereinigt (siehe 9.4); gibt es ihn schon, heißt die Datei `Name 2.txt` usw. |
 | `bardrop.createLink(url, title)` | | Legt `<title>.webloc` im Ausgabeordner an (ohne `title`: die Domain). `url` braucht ein Schema (`https:`). Liefert den Pfad. Ungültige Adresse: Fehler. |
-| `bardrop.readFile(path)` | | Liest eine Datei als Text (UTF-8, ungültige Bytes werden ersetzt), höchstens 20 MB. Erlaubt nur: `item.path` selbst, Dateien im Ausgabeordner, Dateien im eigenen Plugin-Ordner. Sonst Fehler. Binärdaten lassen sich so nicht lesen; dafür `bardrop.run`. |
+| `bardrop.readFile(path)` | | Liest eine Datei als Text (UTF-8, ungültige Bytes werden ersetzt), höchstens 20 MB. Ein Pfad ohne `/` am Anfang gilt relativ zum Ausgabeordner. Erlaubt nur: `item.path` selbst, Dateien im Ausgabeordner, Dateien im eigenen Plugin-Ordner. Sonst Fehler. Binärdaten lassen sich so nicht lesen; dafür `bardrop.run`. |
 | `bardrop.progress(anteil, label)` | | `anteil` 0 bis 1 (wird begrenzt); keine Zahl (z. B. `null`) heißt „ohne Fortschritt“. `label` optional, höchstens 60 Zeichen, ersetzt den Namen unter dem Platzhalter. Die Anzeige erneuert sich höchstens alle 100 ms. |
 | `bardrop.notify(text)` | | Kurze Meldung oben in der Ablage, höchstens 80 Zeichen, etwa 2 Sekunden. |
 | `bardrop.isCancelled()` | | `true`, wenn der Nutzer abgebrochen hat. In langen Schleifen abfragen. |
@@ -244,7 +245,7 @@ Alle Aufrufe mit `await` liefern ein Versprechen.
 | `bardrop.log(text)` | | Zeile im Diagnoseprotokoll (nur Beta-Versionen mit eingeschaltetem Protokoll), höchstens 300 Zeichen. |
 | `await bardrop.fetch(url, options)` | `network` | `options` optional: `method` (Text), `headers` (Objekt), `body` (Text). Nur `http`/`https`, 60 s Zeitlimit, Kennung `BarDrop/<Version>`. Liefert `{status, url, headers, text}`; `headers` mit klein geschriebenen Namen, `text` höchstens 20 MB. Abgelehnt wird nur bei Netzwerkfehlern, **nicht** bei Status 404 oder 500: `status` selbst prüfen. |
 | `await bardrop.download(url, options)` | `network` | Lädt in den Ausgabeordner, mit Fortschritt am Platzhalter. `options` optional: `name`, `method`, `headers`. Dateiname: `name`, sonst der vom Server vorgeschlagene, sonst der letzte Teil der Adresse (bereinigt, 9.4). Liefert den Pfad. Abgelehnt bei Netzwerkfehler oder Status außerhalb 200 bis 299. |
-| `await bardrop.run(befehl, argumente, options)` | `run` | Startet ein Programm und wartet, bis es endet. `befehl`: eine `id` aus `tools`, ein absoluter Pfad oder ein Name, gesucht in `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/opt/homebrew/bin`, `/usr/local/bin`. `argumente`: Liste, jedes Element wird zu Text; es gibt **keine Shell** (keine Platzhalter, keine Umleitungen; dafür `"/bin/sh", ["-c", "…"]`). Arbeitsordner ist der Ausgabeordner. Umgebung: die von BarDrop, dazu `PATH` = Tools-Ordner und die Suchorte oben, `BARDROP_OUTPUT` = Ausgabeordner. Keine Eingabe (stdin leer). `options.onOutput(zeile)` wird für jede Zeile von stdout und stderr aufgerufen; Zeilen enden an `\n` **und** `\r`, leere Zeilen fallen weg. Liefert `{code, stdout, stderr}` (je höchstens 1 MB). Ein Code ungleich 0 wird **nicht** abgelehnt: `code` selbst prüfen. Abgelehnt wird, wenn das Programm nicht gefunden wird, nicht starten kann, das Recht fehlt oder abgebrochen wurde. |
+| `await bardrop.run(befehl, argumente, options)` | `run` | Startet ein Programm und wartet, bis es endet. `befehl`: eine `id` aus `tools`, ein absoluter Pfad oder ein Name, gesucht in `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/opt/homebrew/bin`, `/usr/local/bin`. `argumente`: Liste, jedes Element wird zu Text; es gibt **keine Shell** (keine Platzhalter, keine Umleitungen; dafür `"/bin/sh", ["-c", "…"]`). Arbeitsordner ist der Ausgabeordner. Umgebung: die von BarDrop, dazu `PATH` = Tools-Ordner und die Suchorte oben, `BARDROP_OUTPUT` = Ausgabeordner. Keine Eingabe (stdin leer). `options.onOutput(zeile)` wird für jede Zeile von stdout und stderr aufgerufen, beide getrennt zerlegt; Zeilen enden an `\n` **und** `\r`, leere Zeilen fallen weg, Zeilen über 64 KB werden geteilt. Alle Zeilen kommen an, bevor `run` sein Ergebnis liefert. Ein Fehler in `onOutput` beendet den ganzen Lauf mit diesem Fehler. Liefert `{code, stdout, stderr}` (je höchstens 1 MB). Ein Code ungleich 0 wird **nicht** abgelehnt: `code` selbst prüfen. Abgelehnt wird, wenn das Programm nicht gefunden wird, nicht starten kann, das Recht fehlt oder abgebrochen wurde. |
 | `bardrop.setClipboard(text)` | `clipboard` | Legt Text in die Zwischenablage. |
 | `bardrop.settings` | | Werte der Einstellungen (3.3) und `replaceOriginal`. |
 | `bardrop.language` | | `"de"` oder `"en"`, wie die App. |

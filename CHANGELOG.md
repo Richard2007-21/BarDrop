@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.31.0-beta.3
+* Plugins: errors show the file and line in the script (for example “TypeError: … (main.js:4)”), and all messages of the plugin interface are in English and German
+* Plugins: Pause and Cancel also stop programs that a plugin’s program started itself
+* Plugins: output of programs is split into lines separately for stdout and stderr, so lines no longer get mixed up
+* Plugins: the same plugin doesn’t start twice for the same file; waiting plugins show a clock and can only be cancelled
+* Plugins: while a program is downloaded for a plugin, the placeholder says so; the dialog now says that the program runs with the same rights as the plugin
+* Plugins: permission dialogs ask a clear question (“Allow … to access the internet?”); Settings → Plugins has “Allow” for missing permissions, and plugins that can’t be read can be shown in the Finder or removed
+* Plugins: `readFile` accepts paths relative to the output folder; `writeFile` and `readFile` check their arguments
+* Plugins: “Works with” uses the language of BarDrop
+
 ## 1.31.0-beta.2
 * **Fixed:** Links dragged from a web page together with a preview image (for example a video from YouTube) are kept as a link when a turned-on plugin is made for that link, instead of saving the preview image
 * **Fixed:** Plugins that run automatically and need a program (`tools`) no longer fail silently on their first run. Turning on “Automatically when dropped” now also asks whether the program may be loaded; plugins whose automatic mode was turned on in Beta 1 ask once at the next drop

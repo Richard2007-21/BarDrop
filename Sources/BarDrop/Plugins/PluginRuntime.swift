@@ -52,7 +52,11 @@ final class PluginJob: ObservableObject, Identifiable {
         guard force || now.timeIntervalSince(lastPublished) > 0.1 || clamped == 1 else { return }
         lastPublished = now
         if clamped != progress { progress = clamped }
-        if let newLabel, newLabel != label { label = newLabel }
+        // Leerer Text nimmt die Beschriftung zurück (dann steht wieder der Name da)
+        if let newLabel {
+            let value = newLabel.isEmpty ? nil : newLabel
+            if value != label { label = value }
+        }
         NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
     }
 
@@ -580,6 +584,14 @@ final class PluginRuntime {
 
     private func resolveExecutable(_ name: String, automatic: Bool, plugin: InstalledPlugin) throws -> URL {
         if let tool = plugin.manifest.tools?.first(where: { $0.id == name }) {
+            // Muss erst geladen werden: am Platzhalter zeigen, was gerade passiert
+            let loading = tools.installed(tool) == nil
+            if loading {
+                DispatchQueue.main.async { self.job.report(nil, label: L("Loading \(tool.name)", "Lädt \(tool.name)"), force: true) }
+            }
+            defer {
+                if loading { DispatchQueue.main.async { self.job.report(nil, label: "", force: true) } }
+            }
             return try tools.ensure(tool, ask: {
                 self.lock.lock()
                 let approved = self.approvedTools.contains(tool.id)
