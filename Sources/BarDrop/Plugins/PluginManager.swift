@@ -361,6 +361,7 @@ final class PluginManager: ObservableObject {
             }
         }
         if !order.contains(id) { order.append(id) }
+        PluginLog.shared.record(id, "install", "\(unpacked.manifest.version)\(standard ? " (Standard)" : "")")
         reload()
         guard let installed = plugin(id) else { throw InstallError.failed(L("The plugin couldn’t be read.", "Das Plugin ließ sich nicht lesen.")) }
         return installed
@@ -384,6 +385,7 @@ final class PluginManager: ObservableObject {
     }
 
     private func uninstall(_ id: String) {
+        PluginLog.shared.record(id, "install", "entfernt")
         try? FileManager.default.removeItem(at: pluginsDirectory.appendingPathComponent(id, isDirectory: true))
         states.removeValue(forKey: id)
         order.removeAll { $0 == id }

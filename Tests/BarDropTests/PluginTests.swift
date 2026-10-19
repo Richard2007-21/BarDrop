@@ -362,4 +362,42 @@ final class PluginTests: XCTestCase {
         let plugin = try installed(manager, script: "function run(item) { console.log('hi', {a: 1}); bardrop.writeFile('ok.txt', 'ok'); }")
         XCTAssertEqual(try run(plugin, on: makeFile("a.txt")).get().map(\.lastPathComponent), ["ok.txt"])
     }
+
+    // MARK: Programme im Archiv, Plugin-Protokoll
+
+    func testToolArchiveAndArchitectureRules() throws {
+        let ok = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON(permissions: ["run"], extra: #"""
+        , "tools": [{"id": "deno", "name": "Deno", "url": "https://example.com/deno-{arch}-apple-darwin.zip",
+                     "checksums": "https://example.com/deno-{arch}-apple-darwin.zip.sha256sum", "archive": "zip", "executable": "deno"}]
+        """#).utf8))
+        XCTAssertNoThrow(try ok.validate(appVersion: "1.31.0"))
+        let tool = try XCTUnwrap(ok.tools?.first)
+        XCTAssertFalse(tool.resolvedURL.contains("{arch}"))
+        XCTAssertTrue(tool.resolvedURL.contains(PluginTool.architecture))
+        XCTAssertTrue(["aarch64", "x86_64"].contains(PluginTool.architecture))
+
+        let noExecutable = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON(permissions: ["run"], extra: #"""
+        , "tools": [{"id": "deno", "name": "Deno", "url": "https://example.com/deno.zip", "sha256": "\#(String(repeating: "a", count: 64))", "archive": "zip"}]
+        """#).utf8))
+        XCTAssertThrowsError(try noExecutable.validate(appVersion: "1.31.0"))
+        let escape = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON(permissions: ["run"], extra: #"""
+        , "tools": [{"id": "x", "name": "X", "url": "https://example.com/x.zip", "sha256": "\#(String(repeating: "a", count: 64))", "archive": "zip", "executable": "../evil"}]
+        """#).utf8))
+        XCTAssertThrowsError(try escape.validate(appVersion: "1.31.0"))
+    }
+
+    func testPluginLogOnlyWritesWhenEnabled() throws {
+        let log = PluginLog(directory: base.appendingPathComponent("logs"))
+        log.record("io.github.test.a", "start", "off")
+        log.flush()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: log.logURL.path))
+        log.isEnabled = true
+        log.record("io.github.test.a", "fehler", "line one\nline two")
+        log.flush()
+        let text = try String(contentsOf: log.logURL, encoding: .utf8)
+        XCTAssertTrue(text.contains("io.github.test.a  [fehler]  line one ⏎ line two"))
+        XCTAssertFalse(text.contains("off"))
+        log.clear()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: log.logURL.path))
+    }
 }

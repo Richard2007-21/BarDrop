@@ -12,6 +12,11 @@ final class PluginTools {
         self.directory = directory
     }
 
+    /// Ordner aller geladenen Programme (für PATH beim Starten von Programmen)
+    func folders(for tools: [PluginTool]) -> [String] {
+        tools.map { folder($0) }.filter { FileManager.default.fileExists(atPath: $0.path) }.map(\.path)
+    }
+
     private struct Meta: Codable {
         var url: String
         var sha256: String
@@ -53,7 +58,7 @@ final class PluginTools {
         guard FileManager.default.isExecutableFile(atPath: url.path),
               let data = try? Data(contentsOf: folder(tool).appendingPathComponent("meta.json")),
               let meta = try? JSONDecoder().decode(Meta.self, from: data),
-              meta.url == tool.url else { return nil }
+              meta.url == tool.resolvedURL else { return nil }
         if let pinned = tool.sha256, pinned.lowercased() != meta.sha256 { return nil }
         if let days = tool.refreshDays, Date().timeIntervalSince(meta.fetched) > Double(days) * 86_400 { return nil }
         return url
@@ -70,25 +75,48 @@ final class PluginTools {
         // Ein veraltetes, aber vorhandenes Programm wird ohne erneute Frage aktualisiert
         let hadVersion = FileManager.default.fileExists(atPath: binary(tool).path)
         guard hadVersion || ask() else { throw ToolError.declined }
+        PluginLog.shared.record(tool.id, "programm", "lade \(tool.resolvedURL)")
         let expected = try expectedChecksum(tool)
-        let file = try fetch(URL(string: tool.url)!, cancelled: cancelled)
+        let file = try fetch(URL(string: tool.resolvedURL)!, cancelled: cancelled)
         defer { try? FileManager.default.removeItem(at: file) }
-        guard PluginPackage.sha256(of: file)?.lowercased() == expected else { throw ToolError.checksum }
+        guard PluginPackage.sha256(of: file)?.lowercased() == expected else {
+            PluginLog.shared.record(tool.id, "programm", "Prüfsumme passt nicht, gelöscht")
+            throw ToolError.checksum
+        }
         let fm = FileManager.default
         try? fm.createDirectory(at: folder(tool), withIntermediateDirectories: true)
         let target = binary(tool)
         try? fm.removeItem(at: target)
-        try fm.moveItem(at: file, to: target)
+        if tool.archive == "zip", let inner = tool.executable {
+            // Archiv: entpacken, das genannte Programm übernehmen, den Rest verwerfen
+            let unpacked = fm.temporaryDirectory.appendingPathComponent("BarDropTool-\(UUID().uuidString)", isDirectory: true)
+            defer { try? fm.removeItem(at: unpacked) }
+            try fm.createDirectory(at: unpacked, withIntermediateDirectories: true)
+            do {
+                try PluginPackage.extract(file, to: unpacked)
+            } catch {
+                throw ToolError.download(L("The archive can’t be unpacked.", "Das Archiv lässt sich nicht entpacken."))
+            }
+            let source = unpacked.appendingPathComponent(inner).standardizedFileURL
+            guard source.path.hasPrefix(unpacked.standardizedFileURL.path + "/"),
+                  fm.fileExists(atPath: source.path) else {
+                throw ToolError.download(L("“\(inner)” is missing in the archive.", "„\(inner)“ fehlt im Archiv."))
+            }
+            try fm.moveItem(at: source, to: target)
+        } else {
+            try fm.moveItem(at: file, to: target)
+        }
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path)
         removexattr(target.path, "com.apple.quarantine", 0)
-        let meta = Meta(url: tool.url, sha256: expected, fetched: Date())
+        let meta = Meta(url: tool.resolvedURL, sha256: expected, fetched: Date())
         try JSONEncoder().encode(meta).write(to: folder(tool).appendingPathComponent("meta.json"))
+        PluginLog.shared.record(tool.id, "programm", "geladen und geprüft (\(expected.prefix(12)))")
         return target
     }
 
     private func expectedChecksum(_ tool: PluginTool) throws -> String {
         if let pinned = tool.sha256 { return pinned.lowercased() }
-        guard let source = tool.checksums.flatMap(URL.init(string:)) else { throw ToolError.checksum }
+        guard let source = tool.resolvedChecksums.flatMap(URL.init(string:)) else { throw ToolError.checksum }
         let semaphore = DispatchSemaphore(value: 0)
         var text: String?
         URLSession.shared.dataTask(with: source) { data, response, _ in
@@ -96,7 +124,7 @@ final class PluginTools {
             semaphore.signal()
         }.resume()
         semaphore.wait()
-        let name = URL(string: tool.url)?.lastPathComponent ?? ""
+        let name = URL(string: tool.resolvedURL)?.lastPathComponent ?? ""
         guard let text, let sum = Self.checksum(in: text, for: name) else { throw ToolError.checksum }
         return sum
     }

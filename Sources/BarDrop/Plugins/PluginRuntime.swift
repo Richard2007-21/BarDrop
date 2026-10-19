@@ -286,7 +286,7 @@ final class PluginRuntime {
 
         let log: @convention(block) (JSValue) -> Void = { [plugin] value in
             let text = String((value.toString() ?? "").prefix(300))
-            DispatchQueue.main.async { Diagnostics.shared.record("plugin", "\(plugin.id): \(text)") }
+            PluginLog.shared.record(plugin.id, "skript", text)
         }
         set("log", log)
 
@@ -456,9 +456,13 @@ final class PluginRuntime {
         let has = granted.contains(permission)
         lock.unlock()
         if has { return true }
-        guard !job.automatic, let prompter else { return false }
+        guard !job.automatic, let prompter else {
+            PluginLog.shared.record(plugin.id, "recht", "\(permission.rawValue): fehlt (automatischer Lauf fragt nicht)")
+            return false
+        }
         let plugin = plugin
         let allowed = DispatchQueue.main.sync { prompter.allow(permission, for: plugin) }
+        PluginLog.shared.record(plugin.id, "recht", "\(permission.rawValue): \(allowed ? "erlaubt" : "nicht erlaubt")")
         if allowed {
             lock.lock(); granted.insert(permission); lock.unlock()
             DispatchQueue.main.async { self.onGrant(permission) }
@@ -513,10 +517,16 @@ final class PluginRuntime {
                        _ resolve: @escaping (Any?) -> Void, _ reject: @escaping (String) -> Void) {
         guard require(.network) else { return reject(L("Internet access isn’t allowed.", "Der Zugriff aufs Internet ist nicht erlaubt.")) }
         guard let request = request(address, options) else { return reject(L("Invalid web address.", "Ungültige Webadresse.")) }
+        let pluginID = plugin.id
+        let host = request.url?.host ?? "?"
         let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             self?.untrackFinished()
-            if let error { return reject(error.localizedDescription) }
+            if let error {
+                PluginLog.shared.record(pluginID, "netz", "fetch \(host): \(error.localizedDescription)")
+                return reject(error.localizedDescription)
+            }
             let http = response as? HTTPURLResponse
+            PluginLog.shared.record(pluginID, "netz", "fetch \(host): Status \(http?.statusCode ?? 0)")
             let limited = (data ?? Data()).prefix(20 * 1024 * 1024)
             var headers: [String: String] = [:]
             for (key, value) in http?.allHeaderFields ?? [:] { headers["\(key)".lowercased()] = "\(value)" }
@@ -538,6 +548,8 @@ final class PluginRuntime {
             observation.invalidate()
             guard let self else { return }
             self.untrackFinished()
+            PluginLog.shared.record(self.plugin.id, "netz",
+                                    "download \(request.url?.host ?? "?"): \(error?.localizedDescription ?? "Status \((response as? HTTPURLResponse)?.statusCode ?? 0)")")
             if let error { return reject(error.localizedDescription) }
             guard let file, let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 return reject(L("The server answered with status \((response as? HTTPURLResponse)?.statusCode ?? 0).",
@@ -579,10 +591,13 @@ final class PluginRuntime {
             do {
                 executable = try self.resolveExecutable(name, automatic: automatic, plugin: plugin)
             } catch let error as PluginTools.ToolError {
+                PluginLog.shared.record(plugin.id, "programm", "\(name): \(error.message)")
                 return reject(error.message)
             } catch let error as PluginRunError {
+                PluginLog.shared.record(plugin.id, "programm", "\(name): \(error.message)")
                 return reject(error.message)
             } catch {
+                PluginLog.shared.record(plugin.id, "programm", "\(name): \(error.localizedDescription)")
                 return reject(error.localizedDescription)
             }
             self.launch(executable, arguments, onOutput: onOutput, resolve, reject)
@@ -633,7 +648,9 @@ final class PluginRuntime {
         process.arguments = arguments
         process.currentDirectoryURL = outputDirectory
         var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = ([tools.directory.path] + Self.searchPaths).joined(separator: ":")
+        // Programme dieses Plugins zuerst (so findet z. B. ein Werkzeug eine mitgeladene
+        // Laufzeit), dann System und Homebrew
+        environment["PATH"] = (tools.folders(for: plugin.manifest.tools ?? []) + Self.searchPaths).joined(separator: ":")
         environment["BARDROP_OUTPUT"] = outputDirectory.path
         process.environment = environment
         let out = Pipe(), err = Pipe()
@@ -642,6 +659,8 @@ final class PluginRuntime {
         process.standardInput = FileHandle.nullDevice
 
         let collected = OutputCollector()
+        let started = Date()
+        PluginLog.shared.record(plugin.id, "programm", "\(executable.path) " + arguments.map { $0.contains(" ") ? "\"\($0)\"" : $0 }.joined(separator: " "))
         let lineHandler: (String) -> Void = { [weak self] line in
             guard let self, let onOutput else { return }
             self.queue.async {
@@ -665,6 +684,11 @@ final class PluginRuntime {
                 self.lock.lock(); self.processes.removeAll { $0 === finished }; self.lock.unlock()
             }
             let result = collected.result
+            if let self {
+                let tail = result.stderr.split(whereSeparator: \.isNewline).suffix(3).joined(separator: " | ")
+                PluginLog.shared.record(self.plugin.id, "programm",
+                                        "\(executable.lastPathComponent) beendet: Code \(finished.terminationStatus), \(String(format: "%.1f", Date().timeIntervalSince(started))) s\(tail.isEmpty ? "" : ", stderr: " + tail)")
+            }
             resolve(["code": Int(finished.terminationStatus), "stdout": result.stdout, "stderr": result.stderr])
         }
         lock.lock()

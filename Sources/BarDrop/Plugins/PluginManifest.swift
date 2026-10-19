@@ -218,6 +218,23 @@ struct PluginTool: Codable, Hashable, Identifiable {
     /// Werkzeug, das sich oft ändern muss (z. B. weil Webseiten sich ändern): BarDrop
     /// lädt es dann höchstens einmal pro Woche neu
     var refreshDays: Int?
+    /// `"zip"`: Die Adresse liefert ein ZIP-Archiv; darin liegt das Programm unter `executable`
+    var archive: String?
+    /// Pfad des Programms im Archiv (nur mit `archive`), z. B. `"deno"` oder `"bin/tool"`
+    var executable: String?
+
+    /// `{arch}` in `url` und `checksums` wird zur Architektur des Mac: `aarch64` (Apple Chip)
+    /// oder `x86_64` (Intel)
+    static var architecture: String {
+        #if arch(arm64)
+        return "aarch64"
+        #else
+        return "x86_64"
+        #endif
+    }
+
+    var resolvedURL: String { url.replacingOccurrences(of: "{arch}", with: Self.architecture) }
+    var resolvedChecksums: String? { checksums?.replacingOccurrences(of: "{arch}", with: Self.architecture) }
 }
 
 /// Inhalt von `manifest.json` in einem .bdrop-Paket.
@@ -359,6 +376,7 @@ struct PluginManifest: Codable, Hashable {
         case missingChecksum(String)
         case needsNewerApp(String)
         case invalidScriptName
+        case invalidTool(String)
     }
 
     /// Prüft das Manifest. `appVersion`: laufende Version von BarDrop.
@@ -387,9 +405,16 @@ struct PluginManifest: Codable, Hashable {
         }
         if let unknown = unknownPermissions.first { throw ValidationError.unknownPermission(unknown) }
         for tool in tools ?? [] {
-            guard URL(string: tool.url)?.scheme == "https" else { throw ValidationError.insecureToolURL(tool.id) }
-            if let checksums = tool.checksums, URL(string: checksums)?.scheme != "https" {
+            guard URL(string: tool.resolvedURL)?.scheme == "https" else { throw ValidationError.insecureToolURL(tool.id) }
+            if let checksums = tool.resolvedChecksums, URL(string: checksums)?.scheme != "https" {
                 throw ValidationError.insecureToolURL(tool.id)
+            }
+            if let archive = tool.archive {
+                guard archive == "zip", let exe = tool.executable, !exe.isEmpty, !exe.hasPrefix("/"),
+                      !exe.split(separator: "/").contains("..") else { throw ValidationError.invalidTool(tool.id) }
+            }
+            guard tool.id.range(of: #"^[A-Za-z0-9][A-Za-z0-9._-]*$"#, options: .regularExpression) != nil else {
+                throw ValidationError.invalidTool(tool.id)
             }
             guard tool.sha256 != nil || tool.checksums != nil else { throw ValidationError.missingChecksum(tool.id) }
         }
@@ -432,6 +457,9 @@ extension PluginManifest.ValidationError {
             return L("The plugin needs BarDrop \(v) or later.", "Das Plugin braucht BarDrop \(v) oder neuer.")
         case .invalidScriptName:
             return L("The plugin’s script name isn’t valid.", "Der Name des Skripts im Plugin ist ungültig.")
+        case .invalidTool(let t):
+            return L("The program “\(t)” is described incorrectly in manifest.json.",
+                     "Das Programm „\(t)“ ist in der manifest.json falsch beschrieben.")
         }
     }
 }

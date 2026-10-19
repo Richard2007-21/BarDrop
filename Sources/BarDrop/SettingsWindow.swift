@@ -175,7 +175,7 @@ struct SettingsRoot: View {
 
     private func row(_ item: SettingsPane) -> some View {
         SidebarRow(item: item, selected: pane == item,
-                   badge: item == .about && updateAvailable) { pane = item }
+                   badge: item == .about && updateAvailable, beta: item == .plugins) { pane = item }
     }
 
     @ObservedObject private var updater = Updater.shared
@@ -226,6 +226,8 @@ private struct SidebarRow: View {
     let selected: Bool
     /// Rote Plakette wie in den Systemeinstellungen (Update verfügbar)
     var badge = false
+    /// Kennzeichen „BETA“ hinter dem Namen (Bereich noch in Erprobung)
+    var beta = false
     let action: () -> Void
     @State private var hovering = false
 
@@ -236,6 +238,7 @@ private struct SidebarRow: View {
                 Text(item.title)
                     .font(.system(size: 14))
                     .foregroundStyle(.primary)
+                if beta { BetaBadge() }
                 Spacer(minLength: 0)
                 if badge {
                     Text("1")
@@ -258,6 +261,21 @@ private struct SidebarRow: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+/// Schwarze Kapsel mit weißem „BETA“, mittig zur Zeile
+struct BetaBadge: View {
+    var body: some View {
+        Text("BETA")
+            .font(.system(size: 9, weight: .bold))
+            .tracking(0.4)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5.5)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(Color.black))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
+            .accessibilityLabel("Beta")
     }
 }
 

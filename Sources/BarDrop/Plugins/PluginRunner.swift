@@ -87,7 +87,11 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             let item = PluginItem(url: file.url)
             guard let plugin = automatic.first(where: { PluginMatcher.matches($0.manifest.match, item) }) else { continue }
             // Automatisch nur mit allen nötigen Rechten (beim Einschalten erteilt) und Zustimmung
-            guard readyForAutomatic(plugin), approveTools(plugin) else { blocked = plugin; continue }
+            guard readyForAutomatic(plugin), approveTools(plugin) else {
+                blocked = plugin
+                PluginLog.shared.record(plugin.id, "fehler", "automatisch nicht gestartet: Zustimmung, Rechte oder Programme fehlen")
+                continue
+            }
             enqueue(PluginJob(plugin: plugin, item: item, anchorFileID: file.id, automatic: true,
                               replacesOriginal: replacesOriginal(plugin)))
             started[plugin.manifest.title, default: 0] += 1
@@ -149,7 +153,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             onNotify: { [weak self] text in self?.actions?.announce(text, duration: 2) }
         )
         runtimes[job.id] = runtime
-        Diagnostics.shared.record("plugin", "start \(plugin.id) automatic=\(job.automatic) item=\(job.item.kind.rawValue)")
+        PluginLog.shared.record(plugin.id, "start",
+                                "\(plugin.manifest.version) \(job.automatic ? "automatisch" : "von Hand")\(job.replacesOriginal ? ", ersetzt Original" : "") · \(job.item.kind.rawValue) „\(job.item.url.lastPathComponent)“\(job.item.link.map { " " + $0.absoluteString } ?? "")")
         runtime.start { [weak self] result in
             self?.finished(job, result: result, workDirectory: work)
         }
@@ -163,14 +168,16 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         }
         switch result {
         case .success(let urls):
-            Diagnostics.shared.record("plugin", "done \(job.plugin.id) results=\(urls.count)")
+            PluginLog.shared.record(job.plugin.id, "ok", urls.isEmpty ? "fertig, kein Ergebnis"
+                                    : "fertig: " + urls.map { "„\($0.lastPathComponent)“" }.joined(separator: ", "))
             manager.lastErrors.removeValue(forKey: job.plugin.id)
             deliver(job, urls)
         case .failure(.cancelled):
+            PluginLog.shared.record(job.plugin.id, "abbruch", "abgebrochen")
             removeJob(job)
             actions?.announce(L("Cancelled", "Abgebrochen"), duration: 1.5)
         case .failure(let error):
-            Diagnostics.shared.failure("plugin", "\(job.plugin.id) failed: \(error.message.prefix(200))")
+            PluginLog.shared.record(job.plugin.id, "fehler", error.message)
             manager.lastErrors[job.plugin.id] = String(error.message.prefix(600))
             removeJob(job)
             NSSound.beep()

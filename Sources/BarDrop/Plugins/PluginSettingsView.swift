@@ -33,6 +33,23 @@ struct PluginSettings: View {
                 SectionNote(L("You can also double-click a .bdrop file. Plugins that aren’t from the catalog show a warning and their script first.",
                               "Du kannst auch eine .bdrop-Datei doppelklicken. Plugins, die nicht aus dem Katalog stammen, zeigen vorher eine Warnung und ihr Skript."))
                     .padding(.horizontal, 8)
+
+                SettingsSection(L("Log", "Protokoll"),
+                                note: L("Its own file, separate from the diagnostic log of BarDrop. It names files and error messages and stays on this Mac.",
+                                        "Eine eigene Datei, getrennt vom Diagnoseprotokoll von BarDrop. Sie nennt Dateinamen und Fehlermeldungen und bleibt auf diesem Mac.")) {
+                    ToggleRow(L("Keep a plugin log", "Plugin-Protokoll führen"),
+                              info: L("Records which plugin runs and when, what works and what fails: permissions, downloaded programs, started programs with their result, internet requests and the plugin’s own log lines.",
+                                      "Hält fest, welches Plugin wann läuft, was klappt und was fehlschlägt: Rechte, geladene Programme, gestartete Programme mit ihrem Ergebnis, Anfragen ins Internet und eigene Zeilen des Plugins."),
+                              isOn: $settings.pluginLogEnabled)
+                    SettingsRow(L("Log file", "Protokolldatei")) {
+                        HStack(spacing: 6) {
+                            Button(L("Show", "Zeigen")) { PluginLog.shared.reveal() }
+                                .buttonStyle(KlackButtonStyle())
+                            Button(L("Clear", "Leeren")) { PluginLog.shared.clear() }
+                                .buttonStyle(KlackButtonStyle())
+                        }
+                    }
+                }
             }
         }
         .onAppear {

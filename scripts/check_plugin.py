@@ -158,8 +158,19 @@ def check_manifest(m, files):
             error(f"Programm \"{tid}\": \"sha256\" oder \"checksums\" fehlt")
         if tool.get("sha256") and not re.fullmatch(r"[0-9A-Fa-f]{64}", tool["sha256"]):
             error(f"Programm \"{tid}\": \"sha256\" muss 64 Hex-Zeichen haben")
-        if tool["url"].lower().endswith((".zip", ".tar.gz", ".tgz", ".dmg", ".pkg")):
-            error(f"Programm \"{tid}\": BarDrop lädt nur einzelne ausführbare Dateien, keine Archive oder Installer")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", tid):
+            error(f"Programm \"{tid}\": \"id\" darf nur Buchstaben, Ziffern, Punkt, - und _ enthalten")
+        archive = tool.get("archive")
+        if archive is not None:
+            exe = tool.get("executable")
+            if archive != "zip":
+                error(f"Programm \"{tid}\": \"archive\" kennt nur \"zip\"")
+            if not isinstance(exe, str) or not exe or exe.startswith("/") or ".." in exe.split("/"):
+                error(f"Programm \"{tid}\": mit \"archive\" braucht es \"executable\" (Pfad im Archiv, z. B. \"deno\")")
+        elif tool["url"].lower().endswith((".zip", ".tar.gz", ".tgz", ".dmg", ".pkg")):
+            error(f"Programm \"{tid}\": Archive nur mit \"archive\": \"zip\" und \"executable\"; tar, DMG und PKG gehen nicht")
+        if "{arch}" in tool["url"] and tool.get("sha256"):
+            error(f"Programm \"{tid}\": mit {{arch}} gibt es je Mac eine andere Datei, also \"checksums\" statt \"sha256\"")
         if "run" not in permissions:
             error(f"Programm \"{tid}\" lässt sich nur mit dem Recht \"run\" starten")
     if m.get("automaticByDefault") and (({"network", "run"} & set(permissions)) or tools):

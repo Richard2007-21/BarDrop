@@ -187,6 +187,19 @@ BarDrop never ships third-party programs. A plugin can name programs that BarDro
 | `license` | no | Shown in the dialog. |
 | `homepage` | no | Stored. |
 | `refreshDays` | no | After this many days, BarDrop loads the file again on next use, without asking again. Without it: never. |
+| `archive` | no | `"zip"`: `url` delivers a ZIP archive. BarDrop checks the checksum **of the archive**, unpacks it and keeps only the file `executable`. Other archive types don’t exist. |
+| `executable` | with `archive` | Path of the program inside the archive, e.g. `"deno"` or `"bin/tool"`, without a leading `/` and without `..`. |
+
+`{arch}` in `url` and `checksums` becomes the Mac’s architecture: `aarch64` (Apple chip) or `x86_64` (Intel). That means a different file per Mac, so use `checksums` instead of `sha256`. `id` may only contain letters, digits, `.`, `-` and `_`; the file is saved **under this name**, so other programs find it by this name (e.g. `id: "deno"`).
+
+Example of a program inside an archive:
+
+```json
+{ "id": "deno", "name": "Deno",
+  "url": "https://github.com/denoland/deno/releases/latest/download/deno-{arch}-apple-darwin.zip",
+  "checksums": "https://github.com/denoland/deno/releases/latest/download/deno-{arch}-apple-darwin.zip.sha256sum",
+  "archive": "zip", "executable": "deno", "license": "MIT", "refreshDays": 30 }
+```
 
 Sequence: if the file is missing, BarDrop asks (“Download …?” with origin, license and the note that the program runs with the same rights as the plugin). After “Download” it downloads (the placeholder shows “Loading …”), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` with `meta.json` next to it. The permission is stored per plugin and then also applies to automatic runs. If two runs need it at the same time, only one downloads, the other waits. Removing a plugin keeps loaded programs.
 
@@ -210,7 +223,7 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin,
 
 * macOS’s JavaScriptCore: the JavaScript language with `async`/`await`, `Promise`, `JSON`, `RegExp`, `Map`, `Set` and so on.
 * **Not available:** DOM, `window`, `URL`, `URLSearchParams`, `setTimeout`/`setInterval` (use `bardrop.sleep`), global `fetch` (use `bardrop.fetch`), `XMLHttpRequest`, `require`, `import`, Node modules, file access other than through `bardrop`.
-* `console.log`, `console.info`, `console.warn`, `console.error` exist; they write like `bardrop.log`. Don’t redeclare `console` with `let`/`const`.
+* `console.log`, `console.info`, `console.warn`, `console.error` exist; they write like `bardrop.log` to the plugin log. Don’t redeclare `console` with `let`/`const`.
 * Every run has its **own, fresh context**: globals don’t survive a run. Only `settings` persist.
 * The script is first evaluated once as a whole (global definitions), then `run(item)` is called.
 * An error during that first evaluation (e.g. a syntax error) is a failure. So is a missing `run` (“The script has no function run”).
@@ -242,10 +255,10 @@ Every call used with `await` returns a promise.
 | `bardrop.notify(text)` | | Short note at the top of the shelf, at most 80 characters, about 2 seconds. |
 | `bardrop.isCancelled()` | | `true` once the user cancelled. Check it in long loops. |
 | `await bardrop.sleep(ms)` | | Waits `ms` milliseconds (0 to 3,600,000). |
-| `bardrop.log(text)` | | Line in the diagnostic log (beta versions with the log turned on), at most 300 characters. |
+| `bardrop.log(text)` | | Line in the plugin log (only while it is turned on, see 14), at most 300 characters. |
 | `await bardrop.fetch(url, options)` | `network` | `options` optional: `method` (text), `headers` (object), `body` (text). Only `http`/`https`, 60 s timeout, user agent `BarDrop/<version>`. Returns `{status, url, headers, text}`; `headers` with lowercased names, `text` at most 20 MB. Rejected only on network errors, **not** on status 404 or 500: check `status` yourself. |
 | `await bardrop.download(url, options)` | `network` | Downloads into the output folder, with progress on the placeholder. `options` optional: `name`, `method`, `headers`. File name: `name`, else the server’s suggestion, else the last part of the address (cleaned, 9.4). Returns the path. Rejected on network errors or a status outside 200 to 299. |
-| `await bardrop.run(command, args, options)` | `run` | Starts a program and waits until it ends. `command`: an `id` from `tools`, an absolute path, or a name looked up in `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/opt/homebrew/bin`, `/usr/local/bin`. `args`: a list, every element becomes text; there is **no shell** (no wildcards, no redirection; use `"/bin/sh", ["-c", "…"]` for that). Working folder is the output folder. Environment: BarDrop’s, plus `PATH` = tools folder and the search locations above, `BARDROP_OUTPUT` = output folder. No input (stdin empty). `options.onOutput(line)` is called for every line of stdout and stderr, each split on its own; lines end at `\n` **and** `\r`, empty lines are dropped, lines over 64 KB are split. All lines arrive before `run` returns its result. An error in `onOutput` ends the whole run with that error. Returns `{code, stdout, stderr}` (at most 1 MB each). A code other than 0 is **not** rejected: check `code` yourself. Rejected if the program isn’t found, can’t start, the permission is missing or the run was cancelled. |
+| `await bardrop.run(command, args, options)` | `run` | Starts a program and waits until it ends. `command`: an `id` from `tools`, an absolute path, or a name looked up in `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/opt/homebrew/bin`, `/usr/local/bin`. `args`: a list, every element becomes text; there is **no shell** (no wildcards, no redirection; use `"/bin/sh", ["-c", "…"]` for that). Working folder is the output folder. Environment: BarDrop’s, plus `PATH` = the folders of this plugin’s loaded programs (from `tools`) and the search locations above, `BARDROP_OUTPUT` = output folder. No input (stdin empty). `options.onOutput(line)` is called for every line of stdout and stderr, each split on its own; lines end at `\n` **and** `\r`, empty lines are dropped, lines over 64 KB are split. All lines arrive before `run` returns its result. An error in `onOutput` ends the whole run with that error. Returns `{code, stdout, stderr}` (at most 1 MB each). A code other than 0 is **not** rejected: check `code` yourself. Rejected if the program isn’t found, can’t start, the permission is missing or the run was cancelled. |
 | `bardrop.setClipboard(text)` | `clipboard` | Puts text on the clipboard. |
 | `bardrop.settings` | | Values of the settings (3.3) and `replaceOriginal`. |
 | `bardrop.language` | | `"de"` or `"en"`, like the app. |
@@ -298,7 +311,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 1. Import it in BarDrop and turn it on.
 2. Try it with a right-click on a matching item; if it doesn’t appear, `match` doesn’t match.
 3. Errors appear in the dialog and under Settings → Plugins → plugin → “Last error”.
-4. More detail: Settings → About BarDrop → diagnostic log (beta), then `bardrop.log`/`console.log` in the script.
+4. More detail: Settings → Plugins → Log → “Keep a plugin log”, then `bardrop.log`/`console.log` in the script (section 14).
 5. Only then try “Automatically when dropped”.
 
 ## 12. Common mistakes
@@ -359,3 +372,23 @@ function run(item) {
   bardrop.createLink(clean, item.name);
 }
 ```
+
+## 14. Plugin log
+
+Settings → Plugins → Log → “Keep a plugin log” (off by default). The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`); “Show” opens it, “Clear” deletes both.
+
+It is **separate from BarDrop’s diagnostic log**: its own file, its own switch, available in all versions. Plugin events appear only here, not in the diagnostic log. Unlike that one, it names files, addresses and error messages. It stays on the Mac.
+
+Every line: time, plugin (or program), kind, text. Kinds:
+
+| Kind | When |
+| --- | --- |
+| `start` | a run begins: version, by hand or automatic, whether it replaces the original, item |
+| `ok` | a run finished, with the names of the results |
+| `fehler` | a run failed, with the message; also when an automatic run couldn’t start |
+| `abbruch` | cancelled by the user |
+| `recht` | permission allowed, not allowed, or missing for an automatic run |
+| `programm` | program started (with arguments), ended (code, duration, last lines of stderr), downloaded, checksum wrong |
+| `netz` | `fetch` and `download`: domain and status or error |
+| `skript` | `bardrop.log` and `console.log` |
+| `install` | plugin installed, updated or removed |

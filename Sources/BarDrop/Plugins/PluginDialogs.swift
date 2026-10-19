@@ -44,7 +44,7 @@ enum PluginDialogs {
 
     static func allowDownload(of tool: PluginTool, for plugin: InstalledPlugin, ui: ShelfUIModel?) -> Bool {
         let alert = makeAlert(plugin.manifest)
-        let host = URL(string: tool.url)?.host ?? tool.url
+        let host = URL(string: tool.resolvedURL)?.host ?? tool.resolvedURL
         alert.messageText = L("Download “\(tool.name)”?", "„\(tool.name)“ herunterladen?")
         var text = L("“\(plugin.manifest.name.text)” needs the program “\(tool.name)”. BarDrop downloads it from \(host), checks its checksum and keeps it for all plugins. The program isn’t part of BarDrop and runs with the same rights as the plugin.",
                      "„\(plugin.manifest.name.text)“ braucht das Programm „\(tool.name)“. BarDrop lädt es von \(host), prüft seine Prüfsumme und hebt es für alle Plugins auf. Das Programm gehört nicht zu BarDrop und läuft mit denselben Rechten wie das Plugin.")
@@ -186,8 +186,8 @@ private struct ImportDetails: View {
                             .font(.system(size: 12))
                     }
                     ForEach(manifest.tools ?? []) { tool in
-                        Label(L("Downloads “\(tool.name)” from \(URL(string: tool.url)?.host ?? tool.url)",
-                                "Lädt „\(tool.name)“ von \(URL(string: tool.url)?.host ?? tool.url)"),
+                        Label(L("Downloads “\(tool.name)” from \(URL(string: tool.resolvedURL)?.host ?? tool.resolvedURL)",
+                                "Lädt „\(tool.name)“ von \(URL(string: tool.resolvedURL)?.host ?? tool.resolvedURL)"),
                               systemImage: "arrow.down.circle")
                             .font(.system(size: 12))
                     }

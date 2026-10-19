@@ -187,6 +187,19 @@ BarDrop liefert nie Programme Dritter mit. Ein Plugin kann Programme nennen, die
 | `license` | nein | Erscheint im Dialog. |
 | `homepage` | nein | Wird gespeichert. |
 | `refreshDays` | nein | Nach so vielen Tagen lädt BarDrop die Datei beim nächsten Gebrauch neu, ohne erneut zu fragen. Ohne Angabe nie. |
+| `archive` | nein | `"zip"`: `url` liefert ein ZIP-Archiv. BarDrop prüft die Prüfsumme **des Archivs**, entpackt es und übernimmt nur die Datei `executable`. Andere Archivarten gibt es nicht. |
+| `executable` | mit `archive` | Pfad des Programms im Archiv, z. B. `"deno"` oder `"bin/tool"`, ohne `/` am Anfang und ohne `..`. |
+
+`{arch}` in `url` und `checksums` wird zur Architektur des Mac: `aarch64` (Apple Chip) oder `x86_64` (Intel). Damit gibt es je Mac eine andere Datei, also `checksums` statt `sha256`. `id` darf nur Buchstaben, Ziffern, `.`, `-` und `_` enthalten; die Datei wird **unter diesem Namen** gespeichert, andere Programme finden sie also über diesen Namen (z. B. `id: "deno"`).
+
+Beispiel für ein Programm im Archiv:
+
+```json
+{ "id": "deno", "name": "Deno",
+  "url": "https://github.com/denoland/deno/releases/latest/download/deno-{arch}-apple-darwin.zip",
+  "checksums": "https://github.com/denoland/deno/releases/latest/download/deno-{arch}-apple-darwin.zip.sha256sum",
+  "archive": "zip", "executable": "deno", "license": "MIT", "refreshDays": 30 }
+```
 
 Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, Lizenz und dem Hinweis, dass das Programm mit denselben Rechten läuft wie das Plugin). Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` mit `meta.json` daneben. Die Erlaubnis wird je Plugin gespeichert und gilt danach auch für automatische Läufe. Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
 
@@ -210,7 +223,7 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, L
 
 * JavaScriptCore von macOS, also die Sprache JavaScript mit `async`/`await`, `Promise`, `JSON`, `RegExp`, `Map`, `Set` usw.
 * **Nicht vorhanden:** DOM, `window`, `URL`, `URLSearchParams`, `setTimeout`/`setInterval` (statt dessen `bardrop.sleep`), globales `fetch` (statt dessen `bardrop.fetch`), `XMLHttpRequest`, `require`, `import`, Node-Module, Dateizugriff außer über `bardrop`.
-* `console.log`, `console.info`, `console.warn`, `console.error` gibt es; sie schreiben wie `bardrop.log`. `console` nicht mit `let`/`const` neu anlegen.
+* `console.log`, `console.info`, `console.warn`, `console.error` gibt es; sie schreiben wie `bardrop.log` ins Plugin-Protokoll. `console` nicht mit `let`/`const` neu anlegen.
 * Jeder Lauf hat einen **eigenen, frischen Kontext**: Globale Variablen überleben keinen Lauf. Dauerhaftes gibt es nur über `settings`.
 * Das Skript wird zuerst einmal ganz ausgeführt (globale Definitionen), dann wird `run(item)` aufgerufen.
 * Ein Fehler beim ersten Ausführen (z. B. Syntaxfehler) ist ein Fehlschlag. Fehlt `run`, ebenfalls („Im Skript fehlt die Funktion run“).
@@ -242,10 +255,10 @@ Alle Aufrufe mit `await` liefern ein Versprechen.
 | `bardrop.notify(text)` | | Kurze Meldung oben in der Ablage, höchstens 80 Zeichen, etwa 2 Sekunden. |
 | `bardrop.isCancelled()` | | `true`, wenn der Nutzer abgebrochen hat. In langen Schleifen abfragen. |
 | `await bardrop.sleep(ms)` | | Wartet `ms` Millisekunden (0 bis 3 600 000). |
-| `bardrop.log(text)` | | Zeile im Diagnoseprotokoll (nur Beta-Versionen mit eingeschaltetem Protokoll), höchstens 300 Zeichen. |
+| `bardrop.log(text)` | | Zeile im Plugin-Protokoll (nur wenn es eingeschaltet ist, siehe 14), höchstens 300 Zeichen. |
 | `await bardrop.fetch(url, options)` | `network` | `options` optional: `method` (Text), `headers` (Objekt), `body` (Text). Nur `http`/`https`, 60 s Zeitlimit, Kennung `BarDrop/<Version>`. Liefert `{status, url, headers, text}`; `headers` mit klein geschriebenen Namen, `text` höchstens 20 MB. Abgelehnt wird nur bei Netzwerkfehlern, **nicht** bei Status 404 oder 500: `status` selbst prüfen. |
 | `await bardrop.download(url, options)` | `network` | Lädt in den Ausgabeordner, mit Fortschritt am Platzhalter. `options` optional: `name`, `method`, `headers`. Dateiname: `name`, sonst der vom Server vorgeschlagene, sonst der letzte Teil der Adresse (bereinigt, 9.4). Liefert den Pfad. Abgelehnt bei Netzwerkfehler oder Status außerhalb 200 bis 299. |
-| `await bardrop.run(befehl, argumente, options)` | `run` | Startet ein Programm und wartet, bis es endet. `befehl`: eine `id` aus `tools`, ein absoluter Pfad oder ein Name, gesucht in `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/opt/homebrew/bin`, `/usr/local/bin`. `argumente`: Liste, jedes Element wird zu Text; es gibt **keine Shell** (keine Platzhalter, keine Umleitungen; dafür `"/bin/sh", ["-c", "…"]`). Arbeitsordner ist der Ausgabeordner. Umgebung: die von BarDrop, dazu `PATH` = Tools-Ordner und die Suchorte oben, `BARDROP_OUTPUT` = Ausgabeordner. Keine Eingabe (stdin leer). `options.onOutput(zeile)` wird für jede Zeile von stdout und stderr aufgerufen, beide getrennt zerlegt; Zeilen enden an `\n` **und** `\r`, leere Zeilen fallen weg, Zeilen über 64 KB werden geteilt. Alle Zeilen kommen an, bevor `run` sein Ergebnis liefert. Ein Fehler in `onOutput` beendet den ganzen Lauf mit diesem Fehler. Liefert `{code, stdout, stderr}` (je höchstens 1 MB). Ein Code ungleich 0 wird **nicht** abgelehnt: `code` selbst prüfen. Abgelehnt wird, wenn das Programm nicht gefunden wird, nicht starten kann, das Recht fehlt oder abgebrochen wurde. |
+| `await bardrop.run(befehl, argumente, options)` | `run` | Startet ein Programm und wartet, bis es endet. `befehl`: eine `id` aus `tools`, ein absoluter Pfad oder ein Name, gesucht in `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/opt/homebrew/bin`, `/usr/local/bin`. `argumente`: Liste, jedes Element wird zu Text; es gibt **keine Shell** (keine Platzhalter, keine Umleitungen; dafür `"/bin/sh", ["-c", "…"]`). Arbeitsordner ist der Ausgabeordner. Umgebung: die von BarDrop, dazu `PATH` = die Ordner der geladenen Programme dieses Plugins (aus `tools`) und die Suchorte oben, `BARDROP_OUTPUT` = Ausgabeordner. Keine Eingabe (stdin leer). `options.onOutput(zeile)` wird für jede Zeile von stdout und stderr aufgerufen, beide getrennt zerlegt; Zeilen enden an `\n` **und** `\r`, leere Zeilen fallen weg, Zeilen über 64 KB werden geteilt. Alle Zeilen kommen an, bevor `run` sein Ergebnis liefert. Ein Fehler in `onOutput` beendet den ganzen Lauf mit diesem Fehler. Liefert `{code, stdout, stderr}` (je höchstens 1 MB). Ein Code ungleich 0 wird **nicht** abgelehnt: `code` selbst prüfen. Abgelehnt wird, wenn das Programm nicht gefunden wird, nicht starten kann, das Recht fehlt oder abgebrochen wurde. |
 | `bardrop.setClipboard(text)` | `clipboard` | Legt Text in die Zwischenablage. |
 | `bardrop.settings` | | Werte der Einstellungen (3.3) und `replaceOriginal`. |
 | `bardrop.language` | | `"de"` oder `"en"`, wie die App. |
@@ -298,7 +311,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 1. In BarDrop importieren, Plugin einschalten.
 2. Per Rechtsklick an einem passenden Objekt ausprobieren; erscheint es nicht, passt `match` nicht.
 3. Fehler stehen im Dialog und unter Einstellungen → Plugins → Plugin → „Letzter Fehler“.
-4. Mehr Einzelheiten: Einstellungen → Über BarDrop → Diagnoseprotokoll (Beta), dann `bardrop.log`/`console.log` im Skript.
+4. Mehr Einzelheiten: Einstellungen → Plugins → Protokoll → „Plugin-Protokoll führen“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
 5. Erst dann „Automatisch beim Ablegen“ ausprobieren.
 
 ## 12. Häufige Fehler
@@ -359,3 +372,23 @@ function run(item) {
   bardrop.createLink(clean, item.name);
 }
 ```
+
+## 14. Plugin-Protokoll
+
+Einstellungen → Plugins → Protokoll → „Plugin-Protokoll führen“ (standardmäßig aus). Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`); „Zeigen“ öffnet sie, „Leeren“ löscht beide.
+
+Es ist **getrennt vom Diagnoseprotokoll** von BarDrop: eigene Datei, eigener Schalter, in allen Versionen verfügbar. Plugin-Ereignisse stehen nur hier, nicht im Diagnoseprotokoll. Anders als dieses nennt es Dateinamen, Adressen und Fehlermeldungen. Es bleibt auf dem Mac.
+
+Jede Zeile: Zeit, Plugin (oder Programm), Art, Text. Arten:
+
+| Art | Wann |
+| --- | --- |
+| `start` | Lauf beginnt: Version, von Hand oder automatisch, ob es das Original ersetzt, Objekt |
+| `ok` | Lauf fertig, mit den Namen der Ergebnisse |
+| `fehler` | Lauf gescheitert, mit der Meldung; auch wenn ein automatischer Lauf nicht starten konnte |
+| `abbruch` | vom Nutzer abgebrochen |
+| `recht` | Recht erlaubt, nicht erlaubt oder fehlend bei einem automatischen Lauf |
+| `programm` | Programm gestartet (mit Argumenten), beendet (Code, Dauer, letzte Zeilen von stderr), geladen, Prüfsumme falsch |
+| `netz` | `fetch` und `download`: Domain und Status oder Fehler |
+| `skript` | `bardrop.log` und `console.log` |
+| `install` | Plugin installiert, aktualisiert oder entfernt |
