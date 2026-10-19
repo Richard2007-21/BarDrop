@@ -1,6 +1,7 @@
 # Changelog
 
 ## 1.31.0-beta.3
+* The action bar has no line above it anymore: items simply disappear under the bar
 * Plugins: errors show the file and line in the script (for example “TypeError: … (main.js:4)”), and all messages of the plugin interface are in English and German
 * Plugins: Pause and Cancel also stop programs that a plugin’s program started itself
 * Plugins: output of programs is split into lines separately for stdout and stderr, so lines no longer get mixed up

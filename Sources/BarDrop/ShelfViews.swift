@@ -148,17 +148,11 @@ struct ShelfContent: View {
     /// Platzhalter erst nach einem Augenblick zeigen: Dateien aus dem Finder sind sofort
     /// da, für sie soll nichts aufblitzen
     @State private var showPending = false
-    /// Hinter der Aktionsleiste ganz deckend, mit einer klaren Kante statt eines Nebels:
-    /// Kacheln laufen sichtbar unter einer feinen Linie hindurch, wie unter einer Leiste
-    /// in macOS.
+    /// Hinter der Aktionsleiste ganz deckend: eine klare Kante ohne Nebel und ohne Linie,
+    /// Kacheln verschwinden einfach unter der Leiste.
     private var barBackdrop: some View {
         Rectangle()
             .fill(Color.black)
-            .overlay(alignment: .top) {
-                Rectangle()
-                    .fill(Color.white.opacity(0.1))
-                    .frame(height: 1)
-            }
             .frame(height: barHeight)
             .allowsHitTesting(false)
     }

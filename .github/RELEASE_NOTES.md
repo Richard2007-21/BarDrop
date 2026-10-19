@@ -1,3 +1,4 @@
+* The action bar has no line above it anymore: items simply disappear under the bar
 * Plugins: errors show the file and line in the script (for example “TypeError: … (main.js:4)”), and all messages of the plugin interface are in English and German
 * Plugins: Pause and Cancel also stop programs that a plugin’s program started itself
 * Plugins: output of programs is split into lines separately for stdout and stderr, so lines no longer get mixed up
@@ -9,6 +10,7 @@
 
 <!-- de -->
 
+* Über der Aktionsleiste ist keine Linie mehr zu sehen: Objekte verschwinden einfach unter der Leiste
 * Plugins: Fehler nennen die Datei und Zeile im Skript (etwa „TypeError: … (main.js:4)“), und alle Meldungen der Plugin-Schnittstelle gibt es auf Deutsch und Englisch
 * Plugins: Anhalten und Abbrechen stoppen auch Programme, die das Programm eines Plugins selbst gestartet hat
 * Plugins: Die Ausgabe von Programmen wird für stdout und stderr getrennt in Zeilen zerlegt, Zeilen vermischen sich nicht mehr
