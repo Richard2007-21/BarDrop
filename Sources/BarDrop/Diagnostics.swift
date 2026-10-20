@@ -243,9 +243,9 @@ final class Diagnostics {
     private func settingsSnapshot() -> [String] {
         let s = AppSettings.shared
         var lines: [String] = [
-            "edge=\(s.edge.rawValue) adaptive=\(s.adaptivePosition) middleHalf=\(s.adaptiveMiddleThird) spot=\(s.verticalPosition) displays=\(s.displayMode.rawValue)",
+            "edge=\(s.edge.rawValue) adaptive=\(s.adaptivePosition) zone=\(s.adaptiveZone) spot=\(s.verticalPosition) displays=\(s.displayMode.rawValue)",
             "openMode=\(s.openMode.rawValue) openDelay=\(s.openDelay) dragReveal=\(s.dragReveal.rawValue) smallHitArea=\(s.exactPointer) fullScreen=\(s.openInFullScreen) excludedApps=\(s.excludedApps.count)",
-            "size=\(Int(s.shelfWidth))×\(Int(s.shelfHeight)) icon=\(Int(s.tileIconSize)) strip=\(s.peekThickness)/\(s.peekLength)/\(s.peekRoundness) outline=\(s.showOutline) title=\(s.titleStyle.rawValue) animation=\(s.animationStyle.rawValue) reduceMotion=\(AnimationStyle.reduceMotion)",
+            "size=\(Int(s.shelfWidth))×\(Int(s.shelfHeight)) icon=\(Int(s.tileIconSize)) strip=\(s.peekThickness)/\(s.peekLength) outline=\(s.showOutline) animation=\(s.animationStyle.rawValue) reduceMotion=\(AnimationStyle.reduceMotion)",
             "sort=\(s.sortOrder.rawValue) stacks=\(s.stackMultiple ? String(s.stackThreshold) : "off") reopenWhereLeft=\(s.reopenWhereLeft) removeAfterDragOut=\(s.removeAfterDragOut) keepAfterAction=\(s.keepAfterAction) dragOutCopyOnly=\(s.dragOutCopyOnly)",
             "finderFiles=\(s.copyAllFiles ? "copy" : "original") webAsPNGorJPEG=\(s.convertWebImages) screenshots=\(s.addScreenshots) autoRemove=\(Int(s.autoRemoveAfter))s",
             "actions=\(s.quickActions.map(\.kind.rawValue).joined(separator: ",")) split=\(s.effectiveActionSplit) actionIcon=\(Int(s.actionIconSize)) labels=\(s.showActionLabels ? (s.labelsOnlyFolders ? "folders" : "all") : "none") pin=\(s.pinFromShelf)",

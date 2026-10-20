@@ -69,7 +69,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 ## Features
 
 **Shelf**
-* Left or right edge, at a fixed height or wherever the pointer reaches the edge (whole edge or middle half)
+* Left or right edge, at a fixed spot or wherever the pointer reaches the edge, in an area you choose from a small part to the whole edge
 * Opens instantly, after a short moment (standard) or after 1 to 5 seconds at the edge, on click or with a keyboard shortcut; a click on the strip skips the wait
 * Generous hit area, so you don’t have to hit the strip exactly, or optionally a small one that only reacts to the strip itself
 * Exclude apps in which the edge shouldn’t open the shelf, for example games, and optionally stay closed in full screen

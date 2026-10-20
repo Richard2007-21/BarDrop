@@ -98,23 +98,6 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         ui.jobSelection = []
     }
 
-    /// Pfeiltasten: Auswahl verschieben. `step` ist ±1 oder ±Spaltenanzahl.
-    func moveSelection(by step: Int, extend: Bool) {
-        guard !store.entries.isEmpty else { return }
-        let ids = orderedEntries.map(\.id)
-        let current = ui.selectionAnchor.flatMap { ids.firstIndex(of: $0) }
-            ?? (step > 0 ? -1 : ids.count)
-        let next = min(max(current + step, 0), ids.count - 1)
-        let id = ids[next]
-        if extend {
-            ui.selection.insert(id)
-        } else {
-            ui.selection = [id]
-        }
-        ui.selectionAnchor = id
-        ui.requestScroll(to: id)
-    }
-
     /// Spalten des Rasters, wie es `ShelfContent` anlegt (Kachel mindestens Symbol + 22 pt, 8 pt Abstand)
     var columnCount: Int {
         let usable = CGFloat(settings.shelfWidth) - 24

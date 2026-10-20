@@ -69,7 +69,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 ## Funktionen
 
 **Ablage**
-* Links oder rechts, feste Höhe oder dort, wo der Zeiger den Rand erreicht (ganzer Rand oder mittlere Hälfte)
+* Links oder rechts, an fester Stelle oder dort, wo der Zeiger den Rand erreicht, in einem Bereich von einem kleinen Stück bis zum ganzen Rand
 * Öffnet sofort, nach einem kurzen Moment (Standard) oder nach 1 bis 5 Sekunden am Rand, per Klick oder per Kurzbefehl; ein Klick auf den Streifen überspringt die Wartezeit
 * Großzügiger Trefferbereich, du musst den Streifen nicht genau treffen, oder auf Wunsch ein kleiner, der nur auf den Streifen selbst reagiert
 * Apps ausnehmen, in denen der Rand die Ablage nicht öffnen soll, zum Beispiel Spiele, und auf Wunsch im Vollbild geschlossen bleiben

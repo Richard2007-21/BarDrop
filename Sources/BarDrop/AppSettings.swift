@@ -155,6 +155,10 @@ enum DragReveal: String, CaseIterable, Identifiable {
     case immediately, nearEdge, off
     var id: String { rawValue }
 
+    /// Wählbar: „Nie“ (`off`) nicht mehr, Ablegen ist die Hauptsache. Ältere gespeicherte
+    /// Werte werden beim Start zu „Erst in Randnähe“.
+    static var selectable: [DragReveal] { [.immediately, .nearEdge] }
+
     var title: String {
         switch self {
         case .immediately: return L("Show strip right away", "Streifen sofort zeigen")
@@ -164,27 +168,11 @@ enum DragReveal: String, CaseIterable, Identifiable {
     }
 }
 
-/// Titel oben in der offenen Ablage.
+/// Titel oben in der offenen Ablage. Nicht mehr wählbar (immer „BarDrop“); der gespeicherte
+/// Wert bleibt lesbar, damit ältere Einstellungen nicht verloren gehen.
 enum ShelfTitle: String, CaseIterable, Identifiable {
     case bardrop, shelf, hidden
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .bardrop: return "BarDrop"
-        case .shelf: return L("Shelf", "Ablage")
-        case .hidden: return L("None", "Ohne")
-        }
-    }
-
-    /// Text oben in der Ablage, nil ohne Titel
-    var text: String? {
-        switch self {
-        case .bardrop: return "BarDrop"
-        case .shelf: return L("Shelf", "Ablage")
-        case .hidden: return nil
-        }
-    }
 }
 
 /// Reihenfolge der Objekte in der Ablage.
@@ -278,6 +266,8 @@ final class AppSettings: ObservableObject {
         static let stackMultiple = "stackMultiple"
         static let stackThreshold = "stackThreshold"
         static let adaptiveZoneHalf = "adaptiveZoneHalf"
+        /// Anteil des Rands, in dem die Ablage am Zeiger erscheint (0,1 bis 1 = ganzer Rand)
+        static let adaptiveZone = "adaptiveZone"
         static let keepAfterAction = "keepAfterAction"
         static let animationStyle = "animationStyle"
         static let openMode = "openMode"
@@ -328,10 +318,17 @@ final class AppSettings: ObservableObject {
     /// Eingeschränkter Bereich: mittlere Hälfte statt mittleres Drittel.
     @Published var adaptiveZoneHalf: Bool { didSet { defaults.set(adaptiveZoneHalf, forKey: Key.adaptiveZoneHalf) } }
 
+    /// „Am Zeiger“: Wie viel vom Rand reagiert, mittig, von 10 % bis zum ganzen Rand (1).
+    /// Ersetzt „nur mittlere Hälfte“ (früher `adaptiveMiddleThird` und `adaptiveZoneHalf`).
+    @Published var adaptiveZone: Double { didSet { defaults.set(adaptiveZone, forKey: Key.adaptiveZone) } }
+    static let adaptiveZoneRange: ClosedRange<Double> = 0.1...1
+    /// Standard für alle, die den Bereich nie eingestellt haben: die mittlere Hälfte
+    static let defaultAdaptiveZone = 0.5
+
     /// Anteil der Randhöhe, in dem die adaptive Ablage reagiert (mittig); nil = ganzer Rand.
     var adaptiveZoneFraction: CGFloat? {
-        guard adaptivePosition, adaptiveMiddleThird else { return nil }
-        return adaptiveZoneHalf ? 0.5 : 1.0 / 3.0
+        guard adaptivePosition, adaptiveZone < 0.999 else { return nil }
+        return CGFloat(adaptiveZone)
     }
     @Published var displayMode: DisplayMode { didSet { defaults.set(displayMode.rawValue, forKey: Key.displayMode) } }
     @Published var shelfWidth: Double { didSet { defaults.set(shelfWidth, forKey: Key.shelfWidth) } }
@@ -541,7 +538,8 @@ final class AppSettings: ObservableObject {
             Key.removeAfterDragOut: true,
             Key.stackMultiple: true,
             Key.stackThreshold: 2,
-            Key.keepAfterAction: false,
+            // Standard „Nach dem Herausziehen entfernen“: Nach Aktionen bleibt das Objekt
+            Key.keepAfterAction: true,
             Key.animationStyle: AnimationStyle.standard.rawValue,
             Key.openMode: OpenMode.automatic.rawValue,
             Key.autoRemoveAfter: AutoRemoveOption.never.rawValue,
@@ -583,12 +581,21 @@ final class AppSettings: ObservableObject {
             defaults.removeObject(forKey: Key.adaptiveZoneHalf)
         }
         adaptiveZoneHalf = defaults.bool(forKey: Key.adaptiveZoneHalf)
+        // Bereich am Zeiger: eigener Wert, sonst wie bisher eingestellt (mittlere Hälfte
+        // bzw. ganzer Rand). Bewusst nicht registriert, damit sich „nie gesetzt“ erkennen lässt
+        if let stored = defaults.object(forKey: Key.adaptiveZone) as? Double {
+            adaptiveZone = min(max(stored, Self.adaptiveZoneRange.lowerBound), Self.adaptiveZoneRange.upperBound)
+        } else {
+            adaptiveZone = adaptiveMiddleThird ? Self.defaultAdaptiveZone : 1
+        }
         displayMode = DisplayMode(rawValue: defaults.string(forKey: Key.displayMode) ?? "") ?? ShelfDefaults.displayMode
         shelfWidth = defaults.double(forKey: Key.shelfWidth)
         shelfHeight = defaults.double(forKey: Key.shelfHeight)
         // Ältere Versionen hatten nur „Beim Ziehen einblenden“ an/aus
-        dragReveal = DragReveal(rawValue: defaults.string(forKey: Key.dragReveal) ?? "")
-            ?? (defaults.bool(forKey: Key.showOnDrag) ? .immediately : .off)
+        // „Nie“ gibt es nicht mehr (Ablegen ist die Hauptsache): wird zu „Erst in Randnähe“
+        let storedReveal = DragReveal(rawValue: defaults.string(forKey: Key.dragReveal) ?? "")
+            ?? (defaults.bool(forKey: Key.showOnDrag) ? .immediately : .nearEdge)
+        dragReveal = storedReveal == .off ? .nearEdge : storedReveal
         // Ab 1.8 ist der Streifen flacher: alte Standardwerte (16 / 84 / 0,62) einmalig übernehmen,
         // selbst gewählte Werte bleiben
         if defaults.object(forKey: Key.peekThickness) as? Double == 16,
@@ -604,12 +611,17 @@ final class AppSettings: ObservableObject {
         }
         peekThickness = defaults.double(forKey: Key.peekThickness)
         peekLength = defaults.double(forKey: Key.peekLength)
-        peekRoundness = defaults.double(forKey: Key.peekRoundness)
+        // „Rundung zum Rand“ ist nicht mehr einstellbar: immer der Standard (die Ecken
+        // bleiben bei jeder Dicke und Länge ohne Knick, siehe ShelfMetrics.peek)
+        peekRoundness = PeekDefaults.roundness
         hapticsEnabled = defaults.bool(forKey: Key.hapticsEnabled)
         removeAfterDragOut = defaults.bool(forKey: Key.removeAfterDragOut)
         stackMultiple = defaults.bool(forKey: Key.stackMultiple)
         stackThreshold = min(max(defaults.integer(forKey: Key.stackThreshold), 2), 10)
         keepAfterAction = defaults.bool(forKey: Key.keepAfterAction)
+        // „Nach Aktionen entfernen“ gibt es nicht mehr: Wer es gewählt hatte (Herausgezogenes
+        // bleibt), bekommt die nächste Wahl, „In der Ablage behalten“
+        if !removeAfterDragOut && !keepAfterAction { keepAfterAction = true }
         animationStyle = AnimationStyle(rawValue: defaults.string(forKey: Key.animationStyle) ?? "") ?? .standard
         openMode = OpenMode(rawValue: defaults.string(forKey: Key.openMode) ?? "") ?? .automatic
         convertWebImages = defaults.bool(forKey: Key.convertWebImages)
@@ -697,6 +709,7 @@ final class AppSettings: ObservableObject {
         adaptivePosition = ShelfDefaults.adaptivePosition
         adaptiveMiddleThird = ShelfDefaults.adaptiveMiddleThird
         adaptiveZoneHalf = ShelfDefaults.adaptiveZoneHalf
+        adaptiveZone = Self.defaultAdaptiveZone
         displayMode = ShelfDefaults.displayMode
     }
 
@@ -740,7 +753,7 @@ final class AppSettings: ObservableObject {
         removeAfterDragOut = true
         stackMultiple = true
         stackThreshold = 2
-        keepAfterAction = false
+        keepAfterAction = true
         autoRemoveAfter = AutoRemoveOption.never.rawValue
         convertWebImages = true
         copyAllFiles = false
@@ -763,6 +776,6 @@ final class AppSettings: ObservableObject {
 
     /// Alles, was Lage oder Größe der Ablage beeinflusst.
     var layoutSignature: String {
-        "\(tileIconSize)|\(actionIconSize)|\(showActionLabels)|\(edge.rawValue)|\(verticalPosition)|\(adaptivePosition)|\(adaptiveMiddleThird)|\(adaptiveZoneHalf)|\(displayMode.rawValue)|\(shelfWidth)|\(shelfHeight)"
+        "\(tileIconSize)|\(actionIconSize)|\(showActionLabels)|\(edge.rawValue)|\(verticalPosition)|\(adaptivePosition)|\(adaptiveZone)|\(displayMode.rawValue)|\(shelfWidth)|\(shelfHeight)"
     }
 }

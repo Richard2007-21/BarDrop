@@ -12,9 +12,13 @@ struct GeneralSettings: View {
 
     var body: some View {
         SettingsPage {
-            SettingsSection(L("Startup", "Start"),
-                            note: loginError, noteColor: .red) {
+            // Start, Sprache und Impuls in einer Karte: je eine Zeile, eigene Abschnitte lohnen nicht
+            SettingsSection(note: loginError, noteColor: .red) {
                 ToggleRow(L("Open at login", "Beim Anmelden öffnen"), isOn: $launchAtLogin)
+                PickerRow(L("Language", "Sprache"), selection: $settings.language,
+                          options: AppLanguage.allCases.map { ($0, $0.title) })
+                ToggleRow(L("Haptic feedback", "Haptisches Feedback"),
+                          isOn: $settings.hapticsEnabled)
             }
             .onChange(of: launchAtLogin) { _, enabled in
                 do {
@@ -26,16 +30,6 @@ struct GeneralSettings: View {
                                    "Nicht möglich. Liegt BarDrop im Ordner „Programme“?")
                     launchAtLogin = SMAppService.mainApp.status == .enabled
                 }
-            }
-
-            SettingsSection {
-                PickerRow(L("Language", "Sprache"), selection: $settings.language,
-                          options: AppLanguage.allCases.map { ($0, $0.title) })
-            }
-
-            SettingsSection(L("Feedback", "Feedback")) {
-                ToggleRow(L("Haptic feedback", "Haptisches Feedback"),
-                          isOn: $settings.hapticsEnabled)
             }
 
             SettingsSection(L("Reset", "Zurücksetzen")) {
@@ -153,15 +147,15 @@ struct ShortcutRow: View {
 
 // MARK: Öffnen
 
-/// Wo am Rand die Ablage erscheint (fasst „adaptiv“ und „mittlere Hälfte“ zusammen)
+/// Wo am Rand die Ablage erscheint: fest an einer Stelle oder am Zeiger (dann in einem
+/// einstellbaren Bereich des Rands)
 private enum HeightMode: String, CaseIterable, Identifiable {
-    case fixed, adaptive, middleHalf
+    case fixed, adaptive
     var id: String { rawValue }
     var title: String {
         switch self {
         case .fixed: return L("Fixed", "Fest")
         case .adaptive: return L("Follows pointer", "Am Zeiger")
-        case .middleHalf: return L("Follows pointer, middle half", "Am Zeiger, nur mittlere Hälfte")
         }
     }
 }
@@ -172,15 +166,8 @@ struct OpeningSettings: View {
 
     private var heightMode: Binding<HeightMode> {
         Binding(
-            get: {
-                guard settings.adaptivePosition else { return .fixed }
-                return settings.adaptiveMiddleThird ? .middleHalf : .adaptive
-            },
-            set: { mode in
-                settings.adaptivePosition = mode != .fixed
-                settings.adaptiveMiddleThird = mode == .middleHalf
-                if mode == .middleHalf { settings.adaptiveZoneHalf = true }
-            }
+            get: { settings.adaptivePosition ? .adaptive : .fixed },
+            set: { mode in settings.adaptivePosition = mode == .adaptive }
         )
     }
 
@@ -197,7 +184,11 @@ struct OpeningSettings: View {
                           options: ScreenEdge.allCases.map { ($0, $0.title) })
                 PickerRow(L("Position along the edge", "Position am Rand"), selection: heightMode,
                           options: HeightMode.allCases.map { ($0, $0.title) })
-                if !settings.adaptivePosition {
+                if settings.adaptivePosition {
+                    // Wie viel vom Rand reagiert, mittig: ein kleines Stück bis der ganze Rand
+                    SliderRow(L("Area along the edge", "Bereich am Rand"), value: $settings.adaptiveZone,
+                              range: AppSettings.adaptiveZoneRange, step: 0.1, format: SliderRow.percent)
+                } else {
                     SliderRow(L("Spot along the edge", "Stelle am Rand"), value: $settings.verticalPosition, range: 0...1, step: 0.05,
                               format: SliderRow.percent)
                 }
@@ -216,16 +207,21 @@ struct OpeningSettings: View {
                                   "Die Ablage öffnet sich erst, wenn der Zeiger oder eine gezogene Datei den Streifen selbst erreicht, nicht schon den Bereich drumherum."),
                           isOn: $settings.exactPointer)
                 PickerRow(L("While dragging files", "Beim Ziehen von Dateien"), selection: $settings.dragReveal,
-                          options: DragReveal.allCases.map { ($0, $0.title) })
-                ToggleRow(L("Also over full-screen apps", "Auch über Apps im Vollbild"),
-                          isOn: $settings.openInFullScreen)
+                          options: DragReveal.selectable.map { ($0, $0.title) })
+                ToggleRow(L("Open where you left off", "An letzter Stelle öffnen"),
+                          info: L("The shelf opens at the same scroll position and in the stack you were last in.",
+                                  "Die Ablage öffnet an derselben Scrollposition und in dem Stapel, in dem du zuletzt warst."),
+                          isOn: $settings.reopenWhereLeft)
             }
 
             // Wie die Aktionsliste: Liste in einer Karte, „Hinzufügen“ als eigene Karte darunter
             VStack(alignment: .leading, spacing: 8) {
-                SettingsSection(L("Not in these apps", "Nicht in diesen Apps")) {
+                // Ausnahmen: Vollbild und einzelne Apps, in denen der Rand die Ablage nicht öffnet
+                SettingsSection(L("Exceptions", "Ausnahmen")) {
+                    ToggleRow(L("Also over full-screen apps", "Auch über Apps im Vollbild"),
+                              isOn: $settings.openInFullScreen)
                     if settings.excludedApps.isEmpty {
-                        Text(L("No apps", "Keine Apps"))
+                        Text(L("No apps excluded", "Keine Apps ausgenommen"))
                             .font(.system(size: 13.5))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, SettingsTheme.rowPadding)
@@ -258,7 +254,7 @@ struct AppearanceSettings: View {
                           format: SliderRow.points)
                 SliderRow(L("Height", "Höhe"), value: $settings.shelfHeight, range: 280...680, step: 10,
                           format: SliderRow.points)
-                SliderRow(L("Icon size", "Symbolgröße"), value: $settings.tileIconSize, range: 40...96, step: 4,
+                SliderRow(L("Item size", "Größe der Objekte"), value: $settings.tileIconSize, range: 40...96, step: 4,
                           format: SliderRow.points)
             }
 
@@ -267,15 +263,11 @@ struct AppearanceSettings: View {
                           format: SliderRow.points)
                 SliderRow(L("Length", "Länge"), value: $settings.peekLength, range: 60...200, step: 4,
                           format: SliderRow.points)
-                SliderRow(L("Edge curve", "Rundung zum Rand"), value: $settings.peekRoundness, range: 0...1, step: 0.05,
-                          format: SliderRow.percent)
             }
 
             SettingsSection(L("Style", "Stil")) {
                 ToggleRow(L("Light outline", "Heller Rahmen"),
                           isOn: $settings.showOutline)
-                PickerRow(L("Title", "Titel"), selection: $settings.titleStyle,
-                          options: ShelfTitle.allCases.map { ($0, $0.title) })
                 PickerRow(L("Animation", "Animation"),
                           // Nur wenn die Auswahl gesperrt ist, braucht es eine Erklärung
                           info: AnimationStyle.reduceMotion
@@ -317,6 +309,7 @@ private struct ScreenPreview: View {
                     .fill(Color.black.opacity(0.55))
                     .frame(width: 4, height: len)
                     .offset(x: settings.edge == .right ? w - 4 : 0, y: top)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: settings.adaptiveZone)
             }
             EdgeBlobShape(edge: settings.edge, cornerRadius: 2, fillet: 4, filletStretch: 1.4)
                 .fill(Color.black)
@@ -350,14 +343,15 @@ private enum FinderFiles: String, CaseIterable, Identifiable {
     }
 }
 
-/// Was nach dem Verwenden eines Objekts passiert (fasst zwei Schalter zusammen)
+/// Was nach dem Verwenden mit einem Objekt geschieht (fasst zwei Schalter zusammen). Standard: nach dem Herausziehen
+/// entfernen, nach Aktionen (AirDrop, Mail, Ordner …) behalten.
 private enum AfterUse: String, CaseIterable, Identifiable {
-    case keep, afterActions, always
+    case keep, afterDragOut, always
     var id: String { rawValue }
     var title: String {
         switch self {
         case .keep: return L("Keep in the shelf", "In der Ablage behalten")
-        case .afterActions: return L("Remove after actions", "Nach Aktionen entfernen")
+        case .afterDragOut: return L("Remove after dragging out", "Nach dem Herausziehen entfernen")
         case .always: return L("Always remove", "Immer entfernen")
         }
     }
@@ -389,31 +383,41 @@ struct ItemSettings: View {
     private var afterUse: Binding<AfterUse> {
         Binding(
             get: {
-                if settings.removeAfterDragOut { return .always }
-                return settings.keepAfterAction ? .keep : .afterActions
+                guard settings.removeAfterDragOut else { return .keep }
+                return settings.keepAfterAction ? .afterDragOut : .always
             },
             set: { value in
-                settings.removeAfterDragOut = value == .always
-                settings.keepAfterAction = value == .keep
+                settings.removeAfterDragOut = value != .keep
+                settings.keepAfterAction = value != .always
             }
         )
     }
 
     /// Erklärung passend zur gewählten Option
     private var afterUseNote: String {
-        let move = L(" Without “Only copy when dragging out”, destinations like the Finder may also move files; the shelf finds them again afterwards.",
-                     " Ohne „Beim Herausziehen nur kopieren“ dürfen Ziele wie der Finder Dateien auch verschieben; die Ablage findet sie danach wieder.")
+        // Kurz: was mit dem Objekt geschieht, und nur bei Bedarf, wie man es zurückholt
+        let copy = settings.dragOutCopyOnly ? ""
+            : L(" The Finder may move files you drag out.", " Der Finder darf herausgezogene Dateien verschieben.")
         switch afterUse.wrappedValue {
         case .keep:
-            return L("Items stay in the shelf until you remove them.",
-                     "Objekte bleiben in der Ablage, bis du sie entfernst.") + move
-        case .afterActions:
-            return L("Items disappear after AirDrop, Mail, folders and other actions, but stay when you drag them out.",
-                     "Objekte verschwinden nach AirDrop, Mail, Ordnern und anderen Aktionen, bleiben aber nach dem Herausziehen erhalten.") + move
+            return L("Items stay until you remove them.", "Objekte bleiben, bis du sie entfernst.") + copy
+        case .afterDragOut:
+            return L("Items leave the shelf when you drag them out, but stay after actions. ⌘Z brings them back.",
+                     "Herausgezogene Objekte verschwinden, nach Aktionen bleiben sie. ⌘Z holt sie zurück.") + copy
         case .always:
-            return L("Items disappear after you drag them out and after actions. Press ⌘Z within 15 minutes to bring them back.",
-                     "Objekte verschwinden nach dem Herausziehen und nach Aktionen. Mit ⌘Z holst du sie innerhalb von 15 Minuten zurück.") + move
+            return L("Items leave the shelf after dragging out and after actions. ⌘Z brings them back.",
+                     "Objekte verschwinden nach dem Herausziehen und nach Aktionen. ⌘Z holt sie zurück.") + copy
         }
+    }
+
+    /// Wahlen für „Stapel bilden“; ein selbst gewählter anderer Wert bleibt in der Liste
+    private var stackThresholds: [Int] {
+        var values = [2, 3, 5, 10]
+        if settings.stackMultiple, !values.contains(settings.stackThreshold) {
+            values.append(settings.stackThreshold)
+            values.sort()
+        }
+        return values
     }
 
     var body: some View {
@@ -423,22 +427,13 @@ struct ItemSettings: View {
                           info: L("When this many items are dropped at once, they become a stack. You can also select several items and right-click “Group as Stack”. Click a stack to open it.",
                                   "Werden so viele Objekte auf einmal abgelegt, entsteht ein Stapel. Du kannst auch mehrere Objekte auswählen und per Rechtsklick „Als Stapel zusammenfassen“ wählen. Ein Klick öffnet einen Stapel."),
                           selection: stackFrom,
-                          options: [(0, L("Never", "Nie"))] + (2...10).map { ($0, L("From \($0) items", "Ab \($0) Objekten")) })
-                ToggleRow(L("Open where you left off", "An letzter Stelle öffnen"),
-                          info: L("The shelf opens at the same scroll position and in the stack you were last in.",
-                                  "Die Ablage öffnet an derselben Scrollposition und in dem Stapel, in dem du zuletzt warst."),
-                          isOn: $settings.reopenWhereLeft)
+                          options: [(0, L("Never", "Nie"))] + stackThresholds.map { ($0, L("From \($0) items", "Ab \($0) Objekten")) })
             }
 
             SettingsSection(L("Using items", "Objekte verwenden"), info: afterUseNote) {
                 PickerRow(L("After use", "Nach dem Verwenden"), selection: afterUse,
                           options: AfterUse.allCases.map { ($0, $0.title) })
                 ToggleRow(L("Only copy when dragging out", "Beim Herausziehen nur kopieren"), isOn: $settings.dragOutCopyOnly)
-            }
-
-            SettingsSection(L("Add automatically", "Automatisch hinzufügen")) {
-                ToggleRow(L("New screenshots", "Neue Bildschirmfotos"),
-                          isOn: $settings.addScreenshots)
             }
 
             SettingsSection(L("Storage", "Speichern"),
@@ -451,6 +446,8 @@ struct ItemSettings: View {
                           options: FinderFiles.allCases.map { ($0, $0.title) },
                           menu: true)
                 ToggleRow(L("Save web images as PNG or JPEG", "Bilder aus dem Web als PNG oder JPEG speichern"), isOn: $settings.convertWebImages)
+                ToggleRow(L("Add new screenshots", "Neue Bildschirmfotos hinzufügen"),
+                          isOn: $settings.addScreenshots)
             }
 
             SettingsSection(L("Cleanup", "Aufräumen"),
@@ -458,17 +455,6 @@ struct ItemSettings: View {
                                     "Entfernen (⌫) löscht nie eine Datei aus dem Finder. Kopien, Bilder, Links und Texte, die nur in BarDrop liegen, werden 15 Minuten nach dem Herausziehen, einer Aktion oder dem automatischen Entfernen gelöscht. Sonst werden sie gelöscht, sobald sich das Entfernen nicht mehr mit ⌘Z widerrufen lässt. „In den Papierkorb legen“ (⌘⌫) legt Dateien in den Papierkorb, ⌘Z legt sie zurück.")) {
                 PickerRow(L("Remove automatically", "Automatisch entfernen"), selection: autoRemove,
                           options: AutoRemoveOption.allCases.map { ($0, $0.title) })
-                SettingsRow(L("Remove all items", "Alle Objekte entfernen")) {
-                    Button(L("Remove", "Entfernen")) {
-                        let count = store.entries.reduce(0) { $0 + $1.files.count }
-                        if ShelfActions.confirmRemovingAll(count) {
-                            store.removeAll()
-                            Sounds.remove()
-                        }
-                    }
-                    .buttonStyle(KlackButtonStyle(destructive: true))
-                    .disabled(store.entries.isEmpty)
-                }
             }
         }
     }
@@ -527,7 +513,7 @@ struct ActionSettings: View {
             .zIndex(1)
 
             SettingsSection(L("Layout", "Darstellung")) {
-                SliderRow(L("Icon size", "Symbolgröße"), value: $settings.actionIconSize, range: 24...54, step: 2,
+                SliderRow(L("Action size", "Größe der Aktionen"), value: $settings.actionIconSize, range: 24...54, step: 2,
                           format: SliderRow.points)
                 PickerRow(L("Show names", "Namen anzeigen"), selection: labelMode,
                           options: ActionLabelMode.allCases.map { ($0, $0.title) })

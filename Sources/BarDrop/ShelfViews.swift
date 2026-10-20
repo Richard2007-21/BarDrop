@@ -361,10 +361,8 @@ struct ShelfContent: View {
 
     // MARK: Kopfbereich
 
-    /// Titel oben: „BarDrop“, „Ablage“ oder keiner (Aussehen → Titel)
-    private var title: String? {
-        settings.titleStyle.text
-    }
+    /// Titel oben: immer „BarDrop“ (im Ordner steht dort sein Name)
+    private var title: String? { "BarDrop" }
 
     @ViewBuilder
     private var header: some View {
