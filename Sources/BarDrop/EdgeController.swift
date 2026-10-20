@@ -823,7 +823,13 @@ final class EdgeController: NSObject {
         // Adaptive Höhe: Beim Ziehen einer Datei erscheint die Ablage mittig an der
         // Bildschirmseite und folgt der Datei nicht. Sonst folgt sie dem Zeiger, solange
         // sie verborgen ist (erst nach der Schließanimation, damit nichts „mitzieht“).
-        if settings.adaptivePosition, onScreen, fullyHidden, !logic.manualOpen {
+        // Auch solange der Streifen zu sehen ist (bis die Ablage aufgeht), folgt er dem Zeiger
+        // am Rand: Wischte man schnell am Rand entlang, blieb er dort stehen, wo der Zeiger
+        // den Rand zuerst erreicht hatte. Der Zeiger war schon weiter, verließ den Streifen,
+        // und die Ablage ging nicht auf. Beim Ziehen von Dateien bleibt er mittig wie bisher.
+        let dxNow = settings.edge == .right ? screen.frame.maxX - loc.x : loc.x - screen.frame.minX
+        let stripVisible = (ui.level == .peek || ui.level == .hint) && !dragging && dxNow < 40
+        if settings.adaptivePosition, onScreen, fullyHidden || stripVisible, !logic.manualOpen {
             let y = dragging && !ui.ownDragActive ? screen.visibleFrame.midY : loc.y
             if abs((adaptiveY ?? -1) - y) > 0.5 {
                 adaptiveY = y
