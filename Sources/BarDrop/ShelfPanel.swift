@@ -62,7 +62,8 @@ final class ShelfPanel: NSPanel {
         guard let actions else { return super.keyDown(with: event) }
         let shift = event.modifierFlags.contains(.shift)
         switch event.keyCode {
-        case 49: // Leertaste
+        case 49: // Leertaste; gedrückt gehalten nicht in schneller Folge auf und zu
+            guard !event.isARepeat else { return }
             Diagnostics.shared.record("key", "space in shelf quickLook=\(actions.isQuickLookVisible)")
             actions.toggleQuickLookCurrent()
         case 51, 117: // Löschen; gedrückt halten entfernt nicht alles nacheinander
@@ -151,7 +152,7 @@ final class ShelfPanel: NSPanel {
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         // Nur leeren, wenn die Übersicht zu ist: Sie läuft ohne Fokus und bekommt ihre Quelle
         // direkt (ShelfActions.quickLook); sonst stünde dort „Keine Objekte ausgewählt“
-        if !panel.isVisible {
+        if !panel.isVisible && actions?.isQuickLookVisible != true {
             panel.dataSource = nil
             panel.delegate = nil
         }
