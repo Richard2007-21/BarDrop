@@ -172,7 +172,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     func announceRemoval(_ count: Int) {
         guard count > 0 else { return }
-        announce(count == 1 ? L("1 item removed", "1 Objekt entfernt") : L("\(count) items removed", "\(count) Objekte entfernt"), canUndo: true)
+        announce(L("Removed", "Entfernt"), canUndo: true)
     }
 
     /// ⌘Z: zuletzt Entferntes zurückholen und auswählen.
@@ -185,7 +185,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             let back = store.lastPutBack
             folder.reload(after: 0)
             if isFolderOpen { ui.memberSelection = Set(back.map(FolderBrowser.id(for:))) }
-            announce(back.count == 1 ? L("1 item restored", "1 Objekt zurückgeholt") : L("\(back.count) items restored", "\(back.count) Objekte zurückgeholt"))
+            announce(L("Restored", "Wiederhergestellt"))
             return
         }
         // Nichts mehr da, was sich zurückholen ließe
@@ -195,7 +195,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         } else {
             ui.selection = Set(store.entries.filter { entry in entry.files.contains { restored.contains($0.id) } }.map(\.id))
         }
-        announce(restored.count == 1 ? L("1 item restored", "1 Objekt zurückgeholt") : L("\(restored.count) items restored", "\(restored.count) Objekte zurückgeholt"))
+        announce(L("Restored", "Wiederhergestellt"))
     }
 
     /// ⇧⌘Z: Widerrufenes erneut entfernen.
@@ -586,9 +586,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 self.closeStack()
             }
             if self.folder.isOpen { self.folder.reload(after: 0) }
-            self.announce(count == 1 ? L("1 item in the Trash", "1 Objekt im Papierkorb")
-                                     : L("\(count) items in the Trash", "\(count) Objekte im Papierkorb"),
-                          canUndo: true)
+            self.announce(L("Deleted", "Gelöscht"), canUndo: true)
         }
     }
 
@@ -609,7 +607,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     }
 
     private func convert(_ urls: [URL], to target: Converter.Target) {
-        announce(L("Converting", "Wird umgewandelt"))
+        announce(L("Converting", "Umwandeln"))
         Converter.convert(urls, to: target) { [weak self] results in
             guard let self else { return }
             guard !results.isEmpty else {
@@ -628,8 +626,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                     }
                 }
                 let n = added.count
-                self?.announce(n == 1 ? L("1 item converted", "1 Objekt umgewandelt")
-                                      : L("\(n) items converted", "\(n) Objekte umgewandelt"))
+                self?.announce(n > 0 ? L("Converted", "Umgewandelt") : L("Couldn’t convert", "Nicht umgewandelt"))
             }
         }
     }
@@ -1049,7 +1046,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         store.ingest(from: pasteboard, byUser: true) { [weak self] added in
             let n = added.count
             guard n > 0 else { return }
-            self?.announce(n == 1 ? L("1 item added", "1 Objekt hinzugefügt") : L("\(n) items added", "\(n) Objekte hinzugefügt"))
+            self?.announce(L("Added", "Hinzugefügt"))
         }
     }
 

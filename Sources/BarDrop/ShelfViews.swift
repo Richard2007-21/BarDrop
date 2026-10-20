@@ -435,7 +435,7 @@ struct ShelfContent: View {
                 if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
                     runningPlugins
                 } else {
-                    status(selected > 0 ? L("\(selected) of \(stack.files.count) selected", "\(selected) von \(stack.files.count) ausgewählt")
+                    status(selected > 0 ? L("\(selected) selected", "\(selected) ausgewählt")
                                         : L("\(stack.files.count) items in stack", "\(stack.files.count) Objekte im Stapel"))
                 }
             } else {
@@ -452,36 +452,29 @@ struct ShelfContent: View {
                     // Große Dateien, Downloads und iCloud brauchen einen Moment
                     HStack(spacing: 5) {
                         ProgressView().controlSize(.mini)
-                        countLabel(L("Importing", "Wird übernommen"))
+                        countLabel(L("Importing", "Importieren"))
                     }
                 } else if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
-                    // Plugins arbeiten: ihre Symbole statt der Anzahl
+                    // Plugins arbeiten: das statt der Anzahl
                     runningPlugins
                 } else {
                     status(count == 0 ? nil
-                           : selected > 0 ? L("\(selected) of \(count) selected", "\(selected) von \(count) ausgewählt")
+                           : selected > 0 ? L("\(selected) selected", "\(selected) ausgewählt")
                            : (count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte")))
                 }
             }
         }
     }
 
-    /// Rechts im Kopf, an Stelle der Anzahl: die Symbole der Plugins, die gerade arbeiten
-    /// (höchstens drei). Meldungen und eine Auswahl haben Vorrang.
+    /// Rechts im Kopf, an Stelle der Anzahl: „Plugin läuft“, bei mehreren verschiedenen
+    /// Plugins mit Anzahl. Meldungen und eine Auswahl haben Vorrang.
     @ViewBuilder
     private var runningPlugins: some View {
-        let running = runner.jobs.reduce(into: [InstalledPlugin]()) { list, job in
-            if !list.contains(where: { $0.id == job.plugin.id }) { list.append(job.plugin) }
-        }
-        if !running.isEmpty {
-            HStack(spacing: -3) {
-                ForEach(running.prefix(3)) { plugin in
-                    PluginIconView(icon: plugin.manifest.icon, size: 15)
-                }
-            }
-            .help(running.map(\.manifest.title).joined(separator: ", "))
-            .accessibilityLabel(running.map(\.manifest.title).joined(separator: ", "))
-            .transition(.opacity)
+        let running = Set(runner.jobs.map(\.plugin.id)).count
+        if running > 0 {
+            countLabel(running == 1 ? L("Plugin running", "Plugin läuft")
+                                    : L("\(running) plugins running", "\(running) Plugins laufen"))
+                .transition(.opacity)
         }
     }
 
@@ -531,7 +524,7 @@ struct ShelfContent: View {
                     countLabel(count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte"))
                 }
             } else {
-                status(L("\(selected) of \(count) selected", "\(selected) von \(count) ausgewählt"))
+                status(L("\(selected) selected", "\(selected) ausgewählt"))
             }
         }
         .fixedSize()

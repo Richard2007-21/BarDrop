@@ -102,7 +102,7 @@ final class ShelfUIModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
-    /// Kurze Rückmeldung oben in der Ablage („2 Objekte entfernt · Widerrufen“).
+    /// Kurze Rückmeldung oben in der Ablage („Entfernt“, „Kopiert“).
     struct Notice: Equatable {
         var id = UUID()
         var text: String

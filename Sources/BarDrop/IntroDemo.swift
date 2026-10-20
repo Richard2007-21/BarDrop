@@ -7,7 +7,7 @@ import Combine
 //
 // Die Szenen der Einführung zeigen die echte Ablage: dieselben Ansichten wie am
 // Bildschirmrand (ShelfRootView), mit echten Kacheln und Vorschaubildern, der
-// Aktionsleiste, den Rückmeldungen („1 Objekt entfernt“) und den Animationen aus den
+// Aktionsleiste, den Rückmeldungen („Entfernt“) und den Animationen aus den
 // Einstellungen, nur verkleinert. Dazu der echte Mauszeiger und ein gezogenes Bild wie
 // beim Ziehen aus der Ablage.
 //

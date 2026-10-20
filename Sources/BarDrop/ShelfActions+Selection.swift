@@ -231,9 +231,7 @@ extension ShelfActions {
         // Ausschneiden bricht keine Plugins ab: Platzhalter bleiben, nur nicht mehr ausgewählt
         ui.jobSelection = []
         removeCurrentSelection(sound: false)
-        announce(urls.count == 1 ? L("1 item cut", "1 Objekt ausgeschnitten")
-                                 : L("\(urls.count) items cut", "\(urls.count) Objekte ausgeschnitten"),
-                 canUndo: true)
+        announce(L("Cut", "Ausgeschnitten"), canUndo: true)
     }
 
     /// Nächster Nachbar nach den entfernten Einträgen, sonst der davor
@@ -278,9 +276,9 @@ extension ShelfActions {
 
     func announceCopy(_ count: Int, pathsOnly: Bool) {
         if pathsOnly {
-            announce(count == 1 ? L("Path copied", "Pfad kopiert") : L("\(count) paths copied", "\(count) Pfade kopiert"))
+            announce(count == 1 ? L("Path copied", "Pfad kopiert") : L("Paths copied", "Pfade kopiert"))
         } else {
-            announce(count == 1 ? L("1 item copied", "1 Objekt kopiert") : L("\(count) items copied", "\(count) Objekte kopiert"))
+            announce(L("Copied", "Kopiert"))
         }
     }
 

@@ -79,7 +79,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         guard !matching.isEmpty else {
             NSSound.beep()
             // Kurz: Die Kopfzeile der Ablage ist schmal
-            actions?.announce(L("Not for this item", "Nicht für dieses Objekt"), duration: 1.6)
+            actions?.announce(L("Not suitable", "Nicht passend"), duration: 1.6)
             return
         }
         // Läuft dasselbe Plugin schon für eine Datei, nicht ein zweites Mal starten
@@ -94,7 +94,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             enqueue(PluginJob(plugin: plugin, item: PluginItem(url: file.url), anchorFileID: file.id, automatic: false,
                               replacesOriginal: replaces))
         }
-        actions?.announce(L("Plugin running", "Plugin läuft"), duration: 1.5)
+        // Keine eigene Meldung: Oben steht gleich „Plugin läuft“
     }
 
     /// Frisch abgelegte Dateien: je Datei das erste passende Plugin mit „Automatisch“
@@ -124,12 +124,9 @@ final class PluginRunner: ObservableObject, PluginPrompter {
                               replacesOriginal: replacesOriginal(plugin)))
             started[plugin.manifest.title, default: 0] += 1
         }
-        if started.count == 1 {
-            actions?.announce(L("Plugin active", "Plugin aktiv"), duration: 1.5)
-        } else if started.count > 1 {
-            actions?.announce(L("\(started.count) plugins active", "\(started.count) Plugins aktiv"), duration: 1.5)
-        } else if blocked {
-            actions?.announce(L("Plugin wasn’t started", "Plugin nicht gestartet"), duration: 2)
+        // Gestartet: keine eigene Meldung, oben steht gleich „Plugin läuft“
+        if started.isEmpty && blocked {
+            actions?.announce(L("Not started", "Nicht gestartet"), duration: 2)
         }
     }
 
@@ -210,14 +207,13 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             deliver(job, urls)
         case .failure(.cancelled):
             PluginLog.shared.record(job.plugin.id, "abbruch", "abgebrochen")
-            removeJob(job)
-            actions?.announce(L("Canceled", "Abgebrochen"), duration: 1.5)
+            removeJob(job)   // ohne Meldung: Die Kachel verschwindet
         case .failure(let error):
             PluginLog.shared.record(job.plugin.id, "fehler", error.message)
             manager.lastErrors[job.plugin.id] = String(error.message.prefix(600))
             removeJob(job)
             NSSound.beep()
-            actions?.announce(L("Plugin didn’t work", "Plugin hat nicht geklappt"), duration: 2.5)
+            actions?.announce(L("Failed", "Fehlgeschlagen"), duration: 2.5)
             if !job.automatic && showsErrorDialogs { showError(error, of: job.plugin) }
         }
     }
