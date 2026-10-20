@@ -107,6 +107,7 @@ struct KeyboardSettings: View {
                     ShortcutRow(L("Move selection", "Auswahl bewegen"), ["←", "→", "↑", "↓"])
                     ShortcutRow(L("Extend selection", "Auswahl erweitern"), ["⇧", "←"])
                     ShortcutRow(L("Back from a stack", "Zurück aus einem Stapel"), ["⌘", "↑"])
+                    ShortcutRow(L("Move an action", "Aktion verschieben"), ["⌘", L("Drag", "Ziehen")])
                     ShortcutRow(L("Clear selection, then close", "Auswahl aufheben, dann schließen"), ["esc"])
                 }
             }

@@ -240,12 +240,19 @@ final class ShelfDropHandler {
     /// Genau ein Ordner oder eine App aus dem Finder, die sich anheften ließe.
     /// Nur beim Hineinziehen gelesen, nicht bei jeder Bewegung.
     static func pinCandidate(_ pasteboard: NSPasteboard) -> URL? {
-        guard AppSettings.shared.pinFromShelf,
+        let settings = AppSettings.shared
+        guard settings.pinFromShelf,
               let urls = pasteboard.readObjects(forClasses: [NSURL.self],
                                                 options: [.urlReadingFileURLsOnly: true]) as? [URL],
               urls.count == 1, let url = urls.first,
-              ContentImporter.isUserFile(url),
-              AppSettings.shared.canPin(url) else { return nil }
+              ContentImporter.isUserFile(url), QuickAction.pinnableKind(url) != nil else { return nil }
+        guard settings.canPin(url) else {
+            // Ein Ordner oder eine App, aber kein Platz zum Anheften: warum (fürs Protokoll)
+            let full = settings.quickActions.count >= QuickAction.limit(twoRows: settings.twoActionRows)
+            let already = settings.quickActions.contains { $0.path == url.path }
+            Diagnostics.shared.record("pin", "not offered full=\(full) alreadyPinned=\(already)")
+            return nil
+        }
         return url
     }
 

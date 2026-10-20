@@ -475,6 +475,32 @@ final class AppSettings: ObservableObject {
         return true
     }
 
+    /// In der Aktionsleiste mit ⌘ gezogen: Die Aktion nimmt den Platz von `target` ein, die
+    /// übrigen rücken weiter. In die andere Reihe gezogen, wechselt sie die Reihe; ist die
+    /// voll, rückt deren letzte bzw. erste Aktion in die Reihe, aus der sie kam.
+    func moveQuickAction(_ id: QuickAction.ID, to target: QuickAction.ID) {
+        guard id != target,
+              let from = quickActions.firstIndex(where: { $0.id == id }),
+              let to = quickActions.firstIndex(where: { $0.id == target }) else { return }
+        var order = quickActions
+        var split = effectiveActionSplit
+        let fromTop = !twoActionRows || from < split
+        let toTop = !twoActionRows || to < split
+        let item = order.remove(at: from)
+        if fromTop == toTop {
+            order.insert(item, at: to)
+        } else if fromTop {
+            // Von oben nach unten: vor das Ziel (es stand durch das Herausnehmen eins weiter vorn)
+            order.insert(item, at: to - 1)
+            split -= 1
+        } else {
+            order.insert(item, at: to)
+            split += 1
+        }
+        quickActions = order
+        actionRowSplit = Self.clampSplit(split, count: order.count)
+    }
+
     /// Aktion entfernen; aus der oberen Reihe rückt die Grenze mit, die untere bleibt
     func removeQuickAction(_ id: QuickAction.ID) {
         guard let index = quickActions.firstIndex(where: { $0.id == id }) else { return }

@@ -95,7 +95,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * Folders and the Trash work like in the Finder: on the same disk a folder moves, on another disk it copies (`⌥` always copies, `⌘` always moves)
 * Two rows with up to five actions each; names for all actions, folders only, or none
 * The Trash looks full or empty like the Trash of your Mac
-* Optionally pin a folder or app by dragging it onto the shelf, and remove an action by dragging it out
+* Optionally pin a folder or app by dragging it onto the shelf, and remove an action by dragging it out; hold `⌘` and drag an action to move it
 
 **Plugins** (optional, off by default)
 * Your own steps as `.bdrop` files: in the right-click menu, in the action bar, or automatically when you drop a matching file type or link
