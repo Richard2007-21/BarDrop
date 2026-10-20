@@ -1,13 +1,15 @@
 import AppKit
 import SwiftUI
 
-/// Platzhalter für ein laufendes Plugin, direkt neben dem Original: ein schlichter Ring
-/// mit dem Symbol des Plugins. Mit Fortschritt füllt er sich, ohne dreht ein kurzer Bogen.
-/// Angehalten steht der Ring still und zeigt ein Pausenzeichen.
+/// Platzhalter für ein laufendes Plugin, direkt neben dem Original (bei „Original ersetzen“
+/// an seiner Stelle): das Vorschaubild der Datei, an der das Plugin arbeitet. Es ist erst
+/// unscharf und wird mit dem Fortschritt klar. Meldet das Plugin keinen Fortschritt, wird es
+/// sanft klarer und wieder unscharf („atmet“). Welches Plugin arbeitet, zeigt sein Symbol
+/// oben rechts im Kopf der Ablage.
 ///
 /// Bedienung wie bei Downloads im Finder und im App Store: Fährt der Zeiger darüber, wird
-/// die Mitte des Rings zum Knopf für Anhalten bzw. Fortsetzen, und oben rechts erscheint
-/// ein kleines x zum Abbrechen. Der Rechtsklick bietet dasselbe zusätzlich an.
+/// die Mitte zum Knopf für Anhalten bzw. Fortsetzen, und oben rechts erscheint ein kleines
+/// x zum Abbrechen. Der Rechtsklick bietet dasselbe zusätzlich an.
 struct PluginJobTile: View {
     @ObservedObject var job: PluginJob
     @ObservedObject var ui: ShelfUIModel
@@ -16,16 +18,13 @@ struct PluginJobTile: View {
     var iconSize: CGFloat = 64
     @State private var hovering = false
 
-    private var ringSize: CGFloat { (iconSize * 0.62).rounded() }
     private var showsControls: Bool { hovering && !shelfDemo }
 
     var body: some View {
         TileLabel(title: job.isStarted ? (job.label ?? job.title) : L("Waiting", "Wartet"),
                   isSelected: false, isKey: false, iconSize: iconSize) {
-            PluginProgressRing(job: job, size: ringSize, hovering: showsControls)
-                .frame(width: iconSize, height: iconSize)
+            PluginPreview(job: job, size: iconSize, hovering: showsControls)
         }
-        .opacity(job.paused && !showsControls ? 0.7 : 1)
         .overlay(Group { if !shelfDemo {
             PluginJobMenuArea(ui: ui) { actions.menu(for: job) }
         } })
@@ -38,17 +37,17 @@ struct PluginJobTile: View {
         .transition(.opacity)
     }
 
-    /// Knöpfe genau über dem Ring (gleiche Lage wie das Symbol in TileLabel)
+    /// Knöpfe genau über dem Vorschaubild (gleiche Lage wie das Symbol in TileLabel)
     private var controls: some View {
         let box = TileMetrics.box(iconSize)
-        let cancelSize = max(16, (ringSize * 0.34).rounded())
+        let cancelSize = max(16, (iconSize * 0.24).rounded())
         return ZStack {
             if job.isStarted {
                 Button {
                     if job.paused { job.resume() } else { job.pause() }
                 } label: {
                     Circle().fill(Color.clear)
-                        .frame(width: ringSize, height: ringSize)
+                        .frame(width: iconSize * 0.6, height: iconSize * 0.6)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -67,7 +66,7 @@ struct PluginJobTile: View {
             .buttonStyle(.plain)
             .help(L("Cancel", "Abbrechen"))
             .accessibilityLabel(L("Cancel", "Abbrechen"))
-            .offset(x: ringSize * 0.42, y: -ringSize * 0.42)
+            .offset(x: iconSize * 0.46, y: -iconSize * 0.46)
             .transition(.scale(scale: 0.6).combined(with: .opacity))
         }
         .frame(width: box, height: box)
@@ -75,54 +74,60 @@ struct PluginJobTile: View {
     }
 }
 
-private struct PluginProgressRing: View {
+/// Vorschaubild der Datei, unscharf je nach Fortschritt
+private struct PluginPreview: View {
     @ObservedObject var job: PluginJob
     let size: CGFloat
     /// Zeiger darüber: In der Mitte steht, was ein Klick tut (Anhalten oder Fortsetzen)
     var hovering = false
-    @State private var spinning = false
+    @State private var breathing = false
+
+    /// Ganz am Anfang so unscharf, dass man das Bild nur ahnt
+    private var maxBlur: CGFloat { max(4, (size * 0.12).rounded()) }
+
+    private var breathes: Bool {
+        job.isStarted && !job.paused && job.progress == nil && !AnimationStyle.reduceMotion
+    }
+
+    private var blur: CGFloat {
+        if !job.isStarted { return maxBlur }
+        if let progress = job.progress { return maxBlur * CGFloat(1 - progress) }
+        return breathing ? maxBlur * 0.45 : maxBlur
+    }
 
     var body: some View {
-        let line = max(2.5, size * 0.07)
         ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.14), lineWidth: line)
-            if !job.isStarted {
-                // Wartet, bis ein anderes Plugin fertig ist: nur der stille Ring
-            } else if let progress = job.progress {
-                Circle()
-                    .trim(from: 0, to: max(0.02, progress))
-                    .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: line, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.25), value: progress)
-            } else {
-                Circle()
-                    .trim(from: 0, to: 0.22)
-                    .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: line, lineCap: .round))
-                    .rotationEffect(.degrees(spinning ? 270 : -90))
-                    // Angehalten oder „Bewegung reduzieren“: steht still
-                    .animation(job.paused || AnimationStyle.reduceMotion ? .default
-                               : .linear(duration: 1.1).repeatForever(autoreverses: false), value: spinning)
-            }
-            Image(systemName: centerSymbol)
-                .font(.system(size: size * 0.34, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.85))
-                .contentTransition(.symbolEffect(.replace))
+            ThumbnailView(url: job.item.url, size: size)
+                .blur(radius: blur)
+                .saturation(job.progress.map { 0.5 + 0.5 * $0 } ?? 0.6)
+                .opacity(job.paused ? 0.75 : 1)
+                .animation(.easeOut(duration: 0.3), value: job.progress)
+                .animation(breathes ? .easeInOut(duration: 1.6).repeatForever(autoreverses: true) : .easeOut(duration: 0.3),
+                           value: breathing)
+            centerGlyph
+                .animation(.easeOut(duration: 0.12), value: hovering)
         }
         .frame(width: size, height: size)
-        .animation(.easeOut(duration: 0.12), value: hovering)
-        .onAppear { spinning = job.isStarted && !job.paused }
-        .onChange(of: job.paused) { _, paused in spinning = job.isStarted && !paused }
-        .onChange(of: job.isStarted) { _, started in spinning = started && !job.paused }
+        .onAppear { breathing = breathes }
+        .onChange(of: breathes) { _, now in breathing = now }
     }
-}
 
-private extension PluginProgressRing {
-    var centerSymbol: String {
-        if !job.isStarted { return "clock" }
-        if hovering { return job.paused ? "play.fill" : "pause.fill" }
-        if job.paused { return "pause.fill" }
-        return job.plugin.manifest.icon?.resolvedSymbol ?? PluginIconView.fallbackSymbol
+    /// Mitte: beim Darüberfahren Anhalten bzw. Fortsetzen, sonst nur, wenn es wartet
+    /// oder angehalten ist
+    @ViewBuilder
+    private var centerGlyph: some View {
+        let symbol: String? = hovering && job.isStarted ? (job.paused ? "play.fill" : "pause.fill")
+            : !job.isStarted ? "clock"
+            : job.paused ? "pause.fill" : nil
+        if let symbol {
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: size * 0.38, height: size * 0.38)
+                .background(Circle().fill(Color.black.opacity(0.5)))
+                .contentTransition(.symbolEffect(.replace))
+                .transition(.opacity)
+        }
     }
 }
 

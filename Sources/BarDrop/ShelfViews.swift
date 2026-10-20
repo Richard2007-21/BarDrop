@@ -336,6 +336,7 @@ struct ShelfContent: View {
                 let selected = ui.memberSelection.intersection(stack.files.map(\.id)).count
                 status(selected > 0 ? L("\(selected) of \(stack.files.count) selected", "\(selected) von \(stack.files.count) ausgewählt")
                                     : L("\(stack.files.count) items in stack", "\(stack.files.count) Objekte im Stapel"))
+                runningPlugins
             } else {
                 if let title {
                     Text(title)
@@ -357,7 +358,26 @@ struct ShelfContent: View {
                            : selected > 0 ? L("\(selected) of \(count) selected", "\(selected) von \(count) ausgewählt")
                            : (count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte")))
                 }
+                runningPlugins
             }
+        }
+    }
+
+    /// Ganz rechts im Kopf: die Symbole der Plugins, die gerade arbeiten (höchstens drei)
+    @ViewBuilder
+    private var runningPlugins: some View {
+        let running = runner.jobs.reduce(into: [InstalledPlugin]()) { list, job in
+            if !list.contains(where: { $0.id == job.plugin.id }) { list.append(job.plugin) }
+        }
+        if !running.isEmpty {
+            HStack(spacing: -3) {
+                ForEach(running.prefix(3)) { plugin in
+                    PluginIconView(icon: plugin.manifest.icon, size: 15)
+                }
+            }
+            .help(running.map(\.manifest.title).joined(separator: ", "))
+            .accessibilityLabel(running.map(\.manifest.title).joined(separator: ", "))
+            .transition(.opacity)
         }
     }
 
