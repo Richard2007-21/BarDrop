@@ -67,8 +67,10 @@ final class ShelfPanel: NSPanel {
             actions.toggleQuickLookCurrent()
         case 51, 117: // Löschen; gedrückt halten entfernt nicht alles nacheinander
             if !event.isARepeat { actions.removeCurrentSelection() }
-        case 53: // Escape: Auswahl aufheben, Stapel verlassen, schließen
-            if actions.isFolderOpen {
+        case 53: // Escape: Übersicht schließen, Auswahl aufheben, Stapel verlassen, schließen
+            if actions.isQuickLookVisible {
+                actions.closeQuickLook()
+            } else if actions.isFolderOpen {
                 actions.closeStack()        // im Ordner: gleich eine Ebene zurück
             } else if actions.hasCurrentSelection {
                 actions.clearCurrentSelection()
@@ -79,14 +81,17 @@ final class ShelfPanel: NSPanel {
             }
         case 36, 76: // Return
             actions.openCurrentSelection()
-        case 123: // ←
-            actions.moveCurrentSelection(by: -1, extend: shift)
-        case 124: // →
-            actions.moveCurrentSelection(by: 1, extend: shift)
-        case 126: // ↑
-            actions.moveCurrentSelection(by: -actions.columnCount, extend: shift)
-        case 125: // ↓
-            actions.moveCurrentSelection(by: actions.columnCount, extend: shift)
+        case 123, 124, 125, 126: // Pfeiltasten (bei offener Übersicht blättert sie mit)
+            if actions.quickLookArrow(event.keyCode) { return }
+            let step: Int
+            switch event.keyCode {
+            case 123: step = -1
+            case 124: step = 1
+            case 126: step = -actions.columnCount
+            default: step = actions.columnCount
+            }
+            actions.moveCurrentSelection(by: step, extend: shift)
+            actions.quickLookFollowSelection()
         default:
             super.keyDown(with: event)
         }

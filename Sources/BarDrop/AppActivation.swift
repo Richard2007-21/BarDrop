@@ -8,16 +8,23 @@ import AppKit
 /// blieben danach vorn. Hier wird vorher gemerkt, welches fremde Fenster direkt über
 /// jedem eigenen Fenster lag, und das eigene Fenster danach wieder darunter gelegt.
 enum AppActivation {
+    /// Ist BarDrop die vorderste App? Nicht `NSApp.isActive`: Das meldet schon „aktiv“,
+    /// sobald die Ablage (ein nicht aktivierendes Fenster) den Tastaturfokus hat, obwohl die
+    /// App davor vorn bleibt. Laut Diagnoseprotokoll griff der Schutz unten deshalb nie.
+    static var isFrontmost: Bool {
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
+    }
+
     /// Aktivieren; mit `timeout` auf die Bestätigung des Systems warten (nur
     /// Systemereignisse der Aktivierung, Klicks und Tasten bleiben in der Warteschlange)
     static func activateKeepingWindows(timeout: TimeInterval = 0) {
-        guard !NSApp.isActive else { return }
+        guard !isFrontmost else { return }
         let placements = currentPlacements()
         Diagnostics.shared.record("focus", "activate from shelf, keeps \(placements.count) window(s) in place")
         NSApp.activate(ignoringOtherApps: true)
         if timeout > 0 {
             let deadline = Date().addingTimeInterval(timeout)
-            while !NSApp.isActive, Date() < deadline {
+            while !isFrontmost, Date() < deadline {
                 guard let event = NSApp.nextEvent(matching: [.appKitDefined, .systemDefined], until: deadline,
                                                   inMode: .default, dequeue: true) else { break }
                 NSApp.sendEvent(event)

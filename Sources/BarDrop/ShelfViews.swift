@@ -14,6 +14,22 @@ struct BlurFade: ViewModifier {
 }
 
 extension AnyTransition {
+    /// Öffnen der Ablage: Einblenden und Wachsen ohne Unschärfe; die Unschärfe macht
+    /// ShelfContent selbst, nur für Kopf und Kacheln (siehe `openBlur`). Lag sie über allem,
+    /// verwischte sie die Kacheln über der Aktionsleiste in die Leiste hinein, als wäre die
+    /// Leiste kurz durchlässig. Schließen wie bisher.
+    static func shelfOpen(_ radius: CGFloat) -> AnyTransition {
+        if radius == 0 { return .opacity.animation(.easeOut(duration: 0.15)) }
+        return .asymmetric(
+            insertion: .modifier(active: BlurFade(radius: 0, opacity: 0, scale: 0.94),
+                                 identity: BlurFade(radius: 0, opacity: 1, scale: 1))
+                .animation(.easeOut(duration: 0.28).delay(0.07)),
+            removal: .modifier(active: BlurFade(radius: radius * 0.7, opacity: 0, scale: 0.96),
+                               identity: BlurFade(radius: 0, opacity: 1, scale: 1))
+                .animation(.easeIn(duration: 0.12))
+        )
+    }
+
     static func blurFade(_ radius: CGFloat) -> AnyTransition {
         // „Bewegung reduzieren“: nur überblenden
         if radius == 0 { return .opacity.animation(.easeOut(duration: 0.15)) }
@@ -95,7 +111,7 @@ struct ShelfRootView: View {
                     // Während etwas aus der Ablage gezogen wird, nur überblenden: Die Unschärfe
                     // wird in jedem Bild neu berechnet und bremst die App, die das gezogene Bild
                     // bewegt (Ruckeln beim Herausziehen, wenn die Ablage zu- und aufgeht)
-                    .transition(.blurFade(ui.ownDragActive ? 0 : settings.animationStyle.blur))
+                    .transition(.shelfOpen(ui.ownDragActive ? 0 : settings.animationStyle.blur))
             }
         }
         .frame(width: m.width, height: m.height + 2 * m.fillet, alignment: edgeAlignment)
@@ -173,6 +189,13 @@ struct ShelfContent: View {
     /// Platzhalter erst nach einem Augenblick zeigen: Dateien aus dem Finder sind sofort
     /// da, für sie soll nichts aufblitzen
     @State private var showPending = false
+    /// Gleich nach dem Öffnen noch unscharf, dann scharf (nur Kopf und Kacheln, die Leiste
+    /// bleibt scharf und deckt ab)
+    @State private var sharpened = false
+
+    private var openBlur: CGFloat {
+        sharpened || ui.ownDragActive ? 0 : settings.animationStyle.blur
+    }
     /// Hinter der Aktionsleiste ganz deckend: eine klare Kante ohne Nebel und ohne Linie,
     /// Kacheln verschwinden einfach unter der Leiste. Füllt die Leiste selbst aus, statt die
     /// gemessene Höhe zu nutzen: Die ist beim Öffnen für ein paar Bilder noch 0, und die
@@ -238,6 +261,7 @@ struct ShelfContent: View {
                 .frame(height: 30)
                 .padding(.top, 12)
                 .padding(.bottom, 4)
+                .blur(radius: openBlur)
 
             // Die Kacheln laufen unter der Aktionsleiste weiter, statt über ihr abgeschnitten
             // zu werden; hinter der Leiste liegt ein weicher Verlauf ins Schwarz
@@ -317,6 +341,12 @@ struct ShelfContent: View {
                         reveal(request, proxy: proxy, viewport: geo.size.height)
                     }
                     }
+                }
+                // Unschärfe beim Öffnen nur hier, unter der Leiste (die liegt darüber und deckt ab)
+                .blur(radius: openBlur)
+                .onAppear {
+                    guard !sharpened else { return }
+                    withAnimation(.easeOut(duration: 0.28).delay(0.07)) { sharpened = true }
                 }
 
                 // Flach gehalten: so viel Schwarz wie nötig unter den Symbolen, nicht mehr
@@ -720,7 +750,8 @@ struct ShelfContent: View {
     /// mit allem, was zur Ursache gehört: Lage, Höhe, Anzahl, welches Raster
     private func recordScrollJump(from before: CGFloat, to after: CGFloat) {
         let delta = after - before
-        guard abs(delta) > max(400, viewportHeight), Diagnostics.shared.isEnabled else { return }
+        // Schneller Schwung schafft etwa 50 pt pro Bild: deutlich mehr ist ein Sprung
+        guard abs(delta) > 180, Diagnostics.shared.isEnabled else { return }
         let count = stack?.files.count ?? store.entries.count
         let kind = count > Self.lazyThreshold ? "lazy" : "eigen"
         let view = stack == nil ? "ablage" : (folderOpen ? "ordner" : "stapel")

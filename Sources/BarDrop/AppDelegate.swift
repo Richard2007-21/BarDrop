@@ -211,6 +211,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func showSettings(pane: SettingsPane? = nil) {
         guard store != nil else { return }   // noch nicht gestartet (wartet nach Update)
+        // Aus dem Rechtsklick-Menü gewählt: Die Einstellungen sollen den Fokus behalten
+        ShelfMenu.openedWindow = true
         if let pane { SettingsNavigation.shared.pane = pane }
         if settingsWindow == nil {
             let window = SettingsWindowFactory.make(settings: settings, store: store) { [weak self] in

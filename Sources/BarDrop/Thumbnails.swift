@@ -77,10 +77,26 @@ enum Thumbnails {
     /// zeichnet sich daraufhin neu, auch wenn sie gerade keinen Fokus hat.
     static let didChange = Notification.Name("BarDropThumbnailDidChange")
 
-    /// Dateien, für die Quick Look ausdrücklich kein Vorschaubild erzeugen kann (z. B. Links
-    /// als .webloc). Der Schlüssel enthält das Änderungsdatum: Ändert sich die Datei, wird
-    /// es erneut versucht. Ohne diese Liste fragte jede neue Kachel mehrmals vergeblich nach.
-    private static var unavailable = Set<String>()
+    /// Dateien, für die Quick Look kein Vorschaubild erzeugen kann (z. B. Links als .webloc,
+    /// Programme, Disk-Images), und bis wann das gilt. Der Schlüssel enthält das
+    /// Änderungsdatum: Ändert sich die Datei, wird es erneut versucht. Ohne diese Liste
+    /// fragte jede Kachel bei jedem Erscheinen siebenmal vergeblich nach (im Diagnoseprotokoll
+    /// dieselbe Datei rund 350-mal), und das bremste Öffnen und Scrollen.
+    private static var unavailable: [String: Date] = [:]
+    /// „Keine Vorschau für Cloud-Datei“: Wird die Datei geladen, gibt es eins, darum nicht für immer
+    private static let cloudRetry: TimeInterval = 10 * 60
+
+    private static func isUnavailable(_ key: String) -> Bool {
+        guard let until = unavailable[key] else { return false }
+        if until > Date() { return true }
+        unavailable.removeValue(forKey: key)
+        return false
+    }
+
+    /// Quick Look liefert für diese Datei gerade kein Vorschaubild (Hauptthread)
+    static func isUnavailable(_ url: URL, size: CGFloat) -> Bool {
+        isUnavailable(key(url, size: size))
+    }
 
     static func load(_ url: URL, size: CGFloat, completion: @escaping (NSImage?) -> Void) {
         let k = key(url, size: size)
@@ -88,7 +104,7 @@ enum Thumbnails {
             completion(img)
             return
         }
-        if unavailable.contains(k) {
+        if isUnavailable(k) {
             completion(nil)
             return
         }
@@ -129,10 +145,16 @@ enum Thumbnails {
                     }
                 }
                 // Die scharfe Stufe ist gescheitert, weil Quick Look für diese Datei keins
-                // erzeugen kann: nicht weiter fragen (generationFailed, Code 0)
+                // erzeugen kann: nicht weiter fragen. generationFailed (Code 0) gilt, bis sich
+                // die Datei ändert; noCloudThumbnail (Code 3) 10 Minuten, sie kann inzwischen
+                // geladen sein
                 if type == .thumbnail, image == nil, let error = error as NSError?,
-                   error.domain == QLThumbnailError.errorDomain, error.code == QLThumbnailError.generationFailed.rawValue {
-                    unavailable.insert(k)
+                   error.domain == QLThumbnailError.errorDomain {
+                    if error.code == QLThumbnailError.generationFailed.rawValue {
+                        unavailable[k] = .distantFuture
+                    } else if error.code == QLThumbnailError.noCloudThumbnail.rawValue {
+                        unavailable[k] = Date().addingTimeInterval(cloudRetry)
+                    }
                 }
                 // Nur echte Vorschaubilder merken. Ein bloßes Symbol kommt z. B., solange
                 // eine frisch abgelegte Datei noch geschrieben wird; dann später erneut versuchen.
@@ -208,6 +230,8 @@ struct ThumbnailView: View {
                 for delay in [0.0, 0.15, 0.3, 0.6, 1.5, 3.0, 6.0] {
                     if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
                     if Task.isCancelled { return }
+                    // Quick Look kann für diese Datei kein Bild machen: Symbol zeigen, nicht weiter fragen
+                    if Thumbnails.isUnavailable(url, size: size) { return reveal() }
                     // Nur echte Vorschaubilder übernehmen; ein bloßes Symbol von Quick Look ist
                     // bei frischen Dateien oft das weiße Standardblatt
                     _ = await Thumbnails.load(url, size: size)

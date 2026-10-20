@@ -219,7 +219,10 @@ final class EdgeController: NSObject {
         // Ablage schließen, wie im Finder
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.closeQuickLookAndShelf() }
+        ) { [weak self] _ in
+            // Erst nachdem macOS den neuen Fokus vergeben hat (Klick in die Übersicht?)
+            DispatchQueue.main.async { self?.closeQuickLookAndShelf() }
+        }
     }
 
     /// Klick neben Übersicht und Ablage: beide schließen. Klicks in anderen Apps kommen
@@ -236,6 +239,10 @@ final class EdgeController: NSObject {
 
     private func closeQuickLookAndShelf() {
         guard actions.isQuickLookVisible else { return }
+        // Klick in die Übersicht selbst (etwa um ein PDF zu blättern): Sie hat dann den
+        // Fokus, und BarDrop gilt kurz als nicht aktiv. Das ist kein Wechsel weg von BarDrop
+        let ql = QLPreviewPanel.shared()!
+        if ql.isKeyWindow || NSApp.keyWindow === ql { return }
         actions.closeQuickLook()
         if ui.level == .expanded { close() }
     }
@@ -552,7 +559,8 @@ final class EdgeController: NSObject {
     private func rememberFocus() {
         guard focusBefore == nil, !panel.isKeyWindow else { return }
         let key = NSApp.keyWindow
-        focusBefore = (NSApp.isActive, key === panel ? nil : key)
+        // Vorn war BarDrop nur, wenn es die vorderste App war (siehe AppActivation.isFrontmost)
+        focusBefore = (AppActivation.isFrontmost, key === panel ? nil : key)
     }
 
     /// Zeichnet die offene Ablage sofort neu und kurz danach noch einmal (die Änderung

@@ -255,30 +255,51 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         if ui.level == .expanded { panel?.makeKey() }
     }
 
+    /// Die Übersicht geht auf, ohne den Fokus zu nehmen: Er bleibt bei der Ablage, die
+    /// Leertaste, Pfeile und esc selbst behandelt (siehe ShelfPanel.keyDown). BarDrop wird
+    /// dafür nicht aktiviert. Laut Diagnoseprotokoll bekam die Übersicht sonst kurz den Fokus,
+    /// verlor ihn 0,4 s später, als die Aktivierung ankam, an die Ablage, und war zu.
     func quickLook(urls: [URL]) {
         guard !urls.isEmpty else { return }
         previewURLs = urls
-        // Erst warten, bis BarDrop wirklich aktiv ist, dann den Fokus setzen. Kam die
-        // Aktivierung erst nach dem Öffnen an, gab macOS den Fokus dem zuletzt aktiven
-        // Fenster von BarDrop zurück: Die Übersicht verlor ihn, Leertaste und Pfeile
-        // wirkten nicht mehr.
-        AppActivation.activateKeepingWindows(timeout: 0.25)
         panel?.makeKey()
         let ql = QLPreviewPanel.shared()!
         if QLPreviewPanel.sharedPreviewPanelExists() && ql.isVisible {
             ql.reloadData()
         } else {
             placeOnShelfScreen(ql)
-            ql.makeKeyAndOrderFront(nil)
+            ql.orderFrontRegardless()
+            // Die Ablage steuert die Übersicht (acceptsPreviewPanelControl)
+            ql.updateController()
+            ql.reloadData()
             // Quick Look stellt beim Öffnen manchmal seinen alten Ort wieder her
             DispatchQueue.main.async { [weak self] in self?.placeOnShelfScreen(ql) }
         }
-        // Sicherheitsnetz, falls die Aktivierung doch später nachwirkt
-        for delay in [0.0, 0.15, 0.4] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                if ql.isVisible && !ql.isKeyWindow && NSApp.isActive { ql.makeKey() }
-            }
+        Diagnostics.shared.record("focus", "quick look shown key=\(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "–")")
+    }
+
+    /// Pfeiltasten in der Ablage, während die Übersicht offen ist: Die Übersicht zeigt das
+    /// neu ausgewählte Objekt, wie im Finder. Zeigt sie mehrere ausgewählte Objekte,
+    /// blättern ← und → darin (true: Taste ist damit erledigt).
+    func quickLookArrow(_ keyCode: UInt16) -> Bool {
+        guard isQuickLookVisible else { return false }
+        let ql = QLPreviewPanel.shared()!
+        if quickLookPagesSelection {
+            guard keyCode == 123 || keyCode == 124, previewURLs.count > 1 else { return true }
+            let next = ql.currentPreviewItemIndex + (keyCode == 123 ? -1 : 1)
+            ql.currentPreviewItemIndex = min(max(next, 0), previewURLs.count - 1)
+            return true
         }
+        return false
+    }
+
+    /// Nach dem Bewegen der Auswahl: die Übersicht zeigt das neue Objekt
+    func quickLookFollowSelection() {
+        guard isQuickLookVisible, !quickLookPagesSelection else { return }
+        let urls = currentSelectionURLs
+        guard !urls.isEmpty, urls != previewURLs else { return }
+        previewURLs = urls
+        QLPreviewPanel.shared().reloadData()
     }
 
     /// Die Übersicht erscheint auf dem Bildschirm, auf dem gerade die Ablage ist.

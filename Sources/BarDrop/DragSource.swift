@@ -321,13 +321,30 @@ enum ShelfMenu {
     /// das erst danach erschien, sah anders durchscheinend aus als das Menü selbst.
     /// Während der Einführung keine Rechtsklickmenüs: Sie würden die Übungen stören
     static var disabled = false
+    /// Ein Eintrag des Menüs hat bewusst ein eigenes Fenster geöffnet (Einstellungen): Dann
+    /// behält dieses den Fokus, sonst bekommt ihn die Ablage zurück
+    static var openedWindow = false
 
     static func popUp(_ menu: NSMenu, with event: NSEvent, for view: NSView) {
         guard !disabled else { return }
         withoutImages(menu)
         activate()
         view.window?.makeKey()
+        openedWindow = false
         NSMenu.popUpContextMenu(menu, with: event, for: view)
+        // Nach dem Menü gab macOS den Fokus dem Hauptfenster von BarDrop, den Einstellungen,
+        // und holte sie nach vorn (Diagnoseprotokoll: „key+ Einstellungen“ gleich danach,
+        // teils erst, wenn die Aktivierung verspätet ankommt). Die Ablage, aus der das Menü
+        // kam, behält ihn, außer ein Eintrag hat bewusst ein Fenster geöffnet
+        guard let shelf = view.window else { return }
+        let reclaim = {
+            guard !ShelfMenu.openedWindow, shelf.isVisible, NSApp.modalWindow == nil,
+                  let key = NSApp.keyWindow, key !== shelf, key.level == .normal, !(key is NSPanel) else { return }
+            shelf.makeKey()
+        }
+        reclaim()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: reclaim)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: reclaim)
     }
 
     /// Rechtsklickmenüs zeigen keine Symbole vor den Einträgen, auch nicht in Untermenüs
