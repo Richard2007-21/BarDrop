@@ -33,7 +33,7 @@ struct GeneralSettings: View {
                           options: AppLanguage.allCases.map { ($0, $0.title) })
             }
 
-            SettingsSection(L("Feedback", "Rückmeldung")) {
+            SettingsSection(L("Feedback", "Feedback")) {
                 ToggleRow(L("Haptic feedback", "Haptisches Feedback"),
                           isOn: $settings.hapticsEnabled)
             }
@@ -418,7 +418,7 @@ struct ItemSettings: View {
 
     var body: some View {
         SettingsPage {
-            SettingsSection(L("Order", "Anordnung")) {
+            SettingsSection(L("Arrangement", "Anordnung")) {
                 PickerRow(L("Group into a stack", "Stapel bilden"),
                           info: L("When this many items are dropped at once, they become a stack. You can also select several items and right-click “Group as Stack”. Click a stack to open it.",
                                   "Werden so viele Objekte auf einmal abgelegt, entsteht ein Stapel. Du kannst auch mehrere Objekte auswählen und per Rechtsklick „Als Stapel zusammenfassen“ wählen. Ein Klick öffnet einen Stapel."),
@@ -430,7 +430,7 @@ struct ItemSettings: View {
                           isOn: $settings.reopenWhereLeft)
             }
 
-            SettingsSection(L("Using items", "Verwenden"), info: afterUseNote) {
+            SettingsSection(L("Using items", "Objekte verwenden"), info: afterUseNote) {
                 PickerRow(L("After use", "Nach dem Verwenden"), selection: afterUse,
                           options: AfterUse.allCases.map { ($0, $0.title) })
                 ToggleRow(L("Only copy when dragging out", "Beim Herausziehen nur kopieren"), isOn: $settings.dragOutCopyOnly)
@@ -443,7 +443,7 @@ struct ItemSettings: View {
 
             SettingsSection(L("Storage", "Speichern"),
                             info: L("Images from the web, text, links and files from browsers or other apps are always stored in BarDrop. WebP, AVIF and HEIC can be saved as PNG or JPEG.",
-                                    "Bilder aus dem Web, Texte, Links und Dateien aus Browsern oder anderen Apps werden immer in BarDrop gespeichert. WebP, AVIF und HEIC auf Wunsch als PNG oder JPEG.")) {
+                                    "Bilder aus dem Web, Texte, Links und Dateien aus Browsern oder anderen Apps werden immer in BarDrop gespeichert. WebP, AVIF und HEIC lassen sich als PNG oder JPEG speichern.")) {
                 PickerRow(L("Files from the Finder", "Dateien aus dem Finder"),
                           info: L("Use original: The shelf points to your file, so you always get the latest version when you drag it out. Keep a copy: The shelf stores its own copy. It stays as it was when you dropped it, even if you change or delete the original.",
                                   "Original verwenden: Die Ablage zeigt auf deine Datei. Beim Herausziehen bekommst du immer die aktuelle Fassung. Kopie behalten: Die Ablage speichert eine eigene Kopie. Sie bleibt so, wie sie beim Ablegen war, auch wenn du das Original änderst oder löschst."),
@@ -454,8 +454,8 @@ struct ItemSettings: View {
             }
 
             SettingsSection(L("Cleanup", "Aufräumen"),
-                            info: L("Removing an item (⌫) never deletes a file from the Finder. Copies, images, links and text that only exist in BarDrop are deleted 15 minutes after you drag them out, use them in an action or they are removed automatically, and otherwise once removing them can no longer be undone with ⌘Z. Move to Trash (⌘⌫) puts files in the Trash; ⌘Z puts them back.",
-                                    "Entfernen (⌫) löscht nie eine Datei aus dem Finder. Kopien, Bilder, Links und Texte, die nur in BarDrop liegen, werden 15 Minuten nach dem Herausziehen, einer Aktion oder dem automatischen Entfernen gelöscht, sonst sobald sich das Entfernen nicht mehr mit ⌘Z widerrufen lässt. „In den Papierkorb legen“ (⌘⌫) legt Dateien in den Papierkorb, ⌘Z legt sie zurück.")) {
+                            info: L("Removing an item (⌫) never deletes a file from the Finder. Copies, images, links and text that only exist in BarDrop are deleted 15 minutes after you drag them out, use them in an action or they’re removed automatically. Otherwise they’re deleted once removing them can no longer be undone with ⌘Z. Move to Trash (⌘⌫) puts files in the Trash; ⌘Z puts them back.",
+                                    "Entfernen (⌫) löscht nie eine Datei aus dem Finder. Kopien, Bilder, Links und Texte, die nur in BarDrop liegen, werden 15 Minuten nach dem Herausziehen, einer Aktion oder dem automatischen Entfernen gelöscht. Sonst werden sie gelöscht, sobald sich das Entfernen nicht mehr mit ⌘Z widerrufen lässt. „In den Papierkorb legen“ (⌘⌫) legt Dateien in den Papierkorb, ⌘Z legt sie zurück.")) {
                 PickerRow(L("Remove automatically", "Automatisch entfernen"), selection: autoRemove,
                           options: AutoRemoveOption.allCases.map { ($0, $0.title) })
                 SettingsRow(L("Remove all items", "Alle Objekte entfernen")) {
@@ -483,7 +483,7 @@ private enum ActionLabelMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .all: return L("All", "Alle")
-        case .folders: return L("Folders Only", "Nur Ordner")
+        case .folders: return L("Folders only", "Nur Ordner")
         case .none: return L("None", "Keine")
         }
     }

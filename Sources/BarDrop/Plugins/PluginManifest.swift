@@ -75,7 +75,7 @@ enum PluginPermission: String, Codable, CaseIterable, Identifiable {
             return L("It can load web pages and files.", "Es kann Webseiten und Dateien laden.")
         case .run:
             return L("This gives it full access to your Mac. Only allow plugins you trust.",
-                     "Damit hat es vollen Zugriff auf deinen Mac. Erlaube das nur Plugins, denen du vertraust.")
+                     "Damit hat es vollen Zugriff auf deinen Mac. Erlaub das nur Plugins, denen du vertraust.")
         case .clipboard:
             return L("It can put text on the clipboard.", "Es kann Text in die Zwischenablage legen.")
         }
@@ -85,7 +85,7 @@ enum PluginPermission: String, Codable, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .network: return L("Internet access", "Zugriff aufs Internet")
-        case .run: return L("Run programs (full access to your Mac)", "Programme ausführen (voller Zugriff auf den Mac)")
+        case .run: return L("Run programs (full access to your Mac)", "Programme ausführen (voller Zugriff auf deinen Mac)")
         case .clipboard: return L("Clipboard", "Zwischenablage")
         }
     }
@@ -461,8 +461,8 @@ extension PluginManifest.ValidationError {
         case .invalidPattern(let p):
             return L("The plugin has an invalid link pattern: \(p)", "Das Plugin hat ein ungültiges Link-Muster: \(p)")
         case .unknownPermission(let p):
-            return L("The plugin asks for “\(p)”, which this version of BarDrop doesn’t know.",
-                     "Das Plugin verlangt „\(p)“, das diese Version von BarDrop nicht kennt.")
+            return L("The plugin asks for the permission “\(p)”, which this version of BarDrop doesn’t know.",
+                     "Das Plugin verlangt das Recht „\(p)“, das diese Version von BarDrop nicht kennt.")
         case .insecureToolURL(let t):
             return L("The program “\(t)” isn’t loaded over a secure connection.",
                      "Das Programm „\(t)“ wird nicht über eine sichere Verbindung geladen.")

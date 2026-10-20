@@ -77,7 +77,7 @@ enum PluginRunError: Error, Equatable {
 
     var message: String {
         switch self {
-        case .cancelled: return L("Cancelled", "Abgebrochen")
+        case .cancelled: return L("Canceled", "Abgebrochen")
         case .script(let text): return text
         case .permissionDenied(let p): return L("Not allowed: \(p.title)", "Nicht erlaubt: \(p.title)")
         }
@@ -330,7 +330,7 @@ final class PluginRuntime {
         let writeFile: @convention(block) (JSValue, JSValue) -> JSValue = { [weak self] name, contents in
             guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
             guard name.isString, !contents.isUndefined, !contents.isNull else {
-                ctx.exception = JSValue(newErrorFromMessage: L("writeFile needs a name and a text.", "writeFile braucht einen Namen und einen Text."), in: ctx)
+                ctx.exception = JSValue(newErrorFromMessage: L("writeFile needs a name and some text.", "writeFile braucht einen Namen und einen Text."), in: ctx)
                 return JSValue(undefinedIn: ctx)
             }
             let target = self.newOutputURL(name.toString())
@@ -633,7 +633,7 @@ final class PluginRuntime {
             // Muss erst geladen werden: am Platzhalter zeigen, was gerade passiert
             let loading = tools.installed(tool) == nil
             if loading {
-                DispatchQueue.main.async { self.job.report(nil, label: L("Loading \(tool.name)", "Lädt \(tool.name)"), force: true) }
+                DispatchQueue.main.async { self.job.report(nil, label: L("Downloading \(tool.name)", "Lädt \(tool.name)"), force: true) }
             }
             defer {
                 if loading { DispatchQueue.main.async { self.job.report(nil, label: "", force: true) } }
@@ -652,7 +652,7 @@ final class PluginRuntime {
                 return allowed
             }, cancelled: { self.isCancelled }, progress: { fraction in
                 DispatchQueue.main.async {
-                    self.job.report(fraction, label: L("Loading \(tool.name) \(Int(fraction * 100))%", "Lädt \(tool.name) \(Int(fraction * 100)) %"))
+                    self.job.report(fraction, label: L("Downloading \(tool.name) \(Int(fraction * 100))%", "Lädt \(tool.name) \(Int(fraction * 100)) %"))
                 }
             })
         }
@@ -722,7 +722,7 @@ final class PluginRuntime {
         lock.lock()
         // Auch nach dem Ende nichts mehr starten: Ein Programm, auf das das Skript nicht
         // gewartet hat, liefe sonst unbeobachtet weiter
-        guard !_cancelled, completion != nil else { lock.unlock(); return reject(L("Cancelled", "Abgebrochen")) }
+        guard !_cancelled, completion != nil else { lock.unlock(); return reject(L("Canceled", "Abgebrochen")) }
         // Starten und Eintragen unter der Sperre: Ein gleichzeitiges Ende sieht das
         // Programm dann sicher und beendet es mit
         do {

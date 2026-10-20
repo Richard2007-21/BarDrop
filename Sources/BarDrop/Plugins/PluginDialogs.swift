@@ -77,7 +77,7 @@ enum PluginDialogs {
                                         : L("Allow “\(name)”?", "„\(name)“ erlauben?")
         var text: [String] = []
         if let consent { text.append(consent.text) }
-        if !onlyConsent { text.append(L("Only allow plugins you trust.", "Erlaube nur Plugins, denen du vertraust.")) }
+        if !onlyConsent { text.append(L("Only allow plugins you trust.", "Erlaub nur Plugins, denen du vertraust.")) }
         alert.informativeText = text.joined(separator: "\n\n")
         alert.accessoryView = grantList(PluginGrant.rows(permissions: permissions, tools: tools))
         alert.addButton(withTitle: onlyConsent ? L("Agree", "Zustimmen") : L("Allow", "Erlauben"))
@@ -194,7 +194,7 @@ enum PluginImporter {
             }
             if let description = manifest.description?.text, !description.isEmpty { lines.append(description) }
             lines.append(L("Not from the BarDrop catalog. Only install plugins from people you trust.",
-                           "Nicht aus dem Katalog von BarDrop. Installiere nur Plugins von Menschen, denen du vertraust."))
+                           "Nicht aus dem Katalog von BarDrop. Installier nur Plugins von Menschen, denen du vertraust."))
             alert.informativeText = lines.joined(separator: "\n\n")
             alert.accessoryView = PluginDialogs.grantList(PluginGrant.rows(
                 permissions: manifest.allPermissions, tools: manifest.tools ?? [], otherFiles: otherFiles(in: unpacked)))

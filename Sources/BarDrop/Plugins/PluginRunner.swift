@@ -204,7 +204,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         case .failure(.cancelled):
             PluginLog.shared.record(job.plugin.id, "abbruch", "abgebrochen")
             removeJob(job)
-            actions?.announce(L("Cancelled", "Abgebrochen"), duration: 1.5)
+            actions?.announce(L("Canceled", "Abgebrochen"), duration: 1.5)
         case .failure(let error):
             PluginLog.shared.record(job.plugin.id, "fehler", error.message)
             manager.lastErrors[job.plugin.id] = String(error.message.prefix(600))

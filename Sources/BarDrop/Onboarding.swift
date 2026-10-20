@@ -971,7 +971,7 @@ private struct DropPage: View {
     var body: some View {
         PresentationPage(title: L("Drop", "Ablegen"),
                          text: L("Drag files, images or text to the \(edgeWord(settings)) edge of your screen and let go. The shelf keeps them for you.",
-                                 "Zieh etwas an den \(edgeWord(settings)) Rand deines Bildschirms. Die Ablage öffnet sich, und du lässt los.")) {
+                                 "Zieh Dateien, Bilder oder Text an den \(edgeWord(settings)) Rand deines Bildschirms und lass los. Die Ablage hebt sie für dich auf.")) {
             ShelfStage(scene: .drop)
         } practice: {
             TaskCard(done: model.stepDone,
@@ -1009,7 +1009,7 @@ private struct RetrievePage: View {
                         : L("Drag the photo from the shelf onto an action at the bottom.",
                             "Zieh das Foto aus der Ablage auf eine Aktion unten."),
                      confirmation: hasTrash ? L("In the Trash. ⌘Z brings it back.", "Im Papierkorb. ⌘Z holt es zurück.")
-                                            : L("Done. Actions work with any item.", "Erledigt. Aktionen gehen mit jedem Objekt.")) {
+                                            : L("Done. Actions work with any item.", "Erledigt. Aktionen funktionieren mit jedem Objekt.")) {
                 Image(nsImage: NSImage(named: hasTrash ? (trash.isFull ? NSImage.trashFullName : NSImage.trashEmptyName)
                                                        : NSImage.folderName) ?? NSImage())
                     .resizable()
@@ -1030,7 +1030,7 @@ private struct ShortcutPage: View {
     var body: some View {
         PresentationPage(title: L("Open from Anywhere", "Von überall öffnen"),
                          text: L("The shortcut opens the shelf wherever you are. Press it again to close it. You can change it in Settings → Keyboard.",
-                                 "Der Kurzbefehl öffnet die Ablage, egal wo du bist. Noch einmal, und sie geht wieder zu. Ändern kannst du ihn unter Einstellungen → Tastatur.")) {
+                                 "Der Kurzbefehl öffnet die Ablage, egal wo du bist. Noch einmal drücken schließt sie wieder. Ändern kannst du ihn unter Einstellungen → Tastatur.")) {
             ShelfStage(scene: .shortcut)
         } practice: {
             TaskCard(done: model.stepDone,

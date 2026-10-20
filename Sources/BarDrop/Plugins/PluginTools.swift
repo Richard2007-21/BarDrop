@@ -33,9 +33,9 @@ final class PluginTools {
 
         var message: String {
             switch self {
-            case .declined: return L("The program wasn’t loaded.", "Das Programm wurde nicht geladen.")
-            case .download(let text): return L("Loading the program didn’t work: \(text)", "Das Programm ließ sich nicht laden: \(text)")
-            case .checksum: return L("The loaded program didn’t match its checksum and was deleted.",
+            case .declined: return L("The program wasn’t downloaded.", "Das Programm wurde nicht geladen.")
+            case .download(let text): return L("Downloading the program didn’t work: \(text)", "Das Programm ließ sich nicht laden: \(text)")
+            case .checksum: return L("The downloaded program didn’t match its checksum and was deleted.",
                                      "Das geladene Programm passte nicht zu seiner Prüfsumme und wurde gelöscht.")
             }
         }

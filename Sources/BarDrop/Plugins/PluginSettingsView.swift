@@ -20,7 +20,7 @@ struct PluginSettings: View {
     var body: some View {
         SettingsPage {
             SettingsSection(note: L("Plugins add their own entries to the right-click menu and the action bar, or run when you drop matching items. BarDrop doesn’t come with any plugin. When you turn this on, BarDrop loads the standard plugins from its catalog; they stay off until you turn them on.",
-                                    "Plugins ergänzen eigene Einträge im Rechtsklick und in der Aktionsleiste oder laufen beim Ablegen passender Objekte. BarDrop bringt selbst kein Plugin mit. Beim Einschalten lädt BarDrop die Standard-Plugins aus seinem Katalog; sie bleiben aus, bis du sie einschaltest.")) {
+                                    "Plugins ergänzen eigene Einträge im Rechtsklick-Menü und in der Aktionsleiste oder laufen beim Ablegen passender Objekte. BarDrop bringt selbst kein Plugin mit. Beim Einschalten lädt BarDrop die Standard-Plugins aus seinem Katalog; sie bleiben aus, bis du sie einschaltest.")) {
                 ToggleRow(L("Use plugins", "Plugins verwenden"), isOn: $settings.pluginsEnabled)
             }
 
@@ -30,8 +30,8 @@ struct PluginSettings: View {
                 AddListRow(title: L("Import Plugin", "Plugin importieren"), frame: $importFrame) {
                     PluginImporter.chooseAndImport()
                 }
-                SectionNote(L("You can also double-click a .bdrop file. Plugins that aren’t from the catalog show a warning and their script first.",
-                              "Du kannst auch eine .bdrop-Datei doppelklicken. Plugins, die nicht aus dem Katalog stammen, zeigen vorher eine Warnung und ihr Skript."))
+                SectionNote(L("You can also double-click a .bdrop file. Plugins that aren’t from the catalog show a warning first, and you can look at their script.",
+                              "Du kannst auch eine .bdrop-Datei doppelklicken. Plugins, die nicht aus dem Katalog stammen, zeigen vorher eine Warnung, und du kannst dir ihr Skript ansehen."))
                     .padding(.horizontal, 8)
 
                 SettingsSection(L("Log", "Protokoll"),
@@ -82,7 +82,7 @@ struct PluginSettings: View {
                             .frame(width: 26)
                         Text(manager.syncFailed
                              ? L("The catalog couldn’t be loaded. Check your internet connection.",
-                                 "Der Katalog ließ sich nicht laden. Prüf die Internetverbindung.")
+                                 "Der Katalog ließ sich nicht laden. Prüf deine Internetverbindung.")
                              : L("No plugins installed yet.", "Noch keine Plugins installiert."))
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
