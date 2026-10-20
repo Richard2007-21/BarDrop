@@ -318,12 +318,14 @@ final class AppSettings: ObservableObject {
     /// Eingeschränkter Bereich: mittlere Hälfte statt mittleres Drittel.
     @Published var adaptiveZoneHalf: Bool { didSet { defaults.set(adaptiveZoneHalf, forKey: Key.adaptiveZoneHalf) } }
 
-    /// „Am Zeiger“: Wie viel vom Rand reagiert, mittig, von 10 % bis zum ganzen Rand (1).
-    /// Ersetzt „nur mittlere Hälfte“ (früher `adaptiveMiddleThird` und `adaptiveZoneHalf`).
+    /// „Am Zeiger“: Wie viel vom Rand reagiert, mittig, in Zwölfteln vom kleinsten Stück bis
+    /// zum ganzen Rand (1). Ersetzt „nur mittlere Hälfte“ (früher `adaptiveMiddleThird` und
+    /// `adaptiveZoneHalf`).
     @Published var adaptiveZone: Double { didSet { defaults.set(adaptiveZone, forKey: Key.adaptiveZone) } }
-    static let adaptiveZoneRange: ClosedRange<Double> = 0.1...1
-    /// Standard für alle, die den Bereich nie eingestellt haben: die mittlere Hälfte
-    static let defaultAdaptiveZone = 0.5
+    static let adaptiveZoneStep = 1.0 / 12
+    static let adaptiveZoneRange: ClosedRange<Double> = adaptiveZoneStep...1
+    /// Standard für alle, die die Lage nie eingestellt haben: zwei Drittel in der Mitte
+    static let defaultAdaptiveZone = 2.0 / 3
 
     /// Anteil der Randhöhe, in dem die adaptive Ablage reagiert (mittig); nil = ganzer Rand.
     var adaptiveZoneFraction: CGFloat? {
@@ -586,9 +588,16 @@ final class AppSettings: ObservableObject {
         if let stored = defaults.object(forKey: Key.adaptiveZone) as? Double {
             adaptiveZone = min(max(stored, Self.adaptiveZoneRange.lowerBound), Self.adaptiveZoneRange.upperBound)
         } else {
-            // Aus den gespeicherten Werten lesen: Eigenschaften dürfen hier noch nicht
-            // gelesen werden, solange nicht alle gesetzt sind
-            adaptiveZone = defaults.bool(forKey: Key.adaptiveMiddleThird) ? Self.defaultAdaptiveZone : 1
+            // Wie bisher selbst eingestellt: „nur mittlere Hälfte“ bleibt die Hälfte, „ganzer
+            // Rand“ der ganze Rand. Nie eingestellt: der neue Standard, zwei Drittel. Im eigenen
+            // Bereich nachsehen, object(forKey:) sähe auch den registrierten Standard. (Hier
+            // dürfen noch keine Eigenschaften gelesen werden, daher direkt aus den Werten.)
+            let own = Bundle.main.bundleIdentifier.flatMap { UserDefaults.standard.persistentDomain(forName: $0) } ?? [:]
+            switch own[Key.adaptiveMiddleThird] as? Bool {
+            case true?: adaptiveZone = 0.5
+            case false?: adaptiveZone = 1
+            case nil: adaptiveZone = Self.defaultAdaptiveZone
+            }
         }
         displayMode = DisplayMode(rawValue: defaults.string(forKey: Key.displayMode) ?? "") ?? ShelfDefaults.displayMode
         shelfWidth = defaults.double(forKey: Key.shelfWidth)

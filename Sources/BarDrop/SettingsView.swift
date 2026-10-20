@@ -187,7 +187,8 @@ struct OpeningSettings: View {
                 if settings.adaptivePosition {
                     // Wie viel vom Rand reagiert, mittig: ein kleines Stück bis der ganze Rand
                     SliderRow(L("Area along the edge", "Bereich am Rand"), value: $settings.adaptiveZone,
-                              range: AppSettings.adaptiveZoneRange, step: 0.1, format: SliderRow.percent)
+                              range: AppSettings.adaptiveZoneRange, step: AppSettings.adaptiveZoneStep,
+                              format: SliderRow.percent)
                 } else {
                     SliderRow(L("Spot along the edge", "Stelle am Rand"), value: $settings.verticalPosition, range: 0...1, step: 0.05,
                               format: SliderRow.percent)
