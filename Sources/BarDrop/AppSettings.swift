@@ -586,7 +586,9 @@ final class AppSettings: ObservableObject {
         if let stored = defaults.object(forKey: Key.adaptiveZone) as? Double {
             adaptiveZone = min(max(stored, Self.adaptiveZoneRange.lowerBound), Self.adaptiveZoneRange.upperBound)
         } else {
-            adaptiveZone = adaptiveMiddleThird ? Self.defaultAdaptiveZone : 1
+            // Aus den gespeicherten Werten lesen: Eigenschaften dürfen hier noch nicht
+            // gelesen werden, solange nicht alle gesetzt sind
+            adaptiveZone = defaults.bool(forKey: Key.adaptiveMiddleThird) ? Self.defaultAdaptiveZone : 1
         }
         displayMode = DisplayMode(rawValue: defaults.string(forKey: Key.displayMode) ?? "") ?? ShelfDefaults.displayMode
         shelfWidth = defaults.double(forKey: Key.shelfWidth)
@@ -618,10 +620,12 @@ final class AppSettings: ObservableObject {
         removeAfterDragOut = defaults.bool(forKey: Key.removeAfterDragOut)
         stackMultiple = defaults.bool(forKey: Key.stackMultiple)
         stackThreshold = min(max(defaults.integer(forKey: Key.stackThreshold), 2), 10)
-        keepAfterAction = defaults.bool(forKey: Key.keepAfterAction)
         // „Nach Aktionen entfernen“ gibt es nicht mehr: Wer es gewählt hatte (Herausgezogenes
-        // bleibt), bekommt die nächste Wahl, „In der Ablage behalten“
-        if !removeAfterDragOut && !keepAfterAction { keepAfterAction = true }
+        // bleibt), bekommt die nächste Wahl, „In der Ablage behalten“. Aus den gespeicherten
+        // Werten gelesen, nicht aus den Eigenschaften (die sind hier noch nicht alle gesetzt)
+        let storedRemove = defaults.bool(forKey: Key.removeAfterDragOut)
+        let storedKeep = defaults.bool(forKey: Key.keepAfterAction)
+        keepAfterAction = storedKeep || !storedRemove
         animationStyle = AnimationStyle(rawValue: defaults.string(forKey: Key.animationStyle) ?? "") ?? .standard
         openMode = OpenMode(rawValue: defaults.string(forKey: Key.openMode) ?? "") ?? .automatic
         convertWebImages = defaults.bool(forKey: Key.convertWebImages)
