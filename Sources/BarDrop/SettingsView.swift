@@ -207,8 +207,10 @@ struct OpeningSettings: View {
                           info: L("The shelf only opens when the pointer or a dragged file reaches the strip itself, not the area around it.",
                                   "Die Ablage öffnet sich erst, wenn der Zeiger oder eine gezogene Datei den Streifen selbst erreicht, nicht schon den Bereich drumherum."),
                           isOn: $settings.exactPointer)
+                // Als Menü: Für einen Umschalter sind die Texte zu lang, er drückte den Titel
+                // auf mehrere Zeilen zusammen
                 PickerRow(L("While dragging files", "Beim Ziehen von Dateien"), selection: $settings.dragReveal,
-                          options: DragReveal.selectable.map { ($0, $0.title) })
+                          options: DragReveal.selectable.map { ($0, $0.title) }, menu: true)
                 ToggleRow(L("Open where you left off", "An letzter Stelle öffnen"),
                           info: L("The shelf opens at the same scroll position and in the stack you were last in.",
                                   "Die Ablage öffnet an derselben Scrollposition und in dem Stapel, in dem du zuletzt warst."),
