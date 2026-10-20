@@ -842,13 +842,11 @@ final class EdgeController: NSObject {
         ui.expandedBody = expandedBody
         let quickLookVisible = actions.isQuickLookVisible
         let locked = ui.isLocked || quickLookVisible
-        // Übersicht geschlossen: Die Ablage bleibt offen wie nach dem Kurzbefehl. Der Zeiger
-        // steht dann meist dort, wo die Übersicht war, außerhalb der Ablage; sonst schloss sie
-        // nach 0,3 s und gab den Fokus ab, und die nächste Leertaste ging an das Fenster
-        // dahinter. Zu geht sie wie nach dem Kurzbefehl: einmal hinein- und hinausfahren, esc.
+        // Übersicht geschlossen: Steht der Zeiger außerhalb der Ablage, schließt sie wie sonst
+        // nach kurzer Zeit. Die Frist beginnt erst jetzt, so trifft eine schnell folgende
+        // Leertaste noch die Ablage und öffnet die Übersicht wieder.
         if quickLookWasVisible && !quickLookVisible && ui.level == .expanded {
-            logic.manualOpen = true
-            logic.manualHovered = expandedBody.insetBy(dx: -18, dy: -18).contains(loc)
+            logic.outsideSince = nil
         }
         quickLookWasVisible = quickLookVisible
 
