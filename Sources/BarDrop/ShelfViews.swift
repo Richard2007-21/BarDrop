@@ -189,8 +189,8 @@ struct ShelfContent: View {
     /// Platzhalter erst nach einem Augenblick zeigen: Dateien aus dem Finder sind sofort
     /// da, für sie soll nichts aufblitzen
     @State private var showPending = false
-    /// Gleich nach dem Öffnen noch unscharf, dann scharf (nur Kopf und Kacheln, die Leiste
-    /// bleibt scharf und deckt ab)
+    /// Gleich nach dem Öffnen noch unscharf, dann scharf: Kopf, Kacheln (im Scrollbereich)
+    /// und Aktionsleiste samt ihrem Schwarz, je für sich
     @State private var sharpened = false
 
     private var openBlur: CGFloat {
@@ -358,6 +358,11 @@ struct ShelfContent: View {
                     .padding(.bottom, 8)
                     .padding(.top, 2)
                     .background { barBackdrop }
+                    // Beim Öffnen genauso unscharf wie Kopf und Kacheln, samt Schwarz dahinter:
+                    // Scharf stand die Leiste kurz als harter schwarzer Streifen da, bevor die
+                    // Ablage richtig zu sehen war. Das Schwarz ist von Anfang an voll da und
+                    // deckt die Kacheln darunter ab
+                    .blur(radius: openBlur)
                     .background(
                         GeometryReader { g in
                             Color.clear.preference(key: BarHeightKey.self, value: g.size.height)
