@@ -82,7 +82,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * Files, folders, images from the web (WebP, AVIF and HEIC can be saved as PNG or JPEG), links and text
 * New screenshots can land in the shelf automatically
 * Convert with a right-click: images, PDF pages, text documents, audio and video, using only what macOS includes
-* Newest or oldest first, stacks, selection like in the Finder
+* Newest first, stacks, selection like in the Finder
 * Files from the Finder as the original or as a copy of their own
 * Removed something by accident, or moved it to the Trash? `⌘Z` brings it back
 * Moved or renamed files stay in the shelf, iCloud files are downloaded when needed, files from disconnected drives stay grayed out

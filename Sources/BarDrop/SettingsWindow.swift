@@ -264,17 +264,17 @@ private struct SidebarRow: View {
     }
 }
 
-/// Schwarze Kapsel mit weißem „BETA“, mittig zur Zeile
+/// Ruhige graue Kapsel mit „BETA“, mittig zur Zeile (kein harter Kontrast)
 struct BetaBadge: View {
     var body: some View {
         Text("BETA")
             .font(.system(size: 9, weight: .bold))
             .tracking(0.4)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.primary.opacity(0.62))
             .padding(.horizontal, 5.5)
             .padding(.vertical, 2)
-            .background(Capsule().fill(Color.black))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
+            .background(Capsule().fill(Color.primary.opacity(0.10)))
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
             .accessibilityLabel("Beta")
     }
 }

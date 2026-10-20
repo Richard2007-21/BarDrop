@@ -638,7 +638,9 @@ final class AppSettings: ObservableObject {
         hotKeyCode = defaults.integer(forKey: Key.hotKeyCode)
         hotKeyModifiers = defaults.integer(forKey: Key.hotKeyModifiers)
         hotKeyLabel = defaults.string(forKey: Key.hotKeyLabel) ?? Self.defaultHotKey.label
-        sortOrder = SortOrder(rawValue: defaults.string(forKey: Key.sortOrder) ?? "") ?? .newestFirst
+        // Die Ablage zeigt immer das Neueste zuerst; die Einstellung dafür gibt es nicht mehr
+        sortOrder = .newestFirst
+        defaults.removeObject(forKey: Key.sortOrder)
 
         // Werte aus älteren Versionen (Woche, 30 Tage) gibt es nicht mehr
         let stored = defaults.double(forKey: Key.autoRemoveAfter)

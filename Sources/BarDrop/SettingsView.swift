@@ -419,8 +419,6 @@ struct ItemSettings: View {
     var body: some View {
         SettingsPage {
             SettingsSection(L("Order", "Anordnung")) {
-                PickerRow(L("Sort order", "Reihenfolge"), selection: $settings.sortOrder,
-                          options: SortOrder.allCases.map { ($0, $0.title) })
                 PickerRow(L("Group into a stack", "Stapel bilden"),
                           info: L("When this many items are dropped at once, they become a stack. You can also select several items and right-click “Group as Stack”. Click a stack to open it.",
                                   "Werden so viele Objekte auf einmal abgelegt, entsteht ein Stapel. Du kannst auch mehrere Objekte auswählen und per Rechtsklick „Als Stapel zusammenfassen“ wählen. Ein Klick öffnet einen Stapel."),
