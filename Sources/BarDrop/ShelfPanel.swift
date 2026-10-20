@@ -46,7 +46,10 @@ final class ShelfPanel: NSPanel {
         }
         super.sendEvent(event)
     }
-    override var canBecomeMain: Bool { false }
+    /// Nur während die Übersicht offen ist, wird die Ablage Hauptfenster: Dort sucht die
+    /// Übersicht ihre Steuerung, während sie selbst den Fokus hat (wie ein Finder-Fenster)
+    var allowsMain = false
+    override var canBecomeMain: Bool { allowsMain }
 
     override func becomeKey() {
         super.becomeKey()
@@ -150,15 +153,17 @@ final class ShelfPanel: NSPanel {
     }
 
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
-        // Nur leeren, wenn die Übersicht zu ist: Sie läuft ohne Fokus und bekommt ihre Quelle
-        // direkt (ShelfActions.quickLook); sonst stünde dort „Keine Objekte ausgewählt“
-        if !panel.isVisible && actions?.isQuickLookVisible != true {
+        // Wie von Apple vorgesehen leeren, aber nicht, solange sie noch offen sein soll: sonst
+        // stünde dort „Keine Objekte ausgewählt“
+        if actions?.quickLookRequested != true {
             panel.dataSource = nil
             panel.delegate = nil
         }
         // Übersicht mit esc oder ihrem Knopf geschlossen: weiter in der Ablage
         DispatchQueue.main.async { [weak self] in
-            guard let self, let ui = self.actions?.ui, ui.level == .expanded,
+            // Nur wenn BarDrop vorn ist: Hat man zu einer anderen App gewechselt, bekäme
+            // die Ablage sonst deren Tasten
+            guard let self, let ui = self.actions?.ui, ui.level == .expanded, AppActivation.isFrontmost,
                   self.actions?.isQuickLookVisible == false else { return }
             self.makeKey()
         }

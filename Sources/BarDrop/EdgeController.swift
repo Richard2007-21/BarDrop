@@ -220,8 +220,13 @@ final class EdgeController: NSObject {
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            // Erst nachdem macOS den neuen Fokus vergeben hat (Klick in die Übersicht?)
-            DispatchQueue.main.async { self?.closeQuickLookAndShelf() }
+            // Erst nachdem macOS den neuen Fokus vergeben hat. Ist BarDrop danach noch die
+            // vorderste App, war es nur ein Übergang (etwa während BarDrop für die Übersicht
+            // aktiv wird) und kein Wechsel zu einer anderen App
+            DispatchQueue.main.async {
+                guard !AppActivation.isFrontmost else { return }
+                self?.closeQuickLookAndShelf()
+            }
         }
     }
 
@@ -238,12 +243,9 @@ final class EdgeController: NSObject {
     }
 
     private func closeQuickLookAndShelf() {
-        guard actions.isQuickLookVisible else { return }
-        // Klick in die Übersicht selbst (etwa um ein PDF zu blättern): Sie hat dann den
-        // Fokus, und BarDrop gilt kurz als nicht aktiv. Das ist kein Wechsel weg von BarDrop
-        // Nicht `isKeyWindow` der Übersicht: Das meldet sie laut Diagnoseprotokoll auch ohne
-        // Fokus, und ein Klick in eine andere App schloss dann nichts
-        if actions.quickLookIsKey { return }
+        // Nach dem eigenen Stand: Wechselt man die App, blendet macOS die Übersicht schon
+        // selbst aus, sie ist dann nicht mehr zu sehen
+        guard actions.quickLookRequested else { return }
         actions.closeQuickLook()
         if ui.level == .expanded { close() }
     }
