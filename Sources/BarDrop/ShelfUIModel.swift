@@ -110,7 +110,10 @@ final class ShelfUIModel: ObservableObject {
     }
     @Published var notice: Notice?
 
-    var isLocked: Bool { menuOpen || sharingOpen || bandActive }
+    /// Eine Aktion wird gerade mit ⌘ in der Leiste verschoben: Die Ablage bleibt offen
+    var actionMoving = false
+
+    var isLocked: Bool { menuOpen || sharingOpen || bandActive || actionMoving }
 }
 
 /// Maße der schwarzen Form je Zustand.

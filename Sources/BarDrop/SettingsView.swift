@@ -107,7 +107,7 @@ struct KeyboardSettings: View {
                     ShortcutRow(L("Move selection", "Auswahl bewegen"), ["←", "→", "↑", "↓"])
                     ShortcutRow(L("Extend selection", "Auswahl erweitern"), ["⇧", "←"])
                     ShortcutRow(L("Back from a stack", "Zurück aus einem Stapel"), ["⌘", "↑"])
-                    ShortcutRow(L("Move an action", "Aktion verschieben"), ["⌘", L("Drag", "Ziehen")])
+                    ShortcutRow(L("Move or remove an action", "Aktion verschieben oder entfernen"), ["⌘", L("Drag", "Ziehen")])
                     ShortcutRow(L("Clear selection, then close", "Auswahl aufheben, dann schließen"), ["esc"])
                 }
             }
@@ -544,8 +544,8 @@ struct ActionSettings: View {
 
             SettingsSection(L("In the shelf", "In der Ablage")) {
                 ToggleRow(L("Pin by dragging", "Per Ziehen anheften"),
-                          info: L("Drag a folder or app over the open shelf and drop it on “Pin” at the end of the action bar. Drag an action out of the shelf to remove it.",
-                                  "Zieh einen Ordner oder eine App über die offene Ablage und lass sie auf „Anheften“ am Ende der Aktionsleiste los. Zieh eine Aktion aus der Ablage heraus, um sie zu entfernen."),
+                          info: L("Drag a folder or app over the open shelf and drop it on “Pin” at the end of the action bar. Hold ⌘ and drag an action out of the shelf to remove it.",
+                                  "Zieh einen Ordner oder eine App über die offene Ablage und lass sie auf „Anheften“ am Ende der Aktionsleiste los. Halt ⌘ gedrückt und zieh eine Aktion aus der Ablage heraus, um sie zu entfernen."),
                           isOn: $settings.pinFromShelf)
             }
         }

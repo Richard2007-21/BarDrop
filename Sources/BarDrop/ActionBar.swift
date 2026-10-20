@@ -15,32 +15,41 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     var operation: (NSDraggingInfo) -> NSDragOperation = { _ in .copy }
     /// Art der Aktion (Einführung: nur die passende Aktion nimmt etwas an)
     var kind: QuickAction.Kind?
-    /// Ziehen einer Aktion: Bild und Entfernen beim Herausziehen (nur mit „Per Ziehen
-    /// anheften“, sonst nil). Mit ⌘ lässt sie sich auch ohne das in der Leiste verschieben.
+    /// Ziehen einer Aktion (nur mit gedrückter ⌘-Taste, wie in der Menüleiste): Bild und
+    /// Entfernen beim Herausziehen (nur mit „Per Ziehen anheften“, sonst nil)
     var dragOut: (image: () -> NSImage, remove: (() -> Void)?)?
-    /// Diese Aktion (Ziel beim Verschieben mit ⌘)
+    /// Diese Aktion (Ziel beim Verschieben)
     var actionID: QuickAction.ID?
-    /// Mit ⌘ über diese Aktion gezogen: Die gezogene Aktion nimmt ihren Platz ein
+    /// Eine andere Aktion wurde über diese gezogen: Die gezogene nimmt ihren Platz ein
     var onReorder: (QuickAction.ID) -> Void = { _ in }
-    /// Die Aktion wird gerade herausgezogen (ihr Platz in der Leiste wird blass)
+    /// In der Leiste gezogen: wie weit das Symbol von seinem Platz weg am Zeiger hängt
+    /// (SwiftUI-Richtung, nach unten positiv); nil: zurück an seinen Platz
+    var onMove: (CGSize?) -> Void = { _ in }
+    /// Die Aktion hat sich aus der Leiste gelöst (ihr Platz bleibt leer, bis sie zurück ist)
     var onDraggingOut: (Bool) -> Void = { _ in }
     weak var ui: ShelfUIModel?
 
     private var pressed = false
     private var downEvent: NSEvent?
-    /// Fenster der Ablage beim Start des Herausziehens: außerhalb losgelassen wird entfernt
+    /// Form der Ablage beim Start: außerhalb löst sich die Aktion, dort losgelassen verschwindet sie
     private var dragStartFrame: NSRect = .zero
     /// Der Zeiger zeigt gerade die Wolke (draußen, die Aktion verschwindet beim Loslassen)
     private var showsPoof = false
-    /// Zuletzt verschoben: Danach kurz nicht noch einmal, während die Leiste sich neu ordnet
+
+    private enum DragMode { case none, inBar, detached }
+    private var mode: DragMode = .none
+    /// Zuletzt verschoben: kurz nicht noch einmal, während die Leiste sich neu ordnet
     private static var reorderedAt = Date.distantPast
+    /// Alle Aktionen der Leiste, um beim Ziehen die unter dem Zeiger zu finden
+    private static let all = NSHashTable<ActionDropNSView>.weakObjects()
 
     /// Eigener Typ, den kein anderes Ziel annimmt
     static let actionType = NSPasteboard.PasteboardType("io.github.zzuuuiii.bardrop.quickaction")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        registerForDraggedTypes(ShelfStore.acceptedTypes + [Self.actionType])
+        registerForDraggedTypes(ShelfStore.acceptedTypes)
+        Self.all.add(self)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
@@ -54,6 +63,11 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if mode == .inBar {
+            // Losgelassen in der Leiste: Das Symbol gleitet an seinen (neuen) Platz
+            endInBar()
+            return
+        }
         let inside = bounds.contains(convert(event.locationInWindow, from: nil))
         if pressed { onPress(false) }
         if pressed && inside { onClick(self) }
@@ -62,49 +76,108 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let dragOut, let down = downEvent, let window else { return }
-        let a = down.locationInWindow, b = event.locationInWindow
-        guard hypot(a.x - b.x, a.y - b.y) > 4 else { return }
-        // Ohne „Per Ziehen anheften“ nur mit ⌘ (zum Verschieben in der Leiste)
-        guard dragOut.remove != nil || down.modifierFlags.contains(.command)
-                || event.modifierFlags.contains(.command) else { return }
-        if pressed { onPress(false) }
-        pressed = false
-        downEvent = nil
+        switch mode {
+        case .detached:
+            return
+        case .inBar:
+            trackInBar(event)
+        case .none:
+            guard dragOut != nil, let down = downEvent, let window else { return }
+            let a = down.locationInWindow, b = event.locationInWindow
+            guard hypot(a.x - b.x, a.y - b.y) > 4 else { return }
+            if pressed { onPress(false) }
+            pressed = false
+            // Ohne ⌘ bleibt die Aktion, wo sie ist (und der Klick verfällt)
+            guard down.modifierFlags.contains(.command) || event.modifierFlags.contains(.command) else {
+                downEvent = nil
+                return
+            }
+            mode = .inBar
+            // An der schwarzen Form messen, nicht am Fenster (das ist wegen des Schattens größer)
+            let body = ui?.expandedBody ?? .zero
+            dragStartFrame = body.isEmpty ? window.frame : body
+            ui?.actionMoving = true
+            trackInBar(event)
+        }
+    }
 
+    /// In der Leiste: Das Symbol selbst hängt am Zeiger (kein zweites Bild). Über einer anderen
+    /// Aktion rückt es an deren Platz. Verlässt der Zeiger die Ablage, löst es sich.
+    private func trackInBar(_ event: NSEvent) {
+        guard let window else { return }
+        let screenPoint = window.convertPoint(toScreen: event.locationInWindow)
+        if dragOut?.remove != nil, !dragStartFrame.contains(screenPoint) {
+            detach(event)
+            return
+        }
+        follow(event.locationInWindow)
+        guard let me = actionID, Date().timeIntervalSince(Self.reorderedAt) > 0.2 else { return }
+        for view in Self.all.allObjects where view !== self && view.window === window && view.actionID != nil {
+            guard view.bounds.contains(view.convert(event.locationInWindow, from: nil)) else { continue }
+            Self.reorderedAt = Date()
+            view.onReorder(me)
+            // Der Platz ist gewandert: das Symbol danach wieder genau unter den Zeiger
+            DispatchQueue.main.async { [weak self] in self?.followPointer() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.followPointer() }
+            break
+        }
+    }
+
+    private func follow(_ pointInWindow: NSPoint) {
+        let p = convert(pointInWindow, from: nil)
+        onMove(CGSize(width: p.x - bounds.midX, height: -(p.y - bounds.midY)))
+    }
+
+    private func followPointer() {
+        guard mode == .inBar, let window else { return }
+        follow(window.convertPoint(fromScreen: NSEvent.mouseLocation))
+    }
+
+    private func endInBar() {
+        mode = .none
+        downEvent = nil
+        ui?.actionMoving = false
+        onMove(nil)
+    }
+
+    /// Aus der Ablage hinaus: Die Aktion löst sich mit einem spürbaren Ruck und hängt jetzt
+    /// am Zeiger; draußen losgelassen verschwindet sie, über der Ablage gleitet sie zurück.
+    private func detach(_ event: NSEvent) {
+        guard let dragOut else { return }
+        mode = .detached
+        ui?.actionMoving = false
+        onMove(nil)
+        onDraggingOut(true)
+        Haptics.drop()
         let item = NSPasteboardItem()
         item.setString("", forType: Self.actionType)
         let dragging = NSDraggingItem(pasteboardWriter: item)
         let size: CGFloat = 40
-        let point = convert(a, from: nil)
+        let point = convert(event.locationInWindow, from: nil)
         dragging.setDraggingFrame(NSRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size),
                                   contents: dragOut.image())
-        // An der schwarzen Form messen, nicht am Fenster (das ist wegen des Schattens größer)
-        let body = ui?.expandedBody ?? .zero
-        dragStartFrame = body.isEmpty ? window.frame : body
         // Wie beim Herausziehen von Objekten: Die Ablage bleibt, solange der Drag läuft
         ui?.ownDragActive = true
-        onDraggingOut(true)
-        let session = beginDraggingSession(with: [dragging], event: down, source: self)
-        session.animatesToStartingPositionsOnCancelOrFail = true
+        let session = beginDraggingSession(with: [dragging], event: event, source: self)
+        session.animatesToStartingPositionsOnCancelOrFail = false
+        NSCursor.disappearingItem.set()
+        showsPoof = true
     }
 
     // MARK: Herausziehen (Quelle)
 
     func draggingSession(_ session: NSDraggingSession,
                          sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        // Mit gedrückter ⌘-Taste meldet macOS beim Ziehen „generic“ statt „move“
-        [.move, .generic]
+        .move
     }
 
     func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
         // Draußen verschwindet die Aktion beim Loslassen, drinnen gleitet sie zurück
         let inside = dragStartFrame.contains(screenPoint)
-        let removes = !inside && dragOut?.remove != nil
-        session.animatesToStartingPositionsOnCancelOrFail = !removes
+        session.animatesToStartingPositionsOnCancelOrFail = inside
         // Wie im Finder beim Herausziehen aus der Seitenleiste: Draußen zeigt der Zeiger die
         // Wolke mit dem x, drinnen wieder den normalen Zeiger
-        if removes {
+        if !inside {
             NSCursor.disappearingItem.set()
             showsPoof = true
         } else if showsPoof {
@@ -114,6 +187,8 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        mode = .none
+        downEvent = nil
         ui?.ownDragActive = false
         onDraggingOut(false)
         if showsPoof {
@@ -132,29 +207,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
 
     private var introAllows: Bool { kind.map(IntroGate.allowsDrop(on:)) ?? true }
 
-    // MARK: Verschieben mit ⌘
-
-    /// Wird eine Aktion der Leiste gezogen (nicht ein Objekt)?
-    private static func isActionDrag(_ sender: NSDraggingInfo) -> Bool {
-        sender.draggingPasteboard.types?.contains(actionType) == true
-    }
-
-    /// Mit gedrückter ⌘-Taste über eine andere Aktion gezogen: Die gezogene Aktion rückt an
-    /// ihren Platz, die übrigen rücken weiter, wie in der Menüleiste. Ohne ⌘ passiert nichts.
-    private func reorder(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard let source = sender.draggingSource as? ActionDropNSView,
-              NSEvent.modifierFlags.contains(.command) else { return [] }
-        if let from = source.actionID, let to = actionID, from != to,
-           Date().timeIntervalSince(Self.reorderedAt) > 0.25,
-           bounds.contains(convert(sender.draggingLocation, from: nil)) {
-            Self.reorderedAt = Date()
-            onReorder(from)
-        }
-        return Self.allowed(.move, by: sender.draggingSourceOperationMask)
-    }
-
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if Self.isActionDrag(sender) { return reorder(sender) }
         ui?.holdPinCandidate()
         // Kommt ein Ordner oder eine App zuerst über einer Aktion in die Ablage (etwa weil sie
         // sich gerade unter dem Zeiger öffnet), sah die Ablage selbst ihn nie hereinkommen:
@@ -169,17 +222,12 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if Self.isActionDrag(sender) { return reorder(sender) }
         ui?.holdPinCandidate()
         guard introAllows else { return [] }
         return Self.allowed(operation(sender), by: sender.draggingSourceOperationMask)
     }
 
-    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        // Verschoben: an der neuen Stelle lassen, statt zurückzugleiten
-        if Self.isActionDrag(sender) { return sender.draggingSource is ActionDropNSView }
-        return introAllows
-    }
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { introAllows }
 
     /// Nur Vorgänge anzeigen, die die Quelle erlaubt. Verschieben ohne Erlaubnis zeigt
     /// den Zeiger ohne Zeichen, wie der Finder beim Verschieben.
@@ -190,13 +238,11 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
-        if let sender, Self.isActionDrag(sender) { return }
         onTargeted(false)
         ui?.releasePinCandidate()
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        if Self.isActionDrag(sender) { return true }
         if sender.draggingSource is DragSourceNSView, let ui {
             // Eigene Objekte: die gespeicherten Dateien verwenden, nicht die frischen
             // Kopien auf dem Drag-Pasteboard (sonst verschiebt z. B. eine Ordner-Aktion nur die Kopie)
@@ -229,6 +275,7 @@ struct ActionDropTarget: NSViewRepresentable {
     var onDraggingOut: (Bool) -> Void = { _ in }
     var actionID: QuickAction.ID? = nil
     var onReorder: (QuickAction.ID) -> Void = { _ in }
+    var onMove: (CGSize?) -> Void = { _ in }
 
     func makeNSView(context: Context) -> ActionDropNSView {
         let view = ActionDropNSView(frame: .zero)
@@ -251,6 +298,7 @@ struct ActionDropTarget: NSViewRepresentable {
         view.onDraggingOut = onDraggingOut
         view.actionID = actionID
         view.onReorder = onReorder
+        view.onMove = onMove
     }
 }
 
@@ -370,8 +418,10 @@ struct QuickActionButton: View {
     var iconSize: CGFloat = 34
 
     @State private var targeted = false
-    /// Wird gerade herausgezogen: blass an ihrem Platz, wie ein Symbol im Dock
+    /// Hat sich aus der Leiste gelöst: Ihr Platz bleibt leer, es gibt nur das Bild am Zeiger
     @State private var draggingOut = false
+    /// Mit ⌘ in der Leiste gezogen: So weit hängt das Symbol am Zeiger von seinem Platz weg
+    @State private var moveOffset: CGSize?
     /// Gerade angeklickt: kurz größer wie beim Draufziehen, ohne Fläche dahinter und ohne Impuls
     @State private var pressed = false
     @State private var pressedAt = Date.distantPast
@@ -427,8 +477,8 @@ struct QuickActionButton: View {
         return VStack(spacing: 4) {
             // Ohne Namen größer, damit die Leiste nicht leer wirkt
             QuickActionIcon(action: action, size: iconSize)
-                .scaleEffect(highlighted || pressed ? 1.1 : 1)
-                .opacity(draggingOut ? 0.3 : 1)
+                .scaleEffect(highlighted || pressed || moveOffset != nil ? 1.1 : 1)
+                .opacity(draggingOut ? 0 : 1)
             if AppSettings.shared.showActionLabels {
                 // „Nur Ordner“: die übrigen Aktionen halten den Platz frei, damit alle
                 // Symbole auf einer Höhe stehen
@@ -442,6 +492,9 @@ struct QuickActionButton: View {
                     .accessibilityHidden(!named)
             }
         }
+        // Beim Ziehen mit ⌘ hängt das Symbol samt Namen am Zeiger; die Fläche zum Ablegen
+        // (unten) bleibt an ihrem Platz, damit die Leiste weiß, wo die Aktion jetzt steht
+        .offset(moveOffset ?? .zero)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
         .background(
@@ -493,9 +546,23 @@ struct QuickActionButton: View {
                         AppSettings.shared.moveQuickAction(from, to: action.id)
                     }
                     Haptics.tap()
+                },
+                onMove: { offset in
+                    if offset == nil {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { moveOffset = nil }
+                    } else {
+                        // Genau am Zeiger, ohne Nachziehen
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) { moveOffset = offset }
+                    }
                 }
             )
         } })
+        // Das gezogene Symbol liegt über den anderen; sein Platz springt ohne Animation mit,
+        // sonst liefe es beim Umordnen kurz dem Zeiger davon
+        .zIndex(moveOffset != nil ? 1 : 0)
+        .transaction { if moveOffset != nil { $0.animation = nil } }
         .help(action.help)
     }
 }

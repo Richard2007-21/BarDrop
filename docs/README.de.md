@@ -95,7 +95,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Ordner und Papierkorb wie im Finder: auf derselben Platte verschiebt ein Ordner, auf einer anderen kopiert er (`⌥` kopiert immer, `⌘` verschiebt immer)
 * Zwei Reihen mit je bis zu fünf Aktionen; Namen bei allen Aktionen, nur bei Ordnern oder keinen
 * Der Papierkorb sieht voll oder leer aus wie der Papierkorb deines Mac
-* Auf Wunsch Ordner und Apps per Ziehen auf die Ablage anheften und Aktionen durch Herausziehen entfernen; mit gedrückter `⌘`-Taste eine Aktion an eine andere Stelle ziehen
+* Mit gedrückter `⌘`-Taste eine Aktion an eine andere Stelle ziehen, auch in die andere Reihe; auf Wunsch Ordner und Apps per Ziehen auf die Ablage anheften und Aktionen mit `⌘` herausziehen, um sie zu entfernen
 
 **Plugins** (optional, standardmäßig aus)
 * Eigene Schritte als `.bdrop`-Dateien: im Rechtsklick-Menü, in der Aktionsleiste oder automatisch beim Ablegen passender Dateitypen und Links
