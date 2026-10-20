@@ -333,7 +333,9 @@ private struct RoundedBlur: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
-        view.material = .menu
+        // Wie das Einstellungsfenster: `.menu` ist selbst fast deckend grau, darüber war von
+        // der Durchsicht nichts zu sehen
+        view.material = .underWindowBackground
         view.blendingMode = .behindWindow
         view.state = .active
         view.maskImage = Self.mask(radius)

@@ -389,7 +389,9 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         case .folder:
             guard let url = action.url, FolderBrowser.isBrowsable(url) else { return NSSound.beep() }
             if isFolderOpen, folder.root?.standardizedFileURL == url.standardizedFileURL {
-                closeFolder()           // derselbe Ordner noch einmal: wieder zur Ablage
+                // Derselbe Ordner noch einmal: Er bleibt offen. Aus einem Unterordner geht es
+                // zurück zu seiner obersten Ebene, sonst passiert nichts
+                if folder.isNested { openFolder(url) }
             } else {
                 openFolder(url)
             }

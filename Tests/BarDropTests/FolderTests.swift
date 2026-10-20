@@ -53,10 +53,22 @@ final class FolderTests: XCTestCase {
         XCTAssertEqual(Set(actions.stackFiles.map(\.url.lastPathComponent)), ["a.txt", "b.txt"])
         // Die Ablage selbst bleibt unberührt
         XCTAssertTrue(store.entries.isEmpty)
-        // Noch einmal derselbe Ordner: zurück zur Ablage
+        // Noch einmal derselbe Ordner: Er bleibt offen
         actions.click(folderAction)
-        XCTAssertFalse(actions.isFolderOpen)
-        XCTAssertFalse(actions.folder.isOpen)
+        XCTAssertTrue(actions.isFolderOpen)
+        XCTAssertEqual(actions.folder.root?.standardizedFileURL, folder.standardizedFileURL)
+    }
+
+    func testClickOnSameFolderFromSubfolderGoesToTop() {
+        let sub = folder.appendingPathComponent("Unterordner", isDirectory: true)
+        try? FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        actions.click(folderAction)
+        waitForFiles(1)
+        actions.enterFolder(sub)
+        XCTAssertTrue(actions.folder.isNested)
+        actions.click(folderAction)
+        XCTAssertTrue(actions.isFolderOpen)
+        XCTAssertFalse(actions.folder.isNested)
     }
 
     func testClickDoesNotRunActionWithSelection() {

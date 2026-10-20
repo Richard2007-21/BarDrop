@@ -82,12 +82,21 @@ final class OnboardingModel: ObservableObject {
     func complete(_ done: Step) {
         Diagnostics.shared.record("intro", "complete \(done) current=\(step)")
         guard step == done, !completed.contains(done) else { return }
-        // Beim Ablegen gab es den Impuls schon, als das Foto die Ablage erreichte
-        if done != .drop { Haptics.tap() }
+        if done == .drop {
+            // Ablegen: ohne Bestätigung gleich weiter. Erst beim Weitergehen als geschafft
+            // markieren: Sonst blitzten kurz „Weiter“ und die leere Karte auf. Den Impuls gab
+            // es schon, als das Foto die Ablage erreichte.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                guard let self, self.step == done, !self.completed.contains(done) else { return }
+                self.completed.insert(done)
+                self.advance()
+            }
+            return
+        }
+        Haptics.tap()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { _ = completed.insert(done) }
         // Der Hinweis auf ⌘Z nach dem Papierkorb braucht etwas länger zum Lesen
-        // Nach dem Ablegen ohne Bestätigung gleich weiter
-        let pause = done == .retrieve ? 3.2 : (done == .drop ? 0.5 : 1.4)
+        let pause = done == .retrieve ? 3.2 : 1.4
         DispatchQueue.main.asyncAfter(deadline: .now() + pause) { [weak self] in
             guard let self, self.step == done else { return }
             self.advance()

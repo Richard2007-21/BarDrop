@@ -650,7 +650,7 @@ final class AppSettings: ObservableObject {
         labelsOnlyFolders = defaults.bool(forKey: Key.labelsOnlyFolders)
         betaUpdates = defaults.bool(forKey: Key.betaUpdates)
         tileIconSize = min(max(defaults.double(forKey: Key.tileIconSize), 40), 96)
-        actionIconSize = min(max(defaults.double(forKey: Key.actionIconSize), 24), 48)
+        actionIconSize = min(max(defaults.double(forKey: Key.actionIconSize), 24), 54)
         autoUpdateCheck = defaults.bool(forKey: Key.autoUpdateCheck)
         pluginsEnabled = defaults.bool(forKey: Key.pluginsEnabled)
         pluginLogEnabled = defaults.bool(forKey: Key.pluginLogEnabled)

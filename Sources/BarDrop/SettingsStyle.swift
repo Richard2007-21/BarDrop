@@ -25,11 +25,11 @@ enum SettingsTheme {
                                          light: systemColor(.windowBackgroundColor, alpha: 0.8))
     static let contentBackdrop = dynamic(dark: rgb(0.192, 0.196, 0.2, backdropOpacity),
                                          light: systemColor(.windowBackgroundColor, alpha: 0.96))
-    /// Deckkraft der Karten. Sie liegen auf dem Inhalt, der selbst zu 64 % deckt: Bei 55 %
-    /// scheint durch eine Karte etwa 16 % des Schreibtischs, daneben 36 %. Sichtbar
+    /// Deckkraft der Karten. Sie liegen auf dem Inhalt, der selbst zu 64 % deckt: Bei 52 %
+    /// scheint durch eine Karte etwa 17 % des Schreibtischs, daneben 36 %. Sichtbar
     /// durchscheinend, aber deutlich weniger als der Hintergrund. (Mit 88 % waren es nur 4 %,
     /// davon war nichts zu sehen.)
-    static let cardOpacity = 0.55
+    static let cardOpacity = 0.52
     /// Auswahllisten liegen direkt über dem (unscharfen) Schreibtisch: etwas mehr Durchsicht
     /// als die Karten, aber weniger als der Hintergrund
     static let menuOpacity = 0.72

@@ -527,7 +527,7 @@ struct ActionSettings: View {
             .zIndex(1)
 
             SettingsSection(L("Layout", "Darstellung")) {
-                SliderRow(L("Icon size", "Symbolgröße"), value: $settings.actionIconSize, range: 24...48, step: 2,
+                SliderRow(L("Icon size", "Symbolgröße"), value: $settings.actionIconSize, range: 24...54, step: 2,
                           format: SliderRow.points)
                 PickerRow(L("Show names", "Namen anzeigen"), selection: labelMode,
                           options: ActionLabelMode.allCases.map { ($0, $0.title) })
