@@ -798,7 +798,7 @@ private final class OutputCollector {
 }
 
 /// Signale an ein Programm und alle Programme, die es selbst gestartet hat (z. B. ein
-/// Werkzeug, das ffmpeg startet): Anhalten und Abbrechen wirken auf den ganzen Baum.
+/// Werkzeug, das ein weiteres Programm startet): Anhalten und Abbrechen wirken auf den ganzen Baum.
 enum ProcessTree {
     static func descendants(of pid: pid_t) -> [pid_t] {
         var result: [pid_t] = []

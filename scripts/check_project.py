@@ -69,7 +69,7 @@ else:
 
 # BarDrop hat keine eingebauten Plugins: keine Namen bestimmter Dienste oder Programme,
 # für die es Plugins gibt (auch nicht als Beispiel)
-FOREIGN = re.compile(r"youtube|youtu\.be|yt-dlp|\bdeno\b", re.I)
+FOREIGN = re.compile(r"youtube|youtu\.be|yt-dlp|\bdeno\b|ffmpeg", re.I)
 for pattern in ("Sources/**/*.swift", "Tests/**/*", "docs/*.md", "scripts/*.py", "Plugins/**/*",
                 "README.md", "CHANGELOG.md", ".github/RELEASE_NOTES.md", "Resources/*"):
     for path in sorted(ROOT.glob(pattern)):

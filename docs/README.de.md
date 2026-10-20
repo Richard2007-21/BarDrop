@@ -133,7 +133,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 
 BarDrop sammelt keine Daten und sendet nichts über dich. Die Ablage liegt nur auf deinem Mac unter `~/Library/Application Support/BarDrop`. BarDrop verbindet sich nur mit GitHub: für die Suche nach Updates, die sich abschalten lässt, und für „Was ist neu“, wenn du Einstellungen → Über BarDrop öffnest. Bilder und Links aus dem Web werden nur dann geladen, wenn du sie selbst in die Ablage ziehst.
 
-**Diagnoseprotokoll (nur Beta-Versionen, standardmäßig aus).** Wer Beta-Versionen nutzt, kann unter Einstellungen → Über BarDrop ein Diagnoseprotokoll einschalten, nach einem Hinweis, was es erfasst. Es hält ausführlich fest, was in der App passiert (Ablegen, Vorschaubilder, die Ablage am Rand, Aktionen, die Einführung, Fehler), dazu deine Einstellungen sowie Mac-Modell und macOS-Version. Datei- und Ordnernamen, Pfade und Inhalte werden nie erfasst; Dateien erscheinen nur als anonyme Kennung mit ihrem Typ. Das Protokoll bleibt auf deinem Mac unter `~/Library/Logs/BarDrop` und wird nirgendwohin geschickt. Erst „Protokoll sichern“ erstellt eine Textdatei, die du selbst weitergeben kannst, um bei der Fehlersuche zu helfen. Ausschalten löscht das Protokoll.
+**Diagnoseprotokoll (nur Beta-Versionen, standardmäßig aus).** Wer Beta-Versionen nutzt, kann unter Einstellungen → Über BarDrop ein Diagnoseprotokoll einschalten, nach einem Hinweis, was es erfasst. Es hält ausführlich fest, was in der App passiert (Ablegen, Vorschaubilder, die Ablage am Rand, Tastaturfokus, Aktionen, die Einführung, Fehler), dazu deine Einstellungen sowie Mac-Modell und macOS-Version. Datei- und Ordnernamen, Pfade und Inhalte werden nie erfasst; Dateien erscheinen nur als anonyme Kennung mit ihrem Typ. Das Protokoll bleibt auf deinem Mac unter `~/Library/Logs/BarDrop` und wird nirgendwohin geschickt. Erst „Protokoll sichern“ erstellt eine Textdatei, die du selbst weitergeben kannst, um bei der Fehlersuche zu helfen. Ausschalten löscht das Protokoll.
 
 ## Selbst bauen
 
@@ -159,15 +159,20 @@ Die Ablage speichert ihren Inhalt in `shelf.json`. Damit ein Update nie Einträg
 | Datei | Aufgabe |
 |---|---|
 | `EdgeController.swift`, `EdgeLogic.swift` | Erkennen von Zeiger und Ziehen, Entscheidung über die Stufen |
-| `ShelfPanel.swift`, `ShelfViews.swift`, `EdgeBlobShape.swift` | Fenster, Oberfläche und Form der Ablage |
+| `ShelfPanel.swift`, `ShelfViews.swift`, `TileGridLayout.swift`, `EdgeBlobShape.swift` | Fenster, Oberfläche und Form der Ablage |
 | `ShelfStore.swift` | Inhalt, Speicherung, Widerrufen |
 | `ContentImporter.swift`, `ImageNormalizer.swift`, `CloudFiles.swift`, `FileSanitizer.swift` | Dateien, Web-Bilder, Links und Text übernehmen |
 | `DragExport.swift`, `DragSource.swift` | Herausziehen |
 | `ShelfActions.swift`, `ActionBar.swift`, `QuickActions.swift` | Auswahl, Menüs, Aktionsleiste |
+| `FolderBrowser.swift` | Inhalt von Ordnern in der Ablage |
+| `AppActivation.swift`, `SettingsFocusReturn.swift` | Tastaturfokus zwischen Ablage, Übersicht und Einstellungen |
 | `SettingsWindow.swift`, `SettingsView.swift`, `SettingsStyle.swift`, `AppSettings.swift` | Einstellungen |
 | `L10n.swift` | Englische und deutsche Texte |
 | `Onboarding.swift` | Einführung beim ersten Start |
+| `IntroDemo.swift` | Szenen der Einführung: die echte Ablage im Vorführmodus |
 | `Updater.swift`, `ReleaseNotes.swift` | Updates und Änderungen von GitHub |
+| `Diagnostics.swift`, `FocusDiagnostics.swift` | Diagnoseprotokoll (Beta-Versionen) |
+| `Plugins/` | Plugins: installieren, Rechte, ausführen |
 | `Tests/` | Automatische Tests |
 | `scripts/` | Bauen, DMG, App-Symbol, Vorschau |
 
