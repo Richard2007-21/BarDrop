@@ -276,8 +276,9 @@ private struct PluginDetails: View {
                             }.joined(separator: " · ")) {
                     HStack(spacing: 6) {
                         if !manifest.allPermissions.allSatisfy({ manager.isGranted($0, for: plugin) }) {
+                            // Hervorgehoben: Ohne Erlaubnis läuft das Plugin nicht, der Knopf soll auffallen
                             Button(L("Allow", "Erlauben")) { _ = PluginDialogs.prepareAutomatic(plugin, manager: manager) }
-                                .buttonStyle(KlackButtonStyle())
+                                .buttonStyle(KlackButtonStyle(prominent: true))
                                 .help(L("Asks for all permissions now, for example for automatic runs.",
                                         "Fragt jetzt nach allen Rechten, zum Beispiel für automatische Läufe."))
                         }

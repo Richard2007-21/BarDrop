@@ -322,7 +322,7 @@ final class PluginRuntime {
         set("isCancelled", cancelled)
 
         let notify: @convention(block) (JSValue) -> Void = { [weak self] value in
-            let text = String(value.toString().prefix(80))
+            let text = String(value.toString().prefix(40))
             DispatchQueue.main.async { self?.onNotify(text) }
         }
         set("notify", notify)

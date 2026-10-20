@@ -143,11 +143,11 @@ BarDrop always stores links itself as `.webloc`.
 
 **Action bar (`action`):** Settings → Plugins → plugin → “In the action bar”, or Settings → Actions → Add Action. The action is only visible while the plugin is turned on. Click: runs for the selected items. Drag onto it: runs for the dragged items. If nothing matches, BarDrop beeps.
 
-**Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. The arrows in a plugin’s details change the order. Where the shelf usually shows “1 of 3 selected”, it briefly shows “Plugin … active”.
+**Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. The arrows in a plugin’s details change the order. Where the shelf usually shows “1 of 3 selected”, it briefly shows “Plugin active”.
 
-An automatic plugin only runs if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. Turning on “Automatically when dropped” asks for all of that. If something is missing later, for example because an update of the plugin reset its permissions, BarDrop asks for it at the next drop, once per drop. If you decline, it doesn’t run, and the shelf shows “… wasn’t started”. During an automatic run, a plugin never asks.
+An automatic plugin only runs if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. Turning on “Automatically when dropped” asks for all of that. If something is missing later, for example because an update of the plugin reset its permissions, BarDrop asks for it at the next drop, once per drop. If you decline, it doesn’t run, and the shelf shows “Plugin wasn’t started”. During an automatic run, a plugin never asks.
 
-**At the same time:** at most three plugins run at once; more wait in the order they were started (their placeholder shows a clock and “Waiting”). The same plugin doesn’t start a second time for the same file while it is still running; the shelf then shows “… is already running”.
+**At the same time:** at most three plugins run at once; more wait in the order they were started (their placeholder shows a clock and “Waiting”). The same plugin doesn’t start a second time for the same file while it is still running; the shelf then shows “Already running”.
 
 ## 6. Permissions
 
@@ -255,7 +255,7 @@ Every call used with `await` returns a promise.
 | `bardrop.createLink(url, title)` | | Creates `<title>.webloc` in the output folder (without `title`: the domain). Only `http` and `https` addresses. Returns the path. Invalid address: error. |
 | `bardrop.readFile(path)` | | Reads a file as text (UTF-8, invalid bytes replaced), at most 20 MB. A path that doesn’t start with `/` is relative to the output folder; for the plugin’s own files use `bardrop.pluginDirectory`. Allowed only: `item.path` itself, files in the output folder, files in the plugin’s own folder. Otherwise error. Binary data can’t be read this way; use `bardrop.run`. |
 | `bardrop.progress(fraction, label)` | | `fraction` 0 to 1 (clamped); not a number (e.g. `null`) means “no progress”. `label` optional, at most 60 characters, replaces the name under the placeholder. The display updates at most every 100 ms. |
-| `bardrop.notify(text)` | | Short note at the top of the shelf, at most 80 characters, about 2 seconds. |
+| `bardrop.notify(text)` | | Short note at the top of the shelf, about 2 seconds. At most 40 characters; the line is narrow, at the default size about 20 are fully visible. |
 | `bardrop.isCancelled()` | | `true` once the user canceled. Check it in long loops. |
 | `await bardrop.sleep(ms)` | | Waits `ms` milliseconds (0 to 3,600,000). |
 | `bardrop.log(text)` | | Line in the plugin log (only while it is turned on, see 14), at most 300 characters. |

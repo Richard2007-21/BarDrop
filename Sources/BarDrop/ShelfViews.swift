@@ -334,9 +334,12 @@ struct ShelfContent: View {
                 .help(L("Back to the shelf (esc)", "Zurück zur Ablage (esc)"))
                 Spacer(minLength: 8)
                 let selected = ui.memberSelection.intersection(stack.files.map(\.id)).count
-                status(selected > 0 ? L("\(selected) of \(stack.files.count) selected", "\(selected) von \(stack.files.count) ausgewählt")
-                                    : L("\(stack.files.count) items in stack", "\(stack.files.count) Objekte im Stapel"))
-                runningPlugins
+                if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
+                    runningPlugins
+                } else {
+                    status(selected > 0 ? L("\(selected) of \(stack.files.count) selected", "\(selected) von \(stack.files.count) ausgewählt")
+                                        : L("\(stack.files.count) items in stack", "\(stack.files.count) Objekte im Stapel"))
+                }
             } else {
                 if let title {
                     Text(title)
@@ -353,17 +356,20 @@ struct ShelfContent: View {
                         ProgressView().controlSize(.mini)
                         countLabel(L("Importing", "Wird übernommen"))
                     }
+                } else if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
+                    // Plugins arbeiten: ihre Symbole statt der Anzahl
+                    runningPlugins
                 } else {
                     status(count == 0 ? nil
                            : selected > 0 ? L("\(selected) of \(count) selected", "\(selected) von \(count) ausgewählt")
                            : (count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte")))
                 }
-                runningPlugins
             }
         }
     }
 
-    /// Ganz rechts im Kopf: die Symbole der Plugins, die gerade arbeiten (höchstens drei)
+    /// Rechts im Kopf, an Stelle der Anzahl: die Symbole der Plugins, die gerade arbeiten
+    /// (höchstens drei). Meldungen und eine Auswahl haben Vorrang.
     @ViewBuilder
     private var runningPlugins: some View {
         let running = runner.jobs.reduce(into: [InstalledPlugin]()) { list, job in

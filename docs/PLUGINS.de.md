@@ -143,11 +143,11 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 **Aktionsleiste (`action`):** Einstellungen → Plugins → Plugin → „In der Aktionsleiste“ oder Einstellungen → Aktionen → Aktion hinzufügen. Die Aktion ist nur zu sehen, solange das Plugin eingeschaltet ist. Klick: läuft für die ausgewählten Objekte. Darauf ziehen: läuft für die gezogenen Objekte. Passt nichts, gibt es einen Warnton.
 
-**Automatisch beim Ablegen (`automatic`):** Je Plugin ein Schalter, standardmäßig aus (Ausnahme 3.1 `automaticByDefault`). Es zählt nur, was der Nutzer selbst in die Ablage legt: Ziehen und ⌘V. Nicht: Bildschirmfotos, Ergebnisse von Aktionen und Plugins, Widerrufen, die Einführung. Für jedes abgelegte Objekt läuft **höchstens ein** Plugin: das erste in der Liste der Einstellungen, das eingeschaltet ist, automatisch läuft und passt. Die Reihenfolge ändern die Pfeile in den Details eines Plugins. Oben in der Ablage, wo sonst „1 von 3 ausgewählt“ steht, erscheint kurz „Plugin … aktiv“.
+**Automatisch beim Ablegen (`automatic`):** Je Plugin ein Schalter, standardmäßig aus (Ausnahme 3.1 `automaticByDefault`). Es zählt nur, was der Nutzer selbst in die Ablage legt: Ziehen und ⌘V. Nicht: Bildschirmfotos, Ergebnisse von Aktionen und Plugins, Widerrufen, die Einführung. Für jedes abgelegte Objekt läuft **höchstens ein** Plugin: das erste in der Liste der Einstellungen, das eingeschaltet ist, automatisch läuft und passt. Die Reihenfolge ändern die Pfeile in den Details eines Plugins. Oben in der Ablage, wo sonst „1 von 3 ausgewählt“ steht, erscheint kurz „Plugin aktiv“.
 
-Ein automatisches Plugin läuft nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`consent`) gegeben, alle Rechte aus `permissions` erteilt, alle Programme aus `tools` erlaubt. Beim Einschalten von „Automatisch beim Ablegen“ fragt BarDrop all das ab. Fehlt später etwas, etwa weil ein Update des Plugins die Rechte zurückgesetzt hat, fragt BarDrop beim nächsten Ablegen danach, einmal je Ablegen. Lehnt man ab, läuft es nicht, und oben steht „… nicht gestartet“. Während eines automatischen Laufs fragt das Plugin nie.
+Ein automatisches Plugin läuft nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`consent`) gegeben, alle Rechte aus `permissions` erteilt, alle Programme aus `tools` erlaubt. Beim Einschalten von „Automatisch beim Ablegen“ fragt BarDrop all das ab. Fehlt später etwas, etwa weil ein Update des Plugins die Rechte zurückgesetzt hat, fragt BarDrop beim nächsten Ablegen danach, einmal je Ablegen. Lehnt man ab, läuft es nicht, und oben steht „Plugin nicht gestartet“. Während eines automatischen Laufs fragt das Plugin nie.
 
-**Gleichzeitig:** Höchstens drei Plugins laufen gleichzeitig, weitere warten in der Reihenfolge, in der sie gestartet wurden (ihr Platzhalter zeigt eine Uhr und „Wartet“). Dasselbe Plugin startet für dieselbe Datei nicht ein zweites Mal, solange es noch läuft; oben erscheint dann „… läuft schon“.
+**Gleichzeitig:** Höchstens drei Plugins laufen gleichzeitig, weitere warten in der Reihenfolge, in der sie gestartet wurden (ihr Platzhalter zeigt eine Uhr und „Wartet“). Dasselbe Plugin startet für dieselbe Datei nicht ein zweites Mal, solange es noch läuft; oben erscheint dann „Läuft schon“.
 
 ## 6. Rechte
 
@@ -255,7 +255,7 @@ Alle Aufrufe mit `await` liefern ein Versprechen.
 | `bardrop.createLink(url, title)` | | Legt `<title>.webloc` im Ausgabeordner an (ohne `title`: die Domain). Nur `http`- und `https`-Adressen. Liefert den Pfad. Ungültige Adresse: Fehler. |
 | `bardrop.readFile(path)` | | Liest eine Datei als Text (UTF-8, ungültige Bytes werden ersetzt), höchstens 20 MB. Ein Pfad ohne `/` am Anfang gilt relativ zum Ausgabeordner; eigene Dateien also mit `bardrop.pluginDirectory`. Erlaubt nur: `item.path` selbst, Dateien im Ausgabeordner, Dateien im eigenen Plugin-Ordner. Sonst Fehler. Binärdaten lassen sich so nicht lesen; dafür `bardrop.run`. |
 | `bardrop.progress(anteil, label)` | | `anteil` 0 bis 1 (wird begrenzt); keine Zahl (z. B. `null`) heißt „ohne Fortschritt“. `label` optional, höchstens 60 Zeichen, ersetzt den Namen unter dem Platzhalter. Die Anzeige erneuert sich höchstens alle 100 ms. |
-| `bardrop.notify(text)` | | Kurze Meldung oben in der Ablage, höchstens 80 Zeichen, etwa 2 Sekunden. |
+| `bardrop.notify(text)` | | Kurze Meldung oben in der Ablage, etwa 2 Sekunden. Höchstens 40 Zeichen; die Zeile ist schmal, voll zu sehen sind bei Standardgröße etwa 20. |
 | `bardrop.isCancelled()` | | `true`, wenn der Nutzer abgebrochen hat. In langen Schleifen abfragen. |
 | `await bardrop.sleep(ms)` | | Wartet `ms` Millisekunden (0 bis 3 600 000). |
 | `bardrop.log(text)` | | Zeile im Plugin-Protokoll (nur wenn es eingeschaltet ist, siehe 14), höchstens 300 Zeichen. |

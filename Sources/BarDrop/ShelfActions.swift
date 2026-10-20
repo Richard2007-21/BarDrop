@@ -393,8 +393,8 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             if let open = self.ui.openStack, !self.store.entries.contains(where: { $0.id == open }) {
                 self.closeStack()
             }
-            self.announce(count == 1 ? L("1 item moved to the Trash", "1 Objekt in den Papierkorb gelegt")
-                                     : L("\(count) items moved to the Trash", "\(count) Objekte in den Papierkorb gelegt"),
+            self.announce(count == 1 ? L("1 item in the Trash", "1 Objekt im Papierkorb")
+                                     : L("\(count) items in the Trash", "\(count) Objekte im Papierkorb"),
                           canUndo: true)
         }
     }
@@ -421,7 +421,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             guard let self else { return }
             guard !results.isEmpty else {
                 NSSound.beep()
-                self.announce(L("Couldn’t convert", "Umwandeln hat nicht geklappt"))
+                self.announce(L("Couldn’t convert", "Nicht umgewandelt"))
                 return
             }
             // Wie hineingezogene Dateien übernehmen; der Zwischenordner wird danach gelöscht
