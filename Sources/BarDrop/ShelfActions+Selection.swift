@@ -9,7 +9,8 @@ extension ShelfActions {
     /// Dateien des geöffneten Stapels (leer, wenn kein Stapel offen ist)
     var stackFiles: [ShelfFile] { openStackEntry?.files ?? [] }
 
-    var isInStack: Bool { openStackEntry?.isStack == true }
+    /// Ein Stapel oder ein angehefteter Ordner ist offen (auch ein leerer Ordner)
+    var isInStack: Bool { isFolderOpen || openStackEntry?.isStack == true }
 
     var selectedMembers: [ShelfFile] {
         stackFiles.filter { ui.memberSelection.contains($0.id) }
@@ -51,13 +52,13 @@ extension ShelfActions {
     }
 
     func detachMembers(_ files: [ShelfFile]) {
-        guard let stack = openStackEntry else { return }
+        guard !isFolderOpen, let stack = openStackEntry else { return }
         ui.memberSelection.subtract(files.map(\.id))
         store.detach(Set(files.map(\.id)), from: stack.id)
     }
 
     func removeMembers(_ files: [ShelfFile], sound: Bool = true) {
-        guard let stack = openStackEntry, !files.isEmpty else { return }
+        guard !isFolderOpen, let stack = openStackEntry, !files.isEmpty else { return }
         ui.memberSelection.subtract(files.map(\.id))
         store.removeFiles(Set(files.map(\.id)), from: stack.id)
         announceRemoval(files.count)
@@ -107,6 +108,8 @@ extension ShelfActions {
     /// Entfernen per Taste: Danach ist das Objekt dahinter ausgewählt (am Ende das davor),
     /// sodass man mit ⌫ gleich weitermachen kann, wie in Mail.
     func removeCurrentSelection(sound: Bool = true) {
+        // Im angehefteten Ordner wie im Finder: ⌫ allein tut nichts, ⌘⌫ legt in den Papierkorb
+        if isFolderOpen { return NSSound.beep() }
         if isInStack {
             let removed = selectedMembers
             let next = Self.neighbor(of: Set(removed.map(\.id)), in: stackFiles.map(\.id))
@@ -162,6 +165,8 @@ extension ShelfActions {
     /// Eigene Dateien (Bilder aus dem Web, Kopien) bleiben erhalten, solange sich das
     /// Entfernen mit ⌘Z widerrufen lässt, damit das Einfügen im Finder klappt.
     func cutCurrentSelection() {
+        // Aus einem echten Ordner lässt sich nichts herausnehmen, ohne es zu verschieben
+        if isFolderOpen { return NSSound.beep() }
         let urls = currentSelectionURLs
         guard !urls.isEmpty else { return NSSound.beep() }
         Self.copyFiles(urls)
@@ -179,7 +184,17 @@ extension ShelfActions {
     }
 
     func openCurrentSelection() {
+        if isInStack { return openMembers(selectedMembers) }
         currentSelectionURLs.forEach { NSWorkspace.shared.open($0) }
+    }
+
+    /// Doppelklick bzw. ⌘O im Stapel oder Ordner: ein einzelner Unterordner eines
+    /// angehefteten Ordners öffnet sich in der Ablage, alles andere wie gewohnt
+    func openMembers(_ files: [ShelfFile]) {
+        if isFolderOpen, files.count == 1, let url = files.first?.url, FolderBrowser.isBrowsable(url) {
+            return enterFolder(url)
+        }
+        files.forEach { NSWorkspace.shared.open($0.url) }
     }
 
     func revealCurrentSelection() {

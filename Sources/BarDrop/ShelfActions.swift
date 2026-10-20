@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import Quartz
 
@@ -18,11 +19,25 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// Tests setzen einen eigenen)
     lazy var plugins = PluginRunner(actions: self)
 
+    /// Angehefteter Ordner, dessen Inhalt gerade wie ein Stapel zu sehen ist
+    let folder = FolderBrowser()
+    private var folderClosing: AnyCancellable?
+
     init(store: ShelfStore, ui: ShelfUIModel, settings: AppSettings) {
         self.store = store
         self.ui = ui
         self.settings = settings
         super.init()
+        // Ordneransicht verlassen (auch beim Schließen der Ablage): nicht mehr beobachten
+        folderClosing = ui.$openStack.sink { [weak self] id in
+            guard let self, id != FolderBrowser.entryID, self.folder.isOpen else { return }
+            self.folder.close()
+        }
+        folder.onVanished = { [weak self] in
+            guard let self, self.ui.openStack == FolderBrowser.entryID else { return }
+            self.ui.memberSelection = []
+            withAnimation(self.settings.animationStyle.close) { self.ui.openStack = nil }
+        }
         store.onUserDrop = { [weak self] files in
             guard let self, self.settings.pluginsEnabled else { return }
             self.plugins.handleDropped(files)
@@ -172,6 +187,14 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         Diagnostics.shared.record("undo", "canUndo=\(store.undoManager.canUndo) action=\(store.undoManager.undoActionName)")
         guard store.undoManager.canUndo else { return NSSound.beep() }
         let restored = store.undoLast()
+        if restored.isEmpty, !store.lastPutBack.isEmpty {
+            // Papierkorb aus einem angehefteten Ordner: zurück an den alten Platz
+            let back = store.lastPutBack
+            folder.reload(after: 0)
+            if isFolderOpen { ui.memberSelection = Set(back.map(FolderBrowser.id(for:))) }
+            announce(back.count == 1 ? L("1 item restored", "1 Objekt zurückgeholt") : L("\(back.count) items restored", "\(back.count) Objekte zurückgeholt"))
+            return
+        }
         // Nichts mehr da, was sich zurückholen ließe
         guard !restored.isEmpty else { return NSSound.beep() }
         if isInStack {
@@ -216,7 +239,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         let internalDrop = ui.lastDropWasInternal
         ui.lastDropWasInternal = false
         Diagnostics.shared.record("dragOut", "ended operation=\(operation.rawValue) internal=\(internalDrop) files=\(Diagnostics.anon(files.map(\.url)))")
-        if !operation.isEmpty && !internalDrop && settings.removeAfterDragOut {
+        // Aus einem angehefteten Ordner gezogen: Die Dateien gehören dem Ordner, die Ablage
+        // bleibt, wie sie ist (verschoben hat sie schon das Ziel, wie im Finder)
+        let fromFolder = !files.isEmpty && files.allSatisfy { FolderBrowser.id(for: $0.url) == $0.id }
+        if fromFolder { folder.reload() }
+        if !operation.isEmpty && !internalDrop && settings.removeAfterDragOut && !fromFolder {
             let urls = files.map(\.url).filter { !DragExporter.shared.failedRecently($0) }
             store.removeFiles(at: urls, deleteOwnedAfter: 15 * 60)
             let remaining = Set(store.entries.map(\.id))
@@ -332,6 +359,26 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// Eine Aktion der Leiste wurde mit Objekten ausgeführt (userInfo: "urls", "kind")
     static let didPerformAction = Notification.Name("BarDropDidPerformAction")
 
+    /// Klick auf eine Aktion: Sie läuft nicht mit der Auswahl (dafür Objekte darauf ziehen).
+    /// Ein Ordner zeigt seinen Inhalt in der Ablage, eine App öffnet sich.
+    func click(_ action: QuickAction) {
+        Diagnostics.shared.record("action", "click \(action.kind.rawValue)")
+        switch action.kind {
+        case .folder:
+            guard let url = action.url, FolderBrowser.isBrowsable(url) else { return NSSound.beep() }
+            if isFolderOpen, folder.root?.standardizedFileURL == url.standardizedFileURL {
+                closeFolder()           // derselbe Ordner noch einmal: wieder zur Ablage
+            } else {
+                openFolder(url)
+            }
+        case .app:
+            guard let url = action.url else { return NSSound.beep() }
+            NSWorkspace.shared.open(url)
+        default:
+            break
+        }
+    }
+
     func perform(_ action: QuickAction, urls: [URL], anchor: NSView,
                  modifiers: NSEvent.ModifierFlags = NSEvent.modifierFlags) {
         Diagnostics.shared.record("action", "\(action.kind.rawValue) items=\(urls.count) modifiers=\(modifiers.rawValue) files=\(Diagnostics.anon(urls))")
@@ -339,13 +386,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             NotificationCenter.default.post(name: Self.didPerformAction, object: self,
                                             userInfo: ["urls": urls, "kind": action.kind.rawValue])
         }
-        guard !urls.isEmpty else {
-            // Ohne Objekte: Ordner bzw. App öffnen
-            if action.kind == .folder || action.kind == .app, let url = action.url {
-                NSWorkspace.shared.open(url)
-            }
-            return
-        }
+        guard !urls.isEmpty else { return }
         switch action.kind {
         case .airdrop:
             if performService(.sendViaAirDrop, urls: urls) { finishAction(urls) }
@@ -370,7 +411,9 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         case .plugin:
             guard let id = action.path else { return }
             let keys = Set(urls.map(\.standardizedFileURL))
-            let files = store.entries.flatMap(\.files).filter { keys.contains($0.url.standardizedFileURL) }
+            let known = store.entries.flatMap(\.files) + folder.files
+            var seen = Set<URL>()
+            let files = known.filter { keys.contains($0.url.standardizedFileURL) && seen.insert($0.url.standardizedFileURL).inserted }
             plugins.run(id, on: files)
         }
     }
@@ -379,7 +422,8 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// Dateien nicht mehr in der Ablage; ⌘Z legt sie zurück, auch an ihren alten Ort.
     func moveToTrash(_ urls: [URL], then: @escaping () -> Void = {}) {
         guard !urls.isEmpty else { return }
-        store.moveToTrash(urls) { [weak self] count in
+        // Aus einem angehefteten Ordner: ⌘Z legt sie nur dorthin zurück, nicht in die Ablage
+        store.moveToTrash(urls, intoShelf: !isFolderOpen) { [weak self] count in
             defer { then() }
             guard let self else { return }
             if count < urls.count { NSSound.beep() }
@@ -390,9 +434,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { TrashState.shared.refresh() }
             self.ui.selection.formIntersection(Set(self.store.entries.map(\.id)))
             self.ui.memberSelection.formIntersection(Set(self.store.entries.flatMap(\.files).map(\.id)))
-            if let open = self.ui.openStack, !self.store.entries.contains(where: { $0.id == open }) {
+            if let open = self.ui.openStack, open != FolderBrowser.entryID,
+               !self.store.entries.contains(where: { $0.id == open }) {
                 self.closeStack()
             }
+            if self.folder.isOpen { self.folder.reload(after: 0) }
             self.announce(count == 1 ? L("1 item in the Trash", "1 Objekt im Papierkorb")
                                      : L("\(count) items in the Trash", "\(count) Objekte im Papierkorb"),
                           canUndo: true)
@@ -519,6 +565,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 if filed > 0 { Sounds.folder() }
                 for (old, new) in moves { self.store.relocate(old, to: new) }
                 self.store.pruneMissingFiles()
+                if self.folder.isOpen { self.folder.reload(after: 0) }
                 completion(used + moves.map(\.1))
             }
         }
@@ -560,7 +607,35 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     // MARK: Stapel
 
-    var openStackEntry: ShelfEntry? { entry(ui.openStack) }
+    var openStackEntry: ShelfEntry? {
+        if ui.openStack == FolderBrowser.entryID { return folder.isOpen ? folder.entry : nil }
+        return entry(ui.openStack)
+    }
+
+    /// Der Inhalt eines angehefteten Ordners ist zu sehen
+    var isFolderOpen: Bool { ui.openStack == FolderBrowser.entryID && folder.isOpen }
+
+    /// Angehefteten Ordner wie einen Stapel öffnen
+    func openFolder(_ url: URL) {
+        ui.selection = []
+        ui.memberSelection = []
+        ui.memberAnchor = nil
+        folder.open(url)
+        withAnimation(settings.animationStyle.close) { ui.openStack = FolderBrowser.entryID }
+    }
+
+    /// In einen Unterordner hineingehen
+    func enterFolder(_ url: URL) {
+        ui.memberSelection = []
+        ui.memberAnchor = nil
+        withAnimation(settings.animationStyle.close) { folder.enter(url) }
+    }
+
+    /// Zurück zur Ablage, aus jeder Tiefe
+    func closeFolder() {
+        ui.memberSelection = []
+        withAnimation(settings.animationStyle.close) { ui.openStack = nil }
+    }
 
     func entry(_ id: UUID?) -> ShelfEntry? {
         guard let id else { return nil }
@@ -579,6 +654,22 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// Zurück zur gesamten Ablage.
     func closeStack() {
         guard ui.openStack != nil else { return }
+        if ui.openStack == FolderBrowser.entryID {
+            // Im Ordner: eine Ebene hoch, der zuletzt gezeigte Ordner ist danach ausgewählt
+            let left = folder.folder
+            ui.memberSelection = []
+            if folder.isOpen, folder.isNested {
+                withAnimation(settings.animationStyle.close) { folder.goUp() }
+                if let left {
+                    let id = FolderBrowser.id(for: left)
+                    ui.memberSelection = [id]
+                    ui.memberAnchor = id
+                }
+            } else {
+                closeFolder()
+            }
+            return
+        }
         let previous = ui.openStack
         ui.memberSelection = []
         withAnimation(settings.animationStyle.close) { ui.openStack = nil }
@@ -676,8 +767,19 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         let files = memberTargets(for: file)
         let urls = files.map(\.url)
         let menu = NSMenu()
-        addFileItems(to: menu, urls: urls, anchor: anchor) { urls.forEach { NSWorkspace.shared.open($0) } }
+        addFileItems(to: menu, urls: urls, anchor: anchor) { [weak self] in self?.openMembers(files) }
         menu.addItem(.separator())
+        if isFolderOpen {
+            // Im angehefteten Ordner: nichts lässt sich „aus der Ablage“ nehmen
+            menu.addItem(ClosureMenuItem(files.count > 1 ? L("Add \(files.count) Items to Shelf", "\(files.count) Objekte in die Ablage legen") : L("Add to Shelf", "In die Ablage legen")) { [weak self] in
+                self?.addToShelf(urls)
+            })
+            menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
+                self?.moveToTrash(urls)
+            })
+            addPluginItems(to: menu, files: files)
+            return menu
+        }
         menu.addItem(ClosureMenuItem(files.count > 1 ? L("Take \(files.count) Items Out of Stack", "\(files.count) Objekte aus Stapel lösen") : L("Take Out of Stack", "Aus Stapel lösen")) { [weak self] in
             self?.detachMembers(files)
         })
@@ -761,8 +863,69 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         }
     }
 
+    /// Dateien eines angehefteten Ordners zusätzlich in die Ablage legen, wie aus dem Finder
+    func addToShelf(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("io.github.zzuuuiii.bardrop.folder"))
+        pasteboard.clearContents()
+        pasteboard.writeObjects(urls as [NSURL])
+        store.ingest(from: pasteboard, byUser: true) { [weak self] added in
+            let n = added.count
+            guard n > 0 else { return }
+            self?.announce(n == 1 ? L("1 item added", "1 Objekt hinzugefügt") : L("\(n) items added", "\(n) Objekte hinzugefügt"))
+        }
+    }
+
+    /// Kontextmenü für die leere Fläche im geöffneten Ordner
+    private func folderBackgroundMenu() -> NSMenu {
+        let menu = NSMenu()
+        if let url = folder.folder {
+            menu.addItem(ClosureMenuItem(L("Open in Finder", "Im Finder öffnen")) {
+                NSWorkspace.shared.open(url)
+            })
+        }
+        menu.addItem(ClosureMenuItem(L("Paste", "Einfügen"), key: "v") { [weak self] in
+            self?.pasteIntoFolder()
+        })
+        if store.undoManager.canUndo {
+            menu.addItem(ClosureMenuItem(L("Undo", "Widerrufen"), key: "z") { [weak self] in
+                self?.undo()
+            })
+        }
+        if !folder.files.isEmpty {
+            menu.addItem(ClosureMenuItem(L("Select All", "Alle auswählen"), key: "a") { [weak self] in
+                self?.selectAllCurrent()
+            })
+        }
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem(L("Settings", "Einstellungen"), symbol: "gearshape", key: ",") { [weak self] in
+            self?.openSettings()
+        })
+        menu.addItem(ClosureMenuItem(L("Quit BarDrop", "BarDrop beenden"), key: "q") {
+            NSApp.terminate(nil)
+        })
+        return menu
+    }
+
+    /// ⌘V im geöffneten Ordner: Dateien aus der Zwischenablage hineinkopieren, wie im Finder
+    func pasteIntoFolder() {
+        guard let target = folder.folder,
+              let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self],
+                                                          options: [.urlReadingFileURLsOnly: true]) as? [URL],
+              !urls.isEmpty else { return NSSound.beep() }
+        file(urls, into: target, modifiers: .option) { _ in }
+    }
+
+    /// Dateien in den geöffneten Ordner legen (aus der Ablage hineingezogen, aus dem Finder
+    /// …): wie auf die Ordner-Aktion, gleiche Platte verschieben, sonst kopieren
+    func fileIntoOpenFolder(_ urls: [URL], modifiers: NSEvent.ModifierFlags = NSEvent.modifierFlags) {
+        guard let target = folder.folder, !urls.isEmpty else { return }
+        file(urls, into: target, modifiers: modifiers) { _ in }
+    }
+
     /// Kontextmenü für die leere Fläche der Ablage.
     func backgroundMenu() -> NSMenu {
+        if isFolderOpen { return folderBackgroundMenu() }
         let menu = NSMenu()
         menu.addItem(ClosureMenuItem(L("Paste from Clipboard", "Aus der Zwischenablage einfügen"), key: "v") { [weak self] in
             self?.store.pasteFromClipboard()

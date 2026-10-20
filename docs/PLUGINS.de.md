@@ -141,7 +141,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 **Rechtsklick (`menu`):** Passende, eingeschaltete Plugins erscheinen unter den gewohnten Einträgen, nach einer Trennlinie, mit ihrem Symbol und `actionTitle`. Bis zu drei direkt, ab vier gesammelt im Untermenü „Plugins“. Bei mehreren ausgewählten Objekten erscheint ein Plugin, wenn es zu mindestens einem passt; es läuft dann für jedes passende Objekt einmal.
 
-**Aktionsleiste (`action`):** Einstellungen → Plugins → Plugin → „In der Aktionsleiste“ oder Einstellungen → Aktionen → Aktion hinzufügen. Die Aktion ist nur zu sehen, solange das Plugin eingeschaltet ist. Klick: läuft für die ausgewählten Objekte. Darauf ziehen: läuft für die gezogenen Objekte. Passt nichts, gibt es einen Warnton.
+**Aktionsleiste (`action`):** Einstellungen → Plugins → Plugin → „In der Aktionsleiste“ oder Einstellungen → Aktionen → Aktion hinzufügen. Die Aktion ist nur zu sehen, solange das Plugin eingeschaltet ist. Darauf ziehen: läuft für die gezogenen Objekte; ein Klick führt es nicht aus. Passt nichts, gibt es einen Warnton.
 
 **Automatisch beim Ablegen (`automatic`):** Je Plugin ein Schalter, standardmäßig aus (Ausnahme 3.1 `automaticByDefault`). Es zählt nur, was der Nutzer selbst in die Ablage legt: Ziehen und ⌘V. Nicht: Bildschirmfotos, Ergebnisse von Aktionen und Plugins, Widerrufen, die Einführung. Für jedes abgelegte Objekt läuft **höchstens ein** Plugin: das erste in der Liste der Einstellungen, das eingeschaltet ist, automatisch läuft und passt. Die Reihenfolge ändern die Pfeile in den Details eines Plugins. Oben in der Ablage, wo sonst „1 von 3 ausgewählt“ steht, erscheint kurz „Plugin aktiv“.
 

@@ -88,7 +88,8 @@ struct ShelfRootView: View {
             }
 
             if ui.level == .expanded {
-                ShelfContent(ui: ui, store: store, settings: settings, actions: actions, runner: actions.plugins)
+                ShelfContent(ui: ui, store: store, settings: settings, actions: actions, runner: actions.plugins,
+                             folder: actions.folder)
                     .frame(width: full.width, height: full.height)
                     .padding(.vertical, full.fillet)
                     // Während etwas aus der Ablage gezogen wird, nur überblenden: Die Unschärfe
@@ -135,6 +136,8 @@ struct ShelfContent: View {
     let actions: ShelfActions
     /// Laufende Plugins: ihre Platzhalter stehen direkt neben dem Original
     @ObservedObject var runner: PluginRunner
+    /// Inhalt eines angehefteten Ordners (wie ein geöffneter Stapel gezeigt)
+    @ObservedObject var folder: FolderBrowser
 
     @State private var tileFrames: [UUID: CGRect] = [:]
     /// Höhe des sichtbaren Bereichs der Kacheln (bis unter die Aktionsleiste)
@@ -186,10 +189,25 @@ struct ShelfContent: View {
         return [GridItem(.adaptive(minimum: icon + 22, maximum: icon + 40), spacing: 8)]
     }
 
-    /// Geöffneter Stapel, solange er noch ein Stapel ist.
+    /// Geöffneter Stapel, solange er noch ein Stapel ist, oder der geöffnete Ordner
+    /// (auch leer oder mit nur einer Datei).
     private var stack: ShelfEntry? {
-        guard let entry = actions.openStackEntry, entry.isStack else { return nil }
+        guard let entry = actions.openStackEntry, entry.isStack || actions.isFolderOpen else { return nil }
         return entry
+    }
+
+    private var folderOpen: Bool { actions.isFolderOpen }
+
+    /// Wohin „Zurück“ führt: der Ordner darüber, sonst die Ablage (mit ihrem Titel)
+    private var backTitle: String? {
+        folderOpen ? (folder.parentName ?? title) : title
+    }
+
+    private var backHelp: String {
+        if folderOpen, let parent = folder.parentName {
+            return L("Back to “\(parent)” (esc)", "Zurück zu „\(parent)“ (esc)")
+        }
+        return L("Back to the shelf (esc)", "Zurück zur Ablage (esc)")
     }
 
     var body: some View {
@@ -322,20 +340,26 @@ struct ShelfContent: View {
                     HStack(spacing: 3) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 11, weight: .semibold))
-                        if let title {
-                            Text(title)
+                        if let backTitle {
+                            Text(backTitle)
                                 .font(.system(size: 13, weight: .semibold))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                     }
                     .foregroundStyle(.white.opacity(0.92))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(L("Back to the shelf (esc)", "Zurück zur Ablage (esc)"))
+                .layoutPriority(folderOpen ? 0 : 1)
+                .help(backHelp)
                 Spacer(minLength: 8)
                 let selected = ui.memberSelection.intersection(stack.files.map(\.id)).count
                 if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
                     runningPlugins
+                } else if folderOpen && ui.notice == nil && selected == 0 {
+                    folderStatus(count: stack.files.count)
+                        .layoutPriority(1)
                 } else {
                     status(selected > 0 ? L("\(selected) of \(stack.files.count) selected", "\(selected) von \(stack.files.count) ausgewählt")
                                         : L("\(stack.files.count) items in stack", "\(stack.files.count) Objekte im Stapel"))
@@ -397,6 +421,28 @@ struct ShelfContent: View {
         } else if let fallback {
             countLabel(fallback)
         }
+    }
+
+    /// Im geöffneten Ordner: sein Name (zur Not in der Mitte gekürzt) und die Anzahl,
+    /// die immer ganz zu sehen ist
+    private func folderStatus(count: Int) -> some View {
+        let number = folder.isLoading ? "" : (count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte"))
+        return HStack(spacing: 0) {
+            Text(folder.name)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if !number.isEmpty {
+                Text(" · " + number)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .font(.system(size: 11, weight: .medium))
+        .monospacedDigit()
+        .foregroundStyle(.white.opacity(0.5))
+        .transaction { $0.animation = nil }
+        .allowsHitTesting(false)
+        .help(folder.folder?.path ?? "")
     }
 
     private func countLabel(_ text: String) -> some View {
@@ -489,7 +535,32 @@ struct ShelfContent: View {
         }
     }
 
+    @ViewBuilder
     private func stackGrid(_ stack: ShelfEntry) -> some View {
+        if folderOpen && stack.files.isEmpty {
+            // Leerer Ordner: mittig, wie die leere Ablage; erst nach dem Lesen
+            emptyFolder
+                .opacity(folder.isLoading ? 0 : 1)
+                .frame(maxWidth: .infinity)
+                .frame(height: max(0, viewportHeight - barHeight))
+                .allowsHitTesting(false)
+        } else {
+            stackTiles(stack)
+        }
+    }
+
+    private var emptyFolder: some View {
+        VStack(spacing: 10) {
+            Image(systemName: ui.isDropTargeted ? "tray.and.arrow.down" : "folder")
+                .font(.system(size: 30, weight: .light))
+                .scaleEffect(ui.isDropTargeted ? 1.12 : 1)
+            Text(ui.isDropTargeted ? L("Drop here", "Hier ablegen") : L("Folder is empty", "Ordner ist leer"))
+                .font(.system(size: 14, weight: .semibold))
+        }
+        .foregroundStyle(.white.opacity(ui.isDropTargeted ? 1 : 0.45))
+    }
+
+    private func stackTiles(_ stack: ShelfEntry) -> some View {
         LazyVGrid(columns: columns, spacing: 6) {
             ForEach(stack.files) { file in
                 if let job = runner.replacingJob(for: file.id) {
@@ -839,7 +910,7 @@ struct StackMemberTile: View {
                 onMouseDown: { mods in actions.selectMember(file, modifiers: mods) },
                 onClick: { clicks, mods in
                     actions.clickedMemberWithoutDrag(file, modifiers: mods)
-                    if clicks >= 2 { actions.memberTargets(for: file).forEach { NSWorkspace.shared.open($0.url) } }
+                    if clicks >= 2 { actions.openMembers(actions.memberTargets(for: file)) }
                 },
                 onDragEnded: { operation in
                     actions.dragEnded(actions.memberTargets(for: file), operation: operation)

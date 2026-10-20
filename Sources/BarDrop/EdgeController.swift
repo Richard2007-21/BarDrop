@@ -117,7 +117,9 @@ final class EdgeController: NSObject {
         panel.onEscape = { [weak self] in self?.close() }
 
         let host = ShelfHostingView(rootView: ShelfRootView(ui: ui, store: store, settings: settings, actions: actions))
-        host.dropHandler = ShelfDropHandler(store: store, ui: ui)
+        let dropHandler = ShelfDropHandler(store: store, ui: ui)
+        dropHandler.actions = actions
+        host.dropHandler = dropHandler
         panel.contentView = host
 
         panel.ignoresMouseEvents = true

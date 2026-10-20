@@ -1,7 +1,7 @@
 import AppKit
 
-/// Eine Aktion in der Leiste unten in der Ablage. Objekte darauf ziehen
-/// (oder auswählen und anklicken) führt sie aus.
+/// Eine Aktion in der Leiste unten in der Ablage. Objekte darauf ziehen führt sie aus.
+/// Ein Klick zeigt bei Ordnern den Inhalt in der Ablage und öffnet Apps.
 struct QuickAction: Codable, Identifiable, Hashable {
     enum Kind: String, Codable, CaseIterable {
         case airdrop, share, mail, messages, folder, app, trash

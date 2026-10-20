@@ -223,6 +223,11 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             removeJob(job)
             return
         }
+        // Original aus einem angehefteten Ordner: Ergebnis wie im Finder in denselben Ordner
+        if store.position(of: job.anchorFileID) == nil, let actions,
+           actions.folder.files.contains(where: { $0.id == job.anchorFileID }) {
+            return deliverIntoFolder(job, urls, folder: job.item.url.deletingLastPathComponent())
+        }
         let files = store.adoptResults(urls)
         guard !files.isEmpty else { return removeJob(job) }
         let size = CGFloat(settings.tileIconSize)
@@ -257,6 +262,28 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             } else {
                 actions.ui.selection = Set(store.entries.filter { $0.files.contains { ids.contains($0.id) } }.map(\.id))
             }
+        }
+    }
+
+    /// Ergebnisse in den Ordner des Originals legen (Namen wie im Finder eindeutig machen)
+    private func deliverIntoFolder(_ job: PluginJob, _ urls: [URL], folder: URL) {
+        let fm = FileManager.default
+        var placed: [URL] = []
+        for url in urls {
+            let target = ShelfActions.uniqueURL(for: url.lastPathComponent, in: folder)
+            do {
+                try fm.moveItem(at: url, to: target)
+                placed.append(target)
+            } catch {
+                Diagnostics.shared.failure("plugin", "Ergebnis in den Ordner legen fehlgeschlagen", error)
+            }
+        }
+        removeJob(job, animated: false)
+        if placed.count < urls.count { NSSound.beep() }
+        guard let actions, !placed.isEmpty else { return }
+        actions.folder.reload(after: 0)
+        if actions.isFolderOpen {
+            actions.ui.memberSelection = Set(placed.map(FolderBrowser.id(for:)))
         }
     }
 

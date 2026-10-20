@@ -67,7 +67,9 @@ final class ShelfPanel: NSPanel {
         case 51, 117: // Löschen; gedrückt halten entfernt nicht alles nacheinander
             if !event.isARepeat { actions.removeCurrentSelection() }
         case 53: // Escape: Auswahl aufheben, Stapel verlassen, schließen
-            if actions.hasCurrentSelection {
+            if actions.isFolderOpen {
+                actions.closeStack()        // im Ordner: gleich eine Ebene zurück
+            } else if actions.hasCurrentSelection {
                 actions.clearCurrentSelection()
             } else if actions.ui.openStack != nil {
                 actions.closeStack()
@@ -101,7 +103,7 @@ final class ShelfPanel: NSPanel {
         case "x":
             actions.cutCurrentSelection()
         case "v":
-            actions.store.pasteFromClipboard()
+            if actions.isFolderOpen { actions.pasteIntoFolder() } else { actions.store.pasteFromClipboard() }
         case "y":
             actions.toggleQuickLookCurrent()
         case "o":
@@ -151,6 +153,8 @@ final class ShelfPanel: NSPanel {
 final class ShelfDropHandler {
     private let store: ShelfStore
     private let ui: ShelfUIModel
+    /// Für den geöffneten Ordner: Abgelegtes landet dann im Ordner
+    weak var actions: ShelfActions?
 
     init(store: ShelfStore, ui: ShelfUIModel) {
         self.store = store
@@ -168,7 +172,37 @@ final class ShelfDropHandler {
         }
     }
 
+    /// Geöffneter Ordner, falls Abgelegtes dorthin geht
+    private var openFolder: URL? {
+        guard let actions, actions.isFolderOpen else { return nil }
+        return actions.folder.folder
+    }
+
+    /// Dateien (Adressen) aus dem Pasteboard
+    private static func fileURLs(_ pasteboard: NSPasteboard) -> [URL] {
+        (pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+    }
+
+    /// Ins geöffnete Ordner: Dateien und Datei-Versprechen (Mail, Fotos …), wie im Finder
+    /// verschieben oder kopieren. Eigene Objekte aus dem Ordner selbst bleiben liegen.
+    private func folderOperation(_ sender: NSDraggingInfo, folder: URL) -> NSDragOperation {
+        let urls = isOwn(sender) ? ui.draggedFileURLs : Self.fileURLs(sender.draggingPasteboard)
+        if let first = urls.first {
+            if urls.allSatisfy({ $0.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL }) {
+                return isOwn(sender) ? .generic : []
+            }
+            return ShelfActions.folderOperation(for: first, into: folder, modifiers: NSEvent.modifierFlags)
+        }
+        let promises = sender.draggingPasteboard.canReadObject(forClasses: [NSFilePromiseReceiver.self], options: nil)
+        return promises ? .copy : []
+    }
+
     func entered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        if let folder = openFolder {
+            let operation = folderOperation(sender, folder: folder)
+            setTargeted(!operation.isEmpty && operation != .generic)
+            return operation
+        }
         // Kein Hinweis „Hier ablegen“ für eigene Objekte: Beim Herausziehen beginnt der
         // Zug ja über der Ablage
         if !isOwn(sender) { setTargeted(true) }
@@ -178,6 +212,7 @@ final class ShelfDropHandler {
     }
 
     func updated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        if let folder = openFolder { return folderOperation(sender, folder: folder) }
         ui.holdPinCandidate()
         return isOwn(sender) ? .generic : .copy
     }
@@ -195,6 +230,31 @@ final class ShelfDropHandler {
     }
 
     func perform(_ sender: NSDraggingInfo) -> Bool {
+        if let folder = openFolder, let actions {
+            setTargeted(false)
+            let operation = folderOperation(sender, folder: folder)
+            guard !operation.isEmpty else { return false }
+            if operation == .generic {
+                ui.lastDropWasInternal = true          // aus dem Ordner in denselben Ordner
+                return true
+            }
+            let urls = isOwn(sender) ? ui.draggedFileURLs : Self.fileURLs(sender.draggingPasteboard)
+            if isOwn(sender) { ui.lastDropWasInternal = true }
+            if !urls.isEmpty {
+                actions.fileIntoOpenFolder(urls)
+            } else if let receivers = sender.draggingPasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self],
+                                                                             options: nil) as? [NSFilePromiseReceiver] {
+                let queue = OperationQueue()
+                for receiver in receivers {
+                    receiver.receivePromisedFiles(atDestination: folder, options: [:], operationQueue: queue) { _, error in
+                        if let error { Diagnostics.shared.failure("drop", "Versprochene Datei nicht erhalten", error) }
+                        DispatchQueue.main.async { actions.folder.reload() }
+                    }
+                }
+            }
+            Haptics.drop()
+            return true
+        }
         if isOwn(sender) {
             // Zurückgelegt: Das Objekt bleibt, wo es war, und wird nicht entfernt
             ui.lastDropWasInternal = true

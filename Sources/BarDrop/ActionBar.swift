@@ -384,9 +384,10 @@ struct QuickActionButton: View {
                 onOwnDrop: { urls, anchor in
                     actions.perform(action, urls: urls, anchor: anchor)
                 },
-                onClick: { anchor in
-                    // Im geöffneten Stapel die dort ausgewählten Dateien, sonst die Auswahl der Ablage
-                    actions.perform(action, urls: actions.currentSelectionURLs, anchor: anchor)
+                onClick: { _ in
+                    // Ein Klick führt die Aktion nicht mit der Auswahl aus (dafür Objekte darauf
+                    // ziehen): Ordner zeigen ihren Inhalt in der Ablage, Apps öffnen sich
+                    actions.click(action)
                 },
                 operation: { info in dropOperation(info) },
                 kind: action.kind,

@@ -90,7 +90,8 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 
 **Aktionsleiste**
 * AirDrop, Mail, Nachrichten, Teilen, Papierkorb, beliebige Ordner und Apps
-* Objekte darauf ziehen oder auswählen und anklicken
+* Objekte darauf ziehen
+* Klick auf einen Ordner zeigt seinen Inhalt direkt in der Ablage, wie einen Stapel: auswählen, herausziehen, Übersicht und Papierkorb wie im Finder, Unterordner öffnen und Dateien hineinziehen, um sie in den Ordner zu legen; `esc` geht zurück
 * Ordner und Papierkorb wie im Finder: auf derselben Platte verschiebt ein Ordner, auf einer anderen kopiert er (`⌥` kopiert immer, `⌘` verschiebt immer)
 * Zwei Reihen mit je bis zu fünf Aktionen; Namen bei allen Aktionen, nur bei Ordnern oder keinen
 * Der Papierkorb sieht voll oder leer aus wie der Papierkorb deines Mac

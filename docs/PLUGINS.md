@@ -141,7 +141,7 @@ BarDrop always stores links itself as `.webloc`.
 
 **Right-click (`menu`):** matching, turned-on plugins appear below the usual entries after a separator, with their icon and `actionTitle`. Up to three directly, from four on in a “Plugins” submenu. With several items selected, a plugin appears if it matches at least one; it then runs once for every matching item.
 
-**Action bar (`action`):** Settings → Plugins → plugin → “In the action bar”, or Settings → Actions → Add Action. The action is only visible while the plugin is turned on. Click: runs for the selected items. Drag onto it: runs for the dragged items. If nothing matches, BarDrop beeps.
+**Action bar (`action`):** Settings → Plugins → plugin → “In the action bar”, or Settings → Actions → Add Action. The action is only visible while the plugin is turned on. Drag onto it: runs for the dragged items; a click doesn’t run it. If nothing matches, BarDrop beeps.
 
 **Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. The arrows in a plugin’s details change the order. Where the shelf usually shows “1 of 3 selected”, it briefly shows “Plugin active”.
 

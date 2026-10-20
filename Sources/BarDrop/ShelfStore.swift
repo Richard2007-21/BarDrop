@@ -20,6 +20,14 @@ struct ShelfFile: Codable, Hashable, Identifiable {
         if !owned { bookmark = ShelfFile.makeBookmark(url) }
     }
 
+    /// Datei in einem angehefteten Ordner (siehe FolderBrowser): ohne Lesezeichen, das
+    /// kostet bei großen Ordnern zu viel, und mit fester Kennung je Pfad
+    init(listed url: URL, id: UUID) {
+        self.id = id
+        self.url = url
+        self.owned = false
+    }
+
     /// Kopie einer Datei des Nutzers, die sich ihr Original merkt
     init(copy url: URL, of original: URL) {
         self.init(url: url, owned: true)
@@ -143,12 +151,17 @@ final class ShelfRemoval {
     let heldFiles: [ShelfFile]
     /// In den Papierkorb gelegt: alter Ort → Ort im Papierkorb. Widerrufen legt sie zurück.
     let trashed: [URL: URL]
+    /// Aus einem angehefteten Ordner in den Papierkorb gelegt: Widerrufen legt sie nur
+    /// zurück in den Ordner, nicht in die Ablage
+    let putBackOnly: Bool
 
-    init(items: [Item], fileIDs: Set<UUID>, heldFiles: [ShelfFile], trashed: [URL: URL] = [:]) {
+    init(items: [Item], fileIDs: Set<UUID>, heldFiles: [ShelfFile], trashed: [URL: URL] = [:],
+         putBackOnly: Bool = false) {
         self.items = items
         self.fileIDs = fileIDs
         self.heldFiles = heldFiles
         self.trashed = trashed
+        self.putBackOnly = putBackOnly
     }
 }
 
@@ -516,7 +529,10 @@ final class ShelfStore: ObservableObject {
     /// Legt Dateien wie der Finder in den Papierkorb und nimmt sie aus der Ablage.
     /// ⌘Z legt sie an ihren alten Ort zurück und wieder in die Ablage. `completion`
     /// liefert, wie viele Dateien im Papierkorb gelandet sind.
-    func moveToTrash(_ urls: [URL], completion: @escaping (Int) -> Void = { _ in }) {
+    /// `intoShelf`: ⌘Z legt Dateien, die nicht in der Ablage lagen, auch in die Ablage
+    /// (aus dem Finder auf die Aktion gezogen). Aus einem angehefteten Ordner nicht: Dort
+    /// kommen sie nur an ihren Platz zurück.
+    func moveToTrash(_ urls: [URL], intoShelf: Bool = true, completion: @escaping (Int) -> Void = { _ in }) {
         guard !urls.isEmpty else { return completion(0) }
         NSWorkspace.shared.recycle(urls) { [weak self] trashed, error in
             DispatchQueue.main.async {
@@ -539,7 +555,12 @@ final class ShelfStore: ObservableObject {
                     file.bookmark = nil
                     return ShelfRemoval.Item(index: 0, before: ShelfEntry(files: [file]))
                 }
-                if !ids.isEmpty || !extra.isEmpty {
+                if !intoShelf {
+                    // Was in der Ablage lag, ist weg wie jede Datei im Papierkorb; Widerrufen
+                    // legt alles nur an den alten Ort zurück
+                    if !ids.isEmpty { self.takeOut(Set(ids), undoable: false) }
+                    if !mapping.isEmpty { self.registerPutBack(mapping) }
+                } else if !ids.isEmpty || !extra.isEmpty {
                     self.takeOut(Set(ids), undoable: true, trashed: mapping, extraItems: extra)
                 }
                 completion(mapping.count)
@@ -623,11 +644,39 @@ final class ShelfStore: ObservableObject {
         return removal
     }
 
+    /// Papierkorb aus einem angehefteten Ordner: widerrufbar wie im Finder („Zurücklegen“)
+    private func registerPutBack(_ trashed: [URL: URL]) {
+        let removal = ShelfRemoval(items: [], fileIDs: [], heldFiles: [], trashed: trashed, putBackOnly: true)
+        removals.append(removal)
+        undoManager.registerUndo(withTarget: removal) { [weak self] removal in
+            self?.undo(removal)
+        }
+        undoManager.setActionName(L("Move to Trash", "In den Papierkorb legen"))
+        while removals.count > Self.undoDepth {
+            expire(removals.removeFirst())
+        }
+    }
+
+    /// Wie viele Dateien das letzte Widerrufen in ihren Ordner zurückgelegt hat
+    /// (Papierkorb aus einem angehefteten Ordner) und wo sie jetzt liegen
+    private(set) var lastPutBack: [URL] = []
+
     /// Legt entfernte Dateien zurück an ihren alten Platz. Registriert das Wiederholen.
     private func undo(_ removal: ShelfRemoval) {
-        diagnostics?.record("store", "undo files=\(removal.fileIDs.count) trashed=\(removal.trashed.count)")
+        diagnostics?.record("store", "undo files=\(removal.fileIDs.count) trashed=\(removal.trashed.count) putBackOnly=\(removal.putBackOnly)")
         removals.removeAll { $0 === removal }
-        putBackFromTrash(removal.trashed)
+        let putBack = putBackFromTrash(removal.trashed)
+        if removal.putBackOnly {
+            lastPutBack = putBack
+            guard !putBack.isEmpty else { return }
+            // Wiederholen legt sie erneut in den Papierkorb
+            undoManager.registerUndo(withTarget: self) { store in
+                store.moveToTrash(putBack, intoShelf: false)
+                Sounds.trash()
+            }
+            undoManager.setActionName(L("Move to Trash", "In den Papierkorb legen"))
+            return
+        }
         let present = Set(entries.flatMap { $0.files.map(\.id) })
         var updated = entries
         var restored = Set<UUID>()
@@ -677,18 +726,22 @@ final class ShelfStore: ObservableObject {
 
     /// Legt Dateien aus dem Papierkorb an ihren alten Ort zurück, wie „Zurücklegen“ im
     /// Finder. Schon im Finder zurückgelegte oder endgültig gelöschte bleiben, wie sie sind.
-    private func putBackFromTrash(_ trashed: [URL: URL]) {
+    @discardableResult
+    private func putBackFromTrash(_ trashed: [URL: URL]) -> [URL] {
         let fm = FileManager.default
+        var back: [URL] = []
         for (original, inTrash) in trashed {
             guard fm.fileExists(atPath: inTrash.path), !fm.fileExists(atPath: original.path) else { continue }
             do {
                 try fm.createDirectory(at: original.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try fm.moveItem(at: inTrash, to: original)
+                back.append(original)
             } catch {
                 Log.store.error("Zurücklegen fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
                 diagnostics?.failure("store", "Zurücklegen fehlgeschlagen", error)
             }
         }
+        return back
     }
 
     /// Dateien, die das letzte Widerrufen zurückgebracht hat (für die Auswahl).
@@ -698,6 +751,7 @@ final class ShelfStore: ObservableObject {
     /// Dateien inzwischen weg sind (z. B. Bilder aus dem Web, Minuten nach dem Herausziehen).
     func undoLast() -> Set<UUID> {
         lastRestoredFileIDs = []
+        lastPutBack = []
         undoManager.undo()
         return lastRestoredFileIDs
     }

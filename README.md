@@ -90,7 +90,8 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 
 **Action bar**
 * AirDrop, Mail, Messages, Share, Trash, any folder or app
-* Drag items onto it, or select them and click
+* Drag items onto it
+* Click a folder to see its contents right in the shelf, like a stack: select, drag out, Quick Look and move to the Trash like in the Finder, open subfolders, and drop files there to put them in the folder; `esc` goes back
 * Folders and the Trash work like in the Finder: on the same disk a folder moves, on another disk it copies (`⌥` always copies, `⌘` always moves)
 * Two rows with up to five actions each; names for all actions, folders only, or none
 * The Trash looks full or empty like the Trash of your Mac
