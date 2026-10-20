@@ -459,16 +459,19 @@ struct QuickActionBar: View {
                 let split = AppSettings.clampSplit(settings.actionRowSplit, count: slots.count)
                 let top = Array(slots.prefix(split))
                 let bottom = Array(slots.dropFirst(split).prefix(QuickAction.perRow))
+                // Beide Reihen gleich groß: so groß, wie es die vollere Reihe erlaubt
+                let size = iconSize(forActions: max(Self.actionCount(top), Self.actionCount(bottom)))
                 if top.isEmpty || bottom.isEmpty {
-                    row(top.isEmpty ? bottom : top)
+                    row(top.isEmpty ? bottom : top, iconSize: size)
                 } else {
                     VStack(spacing: 4) {
-                        row(top)
-                        row(bottom)
+                        row(top, iconSize: size)
+                        row(bottom, iconSize: size)
                     }
                 }
             } else {
-                row(Array(slots.prefix(QuickAction.limit(twoRows: false))))
+                let items = Array(slots.prefix(QuickAction.limit(twoRows: false)))
+                row(items, iconSize: iconSize(forActions: Self.actionCount(items)))
             }
         }
         .padding(.horizontal, 6)
@@ -483,27 +486,31 @@ struct QuickActionBar: View {
         CGFloat(settings.actionIconSize) + (settings.showActionLabels ? 0 : 10)
     }
 
-    /// Symbolgröße für eine Reihe mit `count` Plätzen: wie eingestellt, aber nie breiter als
-    /// ein Platz (große Symbole bei vielen Aktionen überlappten sonst). Breite wie in
-    /// ShelfContent: Ablage minus Ränder der Leiste, 2 pt zwischen den Plätzen.
-    private func iconSize(forSlots items: Int) -> CGFloat {
-        // Zwei Reihen: beide gleich groß, auf dem Raster von fünf Plätzen
-        let count = settings.twoActionRows ? QuickAction.perRow : items
+    /// Symbolgröße, wenn `count` Aktionen nebeneinander stehen: wie eingestellt, aber nie
+    /// breiter als ihr Platz (große Symbole bei vielen Aktionen überlappten sonst). Breite wie
+    /// in ShelfContent: Ablage minus Ränder der Leiste, 2 pt zwischen den Plätzen. Gezählt
+    /// werden nur Aktionen, nicht der Platz zum Anheften: Sonst schrumpften beim Ziehen eines
+    /// Ordners über die Ablage alle Symbole.
+    private func iconSize(forActions count: Int) -> CGFloat {
+        let places = CGFloat(max(count, 1))
         let inner = CGFloat(settings.shelfWidth) - 2 * 10 - 2 * 6
-        let slot = (inner - 2 * CGFloat(max(count, 1) - 1)) / CGFloat(max(count, 1))
+        let slot = (inner - 2 * (places - 1)) / places
         return min(iconSize, max(20, slot - 6))
     }
 
+    private static func actionCount(_ items: [Slot]) -> Int {
+        items.filter { if case .action = $0 { return true } else { return false } }.count
+    }
+
     /// Eine Reihe: die Aktionen teilen sich die ganze Breite, jede mittig in ihrem Teil.
-    private func row(_ items: [Slot]) -> some View {
+    private func row(_ items: [Slot], iconSize size: CGFloat) -> some View {
         HStack(spacing: 2) {
             ForEach(items) { slot in
                 switch slot {
                 case .action(let action):
-                    QuickActionButton(action: action, ui: ui, store: store, actions: actions,
-                                      iconSize: iconSize(forSlots: items.count))
+                    QuickActionButton(action: action, ui: ui, store: store, actions: actions, iconSize: size)
                 case .pin(let url):
-                    PinSlot(url: url, ui: ui, settings: settings, iconSize: iconSize(forSlots: items.count))
+                    PinSlot(url: url, ui: ui, settings: settings, iconSize: size)
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
