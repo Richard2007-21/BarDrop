@@ -149,8 +149,12 @@ final class ShelfPanel: NSPanel {
     }
 
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
-        panel.dataSource = nil
-        panel.delegate = nil
+        // Nur leeren, wenn die Übersicht zu ist: Sie läuft ohne Fokus und bekommt ihre Quelle
+        // direkt (ShelfActions.quickLook); sonst stünde dort „Keine Objekte ausgewählt“
+        if !panel.isVisible {
+            panel.dataSource = nil
+            panel.delegate = nil
+        }
         // Übersicht mit esc oder ihrem Knopf geschlossen: weiter in der Ablage
         DispatchQueue.main.async { [weak self] in
             guard let self, let ui = self.actions?.ui, ui.level == .expanded,

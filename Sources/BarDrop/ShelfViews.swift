@@ -278,6 +278,11 @@ struct ShelfContent: View {
                                     .transition(.opacity)
                             }
                         }
+                        // Unschärfe beim Öffnen auf dem Inhalt im Scrollbereich, nicht auf dem
+                        // Scrollbereich selbst: Der ist eine AppKit-Ansicht, eine Unschärfe darauf
+                        // legte ihn auf eine eigene Ebene über die Aktionsleiste, deren Schwarz
+                        // dann zeitweise fehlte. So bleibt die Leiste obenauf und deckt ab
+                        .blur(radius: openBlur)
                         // Platz unter der letzten Reihe: Sie lässt sich ganz über die Leiste scrollen
                         .padding(.bottom, barHeight)
                         .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
@@ -342,8 +347,6 @@ struct ShelfContent: View {
                     }
                     }
                 }
-                // Unschärfe beim Öffnen nur hier, unter der Leiste (die liegt darüber und deckt ab)
-                .blur(radius: openBlur)
                 .onAppear {
                     guard !sharpened else { return }
                     withAnimation(.easeOut(duration: 0.28).delay(0.07)) { sharpened = true }

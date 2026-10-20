@@ -265,12 +265,16 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         panel?.makeKey()
         let ql = QLPreviewPanel.shared()!
         if QLPreviewPanel.sharedPreviewPanelExists() && ql.isVisible {
+            ql.dataSource = self
+            ql.delegate = self
             ql.reloadData()
         } else {
             placeOnShelfScreen(ql)
+            // Inhalt direkt mitgeben: Ohne Fokus sucht die Übersicht ihre Quelle sonst
+            // vergeblich beim Fenster mit dem Fokus und zeigt „Keine Objekte ausgewählt“
+            ql.dataSource = self
+            ql.delegate = self
             ql.orderFrontRegardless()
-            // Die Ablage steuert die Übersicht (acceptsPreviewPanelControl)
-            ql.updateController()
             ql.reloadData()
             // Quick Look stellt beim Öffnen manchmal seinen alten Ort wieder her
             DispatchQueue.main.async { [weak self] in self?.placeOnShelfScreen(ql) }
