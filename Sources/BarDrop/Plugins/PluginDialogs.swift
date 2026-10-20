@@ -38,21 +38,15 @@ enum PluginDialogs {
         alert.informativeText = permission.explanation
         alert.addButton(withTitle: L("Allow", "Erlauben"))
         alert.addButton(withTitle: L("Don’t Allow", "Nicht erlauben"))
-        if permission == .run { alert.alertStyle = .warning }
         return run(alert, ui: ui) == .alertFirstButtonReturn
     }
 
     static func allowDownload(of tool: PluginTool, for plugin: InstalledPlugin, ui: ShelfUIModel?) -> Bool {
         let alert = makeAlert(plugin.manifest)
-        let host = URL(string: tool.resolvedURL)?.host ?? tool.resolvedURL
-        alert.messageText = L("Download “\(tool.name)”?", "„\(tool.name)“ herunterladen?")
-        var text = L("“\(plugin.manifest.name.text)” needs the program “\(tool.name)”. BarDrop downloads it from \(host), checks its checksum and keeps it for all plugins. The program isn’t part of BarDrop and runs with the same rights as the plugin.",
-                     "„\(plugin.manifest.name.text)“ braucht das Programm „\(tool.name)“. BarDrop lädt es von \(host), prüft seine Prüfsumme und hebt es für alle Plugins auf. Das Programm gehört nicht zu BarDrop und läuft mit denselben Rechten wie das Plugin.")
-        if let days = tool.refreshDays {
-            text += " " + L("It is downloaded again after \(days) days.", "Nach \(days) Tagen wird es neu geladen.")
-        }
-        if let license = tool.license { text += "\n\n" + L("License: \(license)", "Lizenz: \(license)") }
-        alert.informativeText = text
+        alert.messageText = L("Download “\(tool.name)”?", "„\(tool.name)“ laden?")
+        alert.informativeText = L("“\(plugin.manifest.name.text)” needs this program.",
+                                  "„\(plugin.manifest.name.text)“ braucht dieses Programm.")
+        alert.accessoryView = grantList(PluginGrant.rows(permissions: [], tools: [tool]))
         alert.addButton(withTitle: L("Download", "Laden"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
         return run(alert, ui: ui) == .alertFirstButtonReturn
@@ -66,28 +60,106 @@ enum PluginDialogs {
         run(alert, ui: ui)
     }
 
-    /// Einschalten von „Automatisch beim Ablegen“ und „Erlauben“ in den Einstellungen:
-    /// Zustimmung, alle Rechte und alle Programme jetzt erfragen, damit beim Ablegen
-    /// später keine Frage aufspringt.
-    static func prepareAutomatic(_ plugin: InstalledPlugin, manager: PluginManager) -> Bool {
-        guard confirmConsent(plugin, manager: manager, ui: nil) else { return false }
-        for permission in plugin.manifest.allPermissions where !manager.isGranted(permission, for: plugin) {
-            guard allow(permission, for: plugin, ui: nil) else { return false }
-            manager.grant(permission, for: plugin)
-        }
-        // Programme, die das Plugin laden muss: jetzt erlauben, beim Ablegen fragt niemand
-        for tool in plugin.manifest.tools ?? [] where !manager.state(plugin.id).approvedTools.contains(tool.approvalKey) {
-            guard allowDownload(of: tool, for: plugin, ui: nil) else { return false }
-            manager.update(plugin.id) { $0.approvedTools.append(tool.approvalKey) }
+    /// Alles, was ein Plugin noch braucht, in **einem** kurzen Fenster: Zustimmung zum
+    /// Hinweis, Rechte und Programme. Für „Automatisch beim Ablegen“, „Erlauben“ in den
+    /// Einstellungen und das Ablegen, wenn noch etwas fehlt. Nach „Erlauben“ fragt beim
+    /// Ablegen niemand mehr.
+    static func authorize(_ plugin: InstalledPlugin, manager: PluginManager, ui: ShelfUIModel?) -> Bool {
+        let name = plugin.manifest.name.text
+        let consent = manager.hasConsented(plugin) ? nil : plugin.manifest.consent
+        let permissions = plugin.manifest.allPermissions.filter { !manager.isGranted($0, for: plugin) }
+        let tools = (plugin.manifest.tools ?? []).filter { !manager.state(plugin.id).approvedTools.contains($0.approvalKey) }
+        guard consent != nil || !permissions.isEmpty || !tools.isEmpty else { return true }
+
+        let alert = makeAlert(plugin.manifest)
+        let onlyConsent = permissions.isEmpty && tools.isEmpty
+        alert.messageText = onlyConsent ? L("Use “\(name)”?", "„\(name)“ verwenden?")
+                                        : L("Allow “\(name)”?", "„\(name)“ erlauben?")
+        var text: [String] = []
+        if let consent { text.append(consent.text) }
+        if !onlyConsent { text.append(L("Only allow plugins you trust.", "Erlaube nur Plugins, denen du vertraust.")) }
+        alert.informativeText = text.joined(separator: "\n\n")
+        alert.accessoryView = grantList(PluginGrant.rows(permissions: permissions, tools: tools))
+        alert.addButton(withTitle: onlyConsent ? L("Agree", "Zustimmen") : L("Allow", "Erlauben"))
+        alert.addButton(withTitle: L("Cancel", "Abbrechen"))
+        guard run(alert, ui: ui) == .alertFirstButtonReturn else { return false }
+
+        if consent != nil { manager.recordConsent(plugin) }
+        for permission in permissions { manager.grant(permission, for: plugin) }
+        if !tools.isEmpty {
+            manager.update(plugin.id) { s in
+                for tool in tools where !s.approvedTools.contains(tool.approvalKey) { s.approvedTools.append(tool.approvalKey) }
+            }
         }
         return true
+    }
+
+    /// Einschalten von „Automatisch beim Ablegen“ und „Erlauben“ in den Einstellungen
+    static func prepareAutomatic(_ plugin: InstalledPlugin, manager: PluginManager) -> Bool {
+        authorize(plugin, manager: manager, ui: nil)
+    }
+
+    /// Kurze Liste unter der Frage: je Zeile ein Symbol und ein paar Worte
+    static func grantList(_ rows: [PluginGrant]) -> NSView? {
+        guard !rows.isEmpty else { return nil }
+        let view = NSHostingView(rootView: GrantList(rows: rows))
+        view.frame = NSRect(origin: .zero, size: view.fittingSize)
+        return view
+    }
+}
+
+/// Eine Zeile in den Fenstern der Plugins: was das Plugin darf, lädt oder mitbringt
+struct PluginGrant: Identifiable {
+    let id = UUID()
+    let symbol: String
+    let text: String
+
+    static func rows(permissions: [PluginPermission], tools: [PluginTool], otherFiles: [String] = []) -> [PluginGrant] {
+        var rows = permissions.map { PluginGrant(symbol: $0.symbol, text: $0.summary) }
+        for tool in tools {
+            let host = URL(string: tool.resolvedURL)?.host ?? tool.resolvedURL
+            var text = L("Downloads “\(tool.name)” from \(host)", "Lädt „\(tool.name)“ von \(host)")
+            if let license = tool.license { text += " · " + license }
+            rows.append(PluginGrant(symbol: "arrow.down.circle", text: text))
+        }
+        if !otherFiles.isEmpty {
+            var text = L("Also contains ", "Enthält außerdem ") + otherFiles.prefix(4).joined(separator: ", ")
+            if otherFiles.count > 4 {
+                let more = otherFiles.count - 4
+                text += " " + L("and \(more) more", "und \(more) weitere")
+            }
+            rows.append(PluginGrant(symbol: "doc.on.doc", text: text))
+        }
+        return rows
+    }
+}
+
+private struct GrantList: View {
+    let rows: [PluginGrant]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(rows) { row in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: row.symbol)
+                        .frame(width: 16)
+                    Text(row.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 260, alignment: .leading)
+        .padding(.vertical, 2)
     }
 }
 
 // MARK: Import
 
-/// Import einer .bdrop-Datei: prüfen, zeigen, was das Plugin kann und darf, und erst nach
-/// Bestätigung installieren. Ein Doppelklick installiert also nie still.
+/// Import einer .bdrop-Datei: prüfen, kurz zeigen, was das Plugin darf, und erst nach
+/// Bestätigung installieren. Ein Doppelklick installiert also nie still. Das Skript gibt
+/// es auf Wunsch („Skript ansehen“).
 enum PluginImporter {
     /// Liefert das installierte Plugin, nil bei Abbruch oder Fehler (dann mit Meldung)
     @discardableResult
@@ -109,30 +181,36 @@ enum PluginImporter {
             return nil
         }
         let existing = manager.plugin(manifest.id)
-        let alert = PluginDialogs.makeAlert(manifest)
-        if existing != nil {
-            alert.messageText = L("Update “\(manifest.name.text)”?", "„\(manifest.name.text)“ aktualisieren?")
-        } else {
-            alert.messageText = L("Install “\(manifest.name.text)”?", "„\(manifest.name.text)“ installieren?")
+        let name = manifest.name.text
+        var accepted = false
+        while true {
+            let alert = PluginDialogs.makeAlert(manifest)
+            alert.messageText = existing == nil ? L("Install “\(name)”?", "„\(name)“ installieren?")
+                                                : L("Update “\(name)”?", "„\(name)“ aktualisieren?")
+            var lines: [String] = []
+            if let existing {
+                lines.append(L("Version \(existing.manifest.version) → \(manifest.version)",
+                               "Version \(existing.manifest.version) → \(manifest.version)"))
+            }
+            if let description = manifest.description?.text, !description.isEmpty { lines.append(description) }
+            lines.append(L("Not from the BarDrop catalog. Only install plugins from people you trust.",
+                           "Nicht aus dem Katalog von BarDrop. Installiere nur Plugins von Menschen, denen du vertraust."))
+            alert.informativeText = lines.joined(separator: "\n\n")
+            alert.accessoryView = PluginDialogs.grantList(PluginGrant.rows(
+                permissions: manifest.allPermissions, tools: manifest.tools ?? [], otherFiles: otherFiles(in: unpacked)))
+            alert.addButton(withTitle: existing == nil ? L("Install", "Installieren") : L("Update", "Aktualisieren"))
+            alert.addButton(withTitle: L("Cancel", "Abbrechen"))
+            alert.addButton(withTitle: L("View Script", "Skript ansehen"))
+            NSApp.activate(ignoringOtherApps: true)
+            let answer = alert.runModal()
+            if answer == .alertThirdButtonReturn {
+                showScript(unpacked.script, manifest: manifest)
+                continue
+            }
+            accepted = answer == .alertFirstButtonReturn
+            break
         }
-        var lines: [String] = []
-        if let existing {
-            lines.append(L("Installed: \(existing.manifest.version), new: \(manifest.version)",
-                           "Installiert: \(existing.manifest.version), neu: \(manifest.version)"))
-        }
-        if let description = manifest.description?.text, !description.isEmpty { lines.append(description) }
-        lines.append(L("This plugin isn’t from the BarDrop catalog. Only install plugins from people you trust. You can look at its script below.",
-                       "Dieses Plugin stammt nicht aus dem Katalog von BarDrop. Installiere nur Plugins von Menschen, denen du vertraust. Das Skript kannst du dir unten ansehen."))
-        alert.informativeText = lines.joined(separator: "\n\n")
-        alert.alertStyle = .warning
-        let accessory = NSHostingView(rootView: ImportDetails(manifest: manifest, script: unpacked.script,
-                                                              otherFiles: otherFiles(in: unpacked)))
-        accessory.frame = NSRect(x: 0, y: 0, width: 420, height: 250)
-        alert.accessoryView = accessory
-        alert.addButton(withTitle: existing == nil ? L("Install", "Installieren") : L("Update", "Aktualisieren"))
-        alert.addButton(withTitle: L("Cancel", "Abbrechen"))
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else {
+        guard accepted else {
             try? FileManager.default.removeItem(at: unpacked.directory)
             return nil
         }
@@ -147,6 +225,21 @@ enum PluginImporter {
             showFailure(error.localizedDescription, file: url)
         }
         return nil
+    }
+
+    /// Das Skript vor dem Installieren lesen, danach zurück zur Frage
+    private static func showScript(_ script: String, manifest: PluginManifest) {
+        let alert = PluginDialogs.makeAlert(manifest)
+        alert.messageText = manifest.name.text + " · " + manifest.script
+        let view = NSHostingView(rootView: ScriptText(script: script, fontSize: 11)
+            .frame(width: 460, height: 320)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.85)))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .environment(\.colorScheme, .dark))
+        view.frame = NSRect(x: 0, y: 0, width: 460, height: 320)
+        alert.accessoryView = view
+        alert.addButton(withTitle: L("Back", "Zurück"))
+        alert.runModal()
     }
 
     /// Dateien im Plugin außer manifest.json und dem Skript (das Skript kann sie lesen und
@@ -183,57 +276,9 @@ enum PluginImporter {
         let alert = NSAlert()
         alert.messageText = L("“\(file.lastPathComponent)” can’t be installed", "„\(file.lastPathComponent)“ lässt sich nicht installieren")
         alert.informativeText = message
-        alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
-    }
-}
-
-/// Unter der Frage beim Import: Rechte, Programme und das Skript zum Nachlesen
-private struct ImportDetails: View {
-    let manifest: PluginManifest
-    let script: String
-    var otherFiles: [String] = []
-
-    private var otherFilesText: String {
-        var text = L("More files: ", "Weitere Dateien: ") + otherFiles.prefix(8).joined(separator: ", ")
-        if otherFiles.count > 8 {
-            let more = otherFiles.count - 8
-            text += " " + L("and \(more) more", "und \(more) weitere")
-        }
-        return text
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if !manifest.allPermissions.isEmpty || !(manifest.tools ?? []).isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(manifest.allPermissions) { permission in
-                        Label(permission.title, systemImage: permission.symbol)
-                            .font(.system(size: 12))
-                    }
-                    ForEach(manifest.tools ?? []) { tool in
-                        Label(L("Downloads “\(tool.name)” from \(URL(string: tool.resolvedURL)?.host ?? tool.resolvedURL)",
-                                "Lädt „\(tool.name)“ von \(URL(string: tool.resolvedURL)?.host ?? tool.resolvedURL)"),
-                              systemImage: "arrow.down.circle")
-                            .font(.system(size: 12))
-                    }
-                }
-            }
-            if !otherFiles.isEmpty {
-                Label(otherFilesText, systemImage: "doc.on.doc")
-                    .font(.system(size: 12))
-                    .lineLimit(2)
-                    .help(L("The script can read these files and run them as code.",
-                            "Das Skript kann diese Dateien lesen und als Code ausführen."))
-            }
-            ScriptText(script: script, fontSize: 11)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.85)))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .frame(width: 420, height: 250)
     }
 }
 

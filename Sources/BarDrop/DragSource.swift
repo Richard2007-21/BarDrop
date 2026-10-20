@@ -324,9 +324,19 @@ enum ShelfMenu {
 
     static func popUp(_ menu: NSMenu, with event: NSEvent, for view: NSView) {
         guard !disabled else { return }
+        withoutImages(menu)
         activate()
         view.window?.makeKey()
         NSMenu.popUpContextMenu(menu, with: event, for: view)
+    }
+
+    /// Rechtsklickmenüs zeigen keine Symbole vor den Einträgen, auch nicht in Untermenüs
+    /// und nicht für Plugins: schlicht und einheitlich
+    private static func withoutImages(_ menu: NSMenu) {
+        for item in menu.items {
+            item.image = nil
+            if let submenu = item.submenu { withoutImages(submenu) }
+        }
     }
 
     /// Aktivieren und auf die Bestätigung des Systems warten, höchstens `timeout` Sekunden.

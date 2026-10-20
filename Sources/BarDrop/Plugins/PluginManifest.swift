@@ -68,17 +68,25 @@ enum PluginPermission: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Ein Satz unter der Frage, wenn ein Plugin ein Recht zum ersten Mal nutzt
     var explanation: String {
         switch self {
         case .network:
-            return L("The plugin can load web pages and files from the internet.",
-                     "Das Plugin kann Webseiten und Dateien aus dem Internet laden.")
+            return L("It can load web pages and files.", "Es kann Webseiten und Dateien laden.")
         case .run:
-            return L("The plugin can run programs on your Mac. This gives it full access to your Mac, like any other app. Only allow this for plugins you trust.",
-                     "Das Plugin kann Programme auf deinem Mac ausführen. Damit hat es vollen Zugriff auf deinen Mac, wie jede andere App. Erlaube das nur Plugins, denen du vertraust.")
+            return L("This gives it full access to your Mac. Only allow plugins you trust.",
+                     "Damit hat es vollen Zugriff auf deinen Mac. Erlaube das nur Plugins, denen du vertraust.")
         case .clipboard:
-            return L("The plugin can put text on the clipboard.",
-                     "Das Plugin kann Text in die Zwischenablage legen.")
+            return L("It can put text on the clipboard.", "Es kann Text in die Zwischenablage legen.")
+        }
+    }
+
+    /// Zeile in den Listen der Fenster (Import, Erlauben)
+    var summary: String {
+        switch self {
+        case .network: return L("Internet access", "Zugriff aufs Internet")
+        case .run: return L("Run programs (full access to your Mac)", "Programme ausführen (voller Zugriff auf den Mac)")
+        case .clipboard: return L("Clipboard", "Zwischenablage")
         }
     }
 

@@ -135,16 +135,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         let missingTools = (plugin.manifest.tools ?? []).filter { !manager.state(plugin.id).approvedTools.contains($0.approvalKey) }
         if readyForAutomatic(plugin) && missingTools.isEmpty { return true }
         guard showsErrorDialogs else { return false }
-        let ui = actions?.ui
-        guard PluginDialogs.confirmConsent(plugin, manager: manager, ui: ui) else { return false }
-        for permission in plugin.manifest.allPermissions where !manager.isGranted(permission, for: plugin) {
-            guard PluginDialogs.allow(permission, for: plugin, ui: ui) else { return false }
-            manager.grant(permission, for: plugin)
-        }
-        for tool in missingTools {
-            guard PluginDialogs.allowDownload(of: tool, for: plugin, ui: ui) else { return false }
-            manager.update(plugin.id) { s in if !s.approvedTools.contains(tool.approvalKey) { s.approvedTools.append(tool.approvalKey) } }
-        }
+        // Alles, was fehlt, in einem Fenster
+        guard PluginDialogs.authorize(plugin, manager: manager, ui: actions?.ui) else { return false }
         return readyForAutomatic(plugin)
     }
 
