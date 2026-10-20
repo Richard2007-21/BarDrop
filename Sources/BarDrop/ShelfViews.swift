@@ -297,7 +297,11 @@ struct ShelfContent: View {
                     }
                     .onDisappear { saveScroll() }
                     .onChange(of: geo.size.height) { _, height in viewportHeight = height }
-                    .onPreferenceChange(ScrollOffsetKey.self) { scroll.offset = $0 }
+                    .onPreferenceChange(ScrollOffsetKey.self) { offset in
+                        let before = scroll.offset
+                        scroll.offset = offset
+                        recordScrollJump(from: before, to: offset)
+                    }
                     // Stapel oder Ordner geöffnet (oder Unterordner): oben beginnen, ohne
                     // sichtbares Scrollen, egal wie weit die Ablage vorher gescrollt war
                     .onChange(of: ui.openStack) { _, opened in
@@ -711,6 +715,17 @@ struct ShelfContent: View {
     }
 
     // MARK: Mitscrollen
+
+    /// Diagnoseprotokoll: ein Sprung beim Scrollen (weiter als ein Bild Schwung schafft),
+    /// mit allem, was zur Ursache gehört: Lage, Höhe, Anzahl, welches Raster
+    private func recordScrollJump(from before: CGFloat, to after: CGFloat) {
+        let delta = after - before
+        guard abs(delta) > max(400, viewportHeight), Diagnostics.shared.isEnabled else { return }
+        let count = stack?.files.count ?? store.entries.count
+        let kind = count > Self.lazyThreshold ? "lazy" : "eigen"
+        let view = stack == nil ? "ablage" : (folderOpen ? "ordner" : "stapel")
+        Diagnostics.shared.record("scroll", "jump Δ=\(Int(delta)) from=\(Int(before)) to=\(Int(after)) viewport=\(Int(viewportHeight)) items=\(count) grid=\(kind) view=\(view) key=\(ui.isKey)")
+    }
 
     /// Ganz nach oben, ohne Animation
     private func scrollToTop(_ proxy: ScrollViewProxy) {

@@ -63,6 +63,7 @@ final class ShelfPanel: NSPanel {
         let shift = event.modifierFlags.contains(.shift)
         switch event.keyCode {
         case 49: // Leertaste
+            Diagnostics.shared.record("key", "space in shelf quickLook=\(actions.isQuickLookVisible)")
             actions.toggleQuickLookCurrent()
         case 51, 117: // Löschen; gedrückt halten entfernt nicht alles nacheinander
             if !event.isARepeat { actions.removeCurrentSelection() }

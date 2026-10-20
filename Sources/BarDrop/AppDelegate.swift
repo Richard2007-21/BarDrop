@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var pendingPluginFiles: [URL] = []
     /// Gibt den Einstellungen den Fokus zurück, wenn ein Menü der Menüleiste ihn kurz hatte
     private var focusReturn: SettingsFocusReturn?
+    /// Diagnoseprotokoll: Fokuswechsel
+    private var focusDiagnostics: FocusDiagnostics?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Nach einem Update erst starten, wenn die alte Fassung beendet ist
@@ -64,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 && self.settingsWindow?.isVisible != true && self.onboarding == nil
         }
         focusReturn = SettingsFocusReturn { [weak self] in self?.settingsWindow }
+        focusDiagnostics = FocusDiagnostics { [weak self] in self?.settingsWindow }
         Updater.shared.start()
         PluginManager.shared.start()
         // Links, für die ein Plugin zuständig ist, als Link übernehmen (nicht als Vorschaubild)

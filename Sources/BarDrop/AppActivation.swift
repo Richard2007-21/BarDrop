@@ -13,6 +13,7 @@ enum AppActivation {
     static func activateKeepingWindows(timeout: TimeInterval = 0) {
         guard !NSApp.isActive else { return }
         let placements = currentPlacements()
+        Diagnostics.shared.record("focus", "activate from shelf, keeps \(placements.count) window(s) in place")
         NSApp.activate(ignoringOtherApps: true)
         if timeout > 0 {
             let deadline = Date().addingTimeInterval(timeout)

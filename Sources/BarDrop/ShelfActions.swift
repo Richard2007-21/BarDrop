@@ -314,6 +314,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         guard let event, event.type == .keyDown else { return false }
         // Leertaste schließt wie im Finder, auch wenn die Übersicht selbst den Fokus hat
         if event.keyCode == 49 {
+            Diagnostics.shared.record("key", "space in quick look")
             closeQuickLook()
             return true
         }
