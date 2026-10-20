@@ -126,8 +126,7 @@ struct ShortcutRow: View {
         SettingsRow(title) {
             HStack(spacing: 3) {
                 ForEach(Array(keys.enumerated()), id: \.offset) { _, key in
-                    Text(key)
-                        .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                    label(key)
                         .foregroundStyle(.secondary)
                         .frame(minWidth: 22, minHeight: 22)
                         .padding(.horizontal, key.count > 1 ? 5 : 0)
@@ -141,6 +140,26 @@ struct ShortcutRow: View {
                         )
                 }
             }
+        }
+    }
+
+    /// Sondertasten als Systemsymbol: Die Zeichen ⌘, ⌫ usw. sitzen in der Schrift nicht in
+    /// der Mitte ihrer Zeile und standen deshalb schief in der Taste. Symbole werden nach
+    /// ihrer Form mittig gesetzt. Buchstaben und Wörter bleiben Text.
+    private static let symbols: [String: String] = [
+        "⌘": "command", "⇧": "shift", "⌥": "option", "⌃": "control",
+        "⌫": "delete.left", "↩": "return",
+        "←": "arrow.left", "→": "arrow.right", "↑": "arrow.up", "↓": "arrow.down",
+    ]
+
+    @ViewBuilder
+    private func label(_ key: String) -> some View {
+        if let name = Self.symbols[key] {
+            Image(systemName: name)
+                .font(.system(size: 10.5, weight: .medium))
+        } else {
+            Text(key)
+                .font(.system(size: 11.5, weight: .medium, design: .rounded))
         }
     }
 }
