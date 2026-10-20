@@ -342,15 +342,9 @@ enum ShelfMenu {
     /// Aktivieren und auf die Bestätigung des Systems warten, höchstens `timeout` Sekunden.
     /// Dabei werden nur die Systemereignisse der Aktivierung verarbeitet; Klicks und
     /// Tasten bleiben in der Warteschlange.
+    /// Andere eigene Fenster (Einstellungen) bleiben dabei, wo sie waren.
     static func activate(timeout: TimeInterval = 0.25) {
-        guard !NSApp.isActive else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        let deadline = Date().addingTimeInterval(timeout)
-        while !NSApp.isActive, Date() < deadline {
-            guard let event = NSApp.nextEvent(matching: [.appKitDefined, .systemDefined], until: deadline,
-                                              inMode: .default, dequeue: true) else { break }
-            NSApp.sendEvent(event)
-        }
+        AppActivation.activateKeepingWindows(timeout: timeout)
     }
 }
 

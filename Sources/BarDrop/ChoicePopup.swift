@@ -309,15 +309,51 @@ private struct ChoiceList: View {
         .fixedSize()
         .coordinateSpace(name: "choices")
         .onPreferenceChange(RowFramesKey.self) { frames($0) }
+        // Leicht durchscheinend wie die Karten; darunter unscharf, was hinter dem Menü liegt,
+        // damit die Einträge auf jedem Hintergrund lesbar bleiben
         .background(
-            RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
-                .fill(SettingsTheme.card)
+            ZStack {
+                RoundedBlur(radius: SettingsTheme.cardRadius)
+                RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
+                    .fill(SettingsTheme.card)
+            }
         )
         .overlay(
             RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
                 .strokeBorder(SettingsTheme.cardBorder, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous))
+    }
+}
+
+/// Unschärfe hinter einem Menü, mit runden Ecken (AppKit-Ansichten schneidet SwiftUI nicht
+/// zuverlässig zu, darum eine Maske)
+private struct RoundedBlur: NSViewRepresentable {
+    var radius: CGFloat
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .menu
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.maskImage = Self.mask(radius)
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.maskImage = Self.mask(radius)
+    }
+
+    static func mask(_ radius: CGFloat) -> NSImage {
+        let side = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 }
 

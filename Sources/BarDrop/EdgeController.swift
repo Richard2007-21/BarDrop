@@ -482,10 +482,20 @@ final class EdgeController: NSObject {
         if new == .expanded { animation = style.open }
         else if old == .expanded { animation = style.close }
         else { animation = new > old ? style.peekIn : style.peekOut }
-        withAnimation(animation) {
-            ui.level = new
-            // Nächstes Öffnen zeigt wieder die ganze Ablage, außer „An letzter Stelle öffnen“ ist an
-            if new == .hidden && !settings.reopenWhereLeft { ui.openStack = nil }
+        withAnimation(animation) { ui.level = new }
+        // Nächstes Öffnen zeigt wieder die ganze Ablage, außer „An letzter Stelle öffnen“ ist
+        // an. Erst wenn sie ganz zu ist: Sonst sah man beim Schließen, wie der Stapel oder
+        // Ordner zur Ablage zurückwechselt.
+        if new == .hidden && !settings.reopenWhereLeft && ui.openStack != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + collapseDuration) { [weak self] in
+                guard let self, self.ui.level == .hidden else { return }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    self.ui.openStack = nil
+                    self.ui.memberSelection = []
+                }
+            }
         }
         logic.level = new
         logic.levelSince = Date()
@@ -519,14 +529,26 @@ final class EdgeController: NSObject {
     /// beim Schließen zurück. Während etwas gezogen wird, bleibt alles, wie es ist.
     private func takeFocus() {
         guard (NSEvent.pressedMouseButtons & 1) == 0 else { return }
+        rememberFocus()
         if !panel.isKeyWindow { panel.makeKey() }
         // Gleich nach dem Öffnen nimmt das Fenster noch keine Mausereignisse an;
         // das regelt erst der nächste Takt. Danach noch einmal sicherstellen.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self, self.ui.level == .expanded, !self.panel.isKeyWindow,
                   (NSEvent.pressedMouseButtons & 1) == 0 else { return }
+            self.rememberFocus()
             self.panel.makeKey()
         }
+    }
+
+    /// Wie es vor dem Öffnen der Ablage war: War BarDrop aktiv, und welches eigene Fenster
+    /// (Einstellungen, Einführung) hatte den Fokus? Nur beim ersten Mal je Öffnen gemerkt.
+    private var focusBefore: (appActive: Bool, window: NSWindow?)?
+
+    private func rememberFocus() {
+        guard focusBefore == nil, !panel.isKeyWindow else { return }
+        let key = NSApp.keyWindow
+        focusBefore = (NSApp.isActive, key === panel ? nil : key)
     }
 
     /// Zeichnet die offene Ablage sofort neu und kurz danach noch einmal (die Änderung
@@ -560,13 +582,26 @@ final class EdgeController: NSObject {
     }
 
     /// Gibt Tastaturfokus und Aktivierung an die vorherige App zurück.
+    ///
+    /// Hatte vorher ein eigenes Fenster den Fokus (Einstellungen, Einführung), bekommt es
+    /// ihn zurück. Sonst gibt das Fenster den Fokus ab, ohne ein anderes eigenes Fenster
+    /// nach vorn zu holen. War BarDrop vorher nicht aktiv (es wurde erst aus der Ablage
+    /// heraus aktiv, etwa durch einen Rechtsklick), geht es zurück an die App davor, auch
+    /// wenn die Einstellungen offen sind: Sonst blieben sie danach vorn.
     private func resignFocus() {
         pendingResignFocus = false
+        let before = focusBefore
+        focusBefore = nil
         if panel.isKeyWindow {
-            panel.orderOut(nil)
-            panel.orderFrontRegardless()
+            if let window = before?.window, before?.appActive == true, window.isVisible, window.canBecomeKey {
+                window.makeKey()
+            } else {
+                panel.orderOut(nil)
+                panel.orderFrontRegardless()
+            }
         }
-        if NSApp.isActive && !keepAppActive() && !actions.isQuickLookVisible {
+        let keep = keepAppActive() && (before?.appActive ?? true)
+        if NSApp.isActive && !keep && !actions.isQuickLookVisible {
             NSApp.deactivate()
         }
     }

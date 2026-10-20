@@ -117,6 +117,22 @@ final class ScrollTracker: ObservableObject {
     @Published private(set) var scrolled = false
 }
 
+/// Lage der Kacheln, ohne die Ansicht neu zeichnen zu lassen
+final class TileFrameStore {
+    var frames: [UUID: CGRect] = [:]
+}
+
+extension View {
+    /// Meldet die Lage einer Kachel im Raster (für Lasso und Mitscrollen)
+    func reportsTileFrame(_ id: UUID) -> some View {
+        background(
+            GeometryReader { g in
+                Color.clear.preference(key: TileFramesKey.self, value: [id: g.frame(in: .named("grid"))])
+            }
+        )
+    }
+}
+
 private struct ScrollOffsetKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
@@ -139,13 +155,19 @@ struct ShelfContent: View {
     /// Inhalt eines angehefteten Ordners (wie ein geöffneter Stapel gezeigt)
     @ObservedObject var folder: FolderBrowser
 
-    @State private var tileFrames: [UUID: CGRect] = [:]
+    /// Lage der Kacheln (für Lasso, Mitscrollen und „An letzter Stelle öffnen“). Bewusst
+    /// kein @State: Beim schnellen Scrollen legt das Raster laufend Kacheln an und verwirft
+    /// sie, und jede Meldung ließ sonst die ganze Ablage neu berechnen, während der Schwung
+    /// noch lief. Dabei sprang die Ablage teils über Kacheln hinweg bis ganz nach oben.
+    @State private var frameStore = TileFrameStore()
+    private var tileFrames: [UUID: CGRect] { frameStore.frames }
     /// Höhe des sichtbaren Bereichs der Kacheln (bis unter die Aktionsleiste)
     @State private var viewportHeight: CGFloat = 0
     /// Wie weit gescrollt ist; ändert die Ansicht nur, wenn sich `scrolled` ändert
     @StateObject private var scroll = ScrollTracker()
     @State private var band: CGRect?
     @State private var selectionBeforeBand: Set<UUID> = []
+    @State private var jobsBeforeBand: Set<UUID> = []
     /// Höhe der Aktionsleiste: so viel Platz bleibt unter den Kacheln frei
     @State private var barHeight: CGFloat = 0
     /// Platzhalter erst nach einem Augenblick zeigen: Dateien aus dem Finder sind sofort
@@ -256,7 +278,7 @@ struct ShelfContent: View {
                             )
                         } })
                         .overlay(alignment: .topLeading) { bandOverlay }
-                        .onPreferenceChange(TileFramesKey.self) { tileFrames = $0 }
+                        .onPreferenceChange(TileFramesKey.self) { frameStore.frames = $0 }
                     }
                     // Oben derselbe weiche Übergang wie über der Aktionsleiste: Was unter den
                     // Kopf scrollt, läuft ins Schwarz aus statt hart abgeschnitten zu werden
@@ -333,7 +355,9 @@ struct ShelfContent: View {
     @ViewBuilder
     private var header: some View {
         HStack(alignment: .center, spacing: 8) {
-            if let stack {
+            if let stack, folderOpen {
+                folderHeader(stack)
+            } else if let stack {
                 Button {
                     actions.closeStack()
                 } label: {
@@ -351,15 +375,12 @@ struct ShelfContent: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .layoutPriority(folderOpen ? 0 : 1)
+                .layoutPriority(1)
                 .help(backHelp)
                 Spacer(minLength: 8)
                 let selected = ui.memberSelection.intersection(stack.files.map(\.id)).count
                 if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
                     runningPlugins
-                } else if folderOpen && ui.notice == nil && selected == 0 {
-                    folderStatus(count: stack.files.count)
-                        .layoutPriority(1)
                 } else {
                     status(selected > 0 ? L("\(selected) of \(stack.files.count) selected", "\(selected) von \(stack.files.count) ausgewählt")
                                         : L("\(stack.files.count) items in stack", "\(stack.files.count) Objekte im Stapel"))
@@ -423,26 +444,45 @@ struct ShelfContent: View {
         }
     }
 
-    /// Im geöffneten Ordner: sein Name (zur Not in der Mitte gekürzt) und die Anzahl,
-    /// die immer ganz zu sehen ist
-    private func folderStatus(count: Int) -> some View {
-        let number = folder.isLoading ? "" : (count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte"))
-        return HStack(spacing: 0) {
-            Text(folder.name)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            if !number.isEmpty {
-                Text(" · " + number)
+    /// Im geöffneten Ordner: Wo sonst „BarDrop“ steht, steht sein Name, davor der Pfeil
+    /// zurück. Lange Namen werden erst etwas kleiner (bis 11 pt), dann in der Mitte gekürzt,
+    /// damit Anfang und Ende (oft Nummer oder Datum) zu sehen bleiben. Der ganze Name und
+    /// wohin es zurückgeht stehen beim Darüberfahren. Rechts die Anzahl, immer ganz.
+    @ViewBuilder
+    private func folderHeader(_ stack: ShelfEntry) -> some View {
+        Button {
+            actions.closeStack()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(folder.name)
+                    .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
-                    .fixedSize()
+                    .minimumScaleFactor(11.0 / 13.0)
+                    .truncationMode(.middle)
+            }
+            .foregroundStyle(.white.opacity(0.92))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(folder.name + "\n" + backHelp)
+        Spacer(minLength: 8)
+        let selected = ui.memberSelection.intersection(stack.files.map(\.id)).count
+        let count = stack.files.count
+        Group {
+            if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
+                runningPlugins
+            } else if ui.notice == nil && selected == 0 {
+                if !folder.isLoading {
+                    countLabel(count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte"))
+                }
+            } else {
+                status(L("\(selected) of \(count) selected", "\(selected) von \(count) ausgewählt"))
             }
         }
-        .font(.system(size: 11, weight: .medium))
-        .monospacedDigit()
-        .foregroundStyle(.white.opacity(0.5))
-        .transaction { $0.animation = nil }
-        .allowsHitTesting(false)
-        .help(folder.folder?.path ?? "")
+        .fixedSize()
+        .layoutPriority(1)
     }
 
     private func countLabel(_ text: String) -> some View {
@@ -482,6 +522,7 @@ struct ShelfContent: View {
                     // der Stelle des Originals; das Original selbst ist nicht zu sehen
                     if !entry.isStack, let file = entry.files.first, let job = runner.replacingJob(for: file.id) {
                         PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
+                        .reportsTileFrame(job.id)
                     } else {
                     TileView(entry: entry, ui: ui, actions: actions,
                              isSelected: ui.selection.contains(entry.id),
@@ -497,6 +538,7 @@ struct ShelfContent: View {
                     if !runner.jobs.isEmpty {
                         ForEach(runner.jobs(nextTo: entry.files.map(\.id))) { job in
                             PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
+                        .reportsTileFrame(job.id)
                         }
                     }
                 }
@@ -565,6 +607,7 @@ struct ShelfContent: View {
             ForEach(stack.files) { file in
                 if let job = runner.replacingJob(for: file.id) {
                     PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
+                        .reportsTileFrame(job.id)
                 } else {
                 StackMemberTile(file: file, entry: stack, ui: ui, actions: actions,
                                 isSelected: ui.memberSelection.contains(file.id),
@@ -580,6 +623,7 @@ struct ShelfContent: View {
                 if !runner.jobs.isEmpty {
                     ForEach(runner.jobs(nextTo: [file.id])) { job in
                         PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
+                        .reportsTileFrame(job.id)
                     }
                 }
             }
@@ -682,9 +726,14 @@ struct ShelfContent: View {
         let inStack = stack != nil
         if band == nil {
             selectionBeforeBand = additive ? (inStack ? ui.memberSelection : ui.selection) : []
+            jobsBeforeBand = additive ? ui.jobSelection : []
         }
         band = rect
-        let hit = Set(tileFrames.filter { $0.value.intersects(rect) }.map(\.key))
+        // Platzhalter laufender Plugins zählen mit, landen aber in ihrer eigenen Auswahl
+        let jobIDs = Set(runner.jobs.map(\.id))
+        let touched = Set(tileFrames.filter { $0.value.intersects(rect) }.map(\.key))
+        ui.jobSelection = jobsBeforeBand.union(touched.intersection(jobIDs))
+        let hit = touched.subtracting(jobIDs)
         if let stack {
             ui.memberSelection = selectionBeforeBand.union(hit)
             if let first = stack.files.first(where: { hit.contains($0.id) }) { ui.memberAnchor = first.id }

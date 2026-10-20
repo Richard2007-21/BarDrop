@@ -206,6 +206,9 @@ final class ShelfDropHandler {
         // Kein Hinweis „Hier ablegen“ für eigene Objekte: Beim Herausziehen beginnt der
         // Zug ja über der Ablage
         if !isOwn(sender) { setTargeted(true) }
+        // Nur in der Einführung: ein leichter Impuls, sobald das Übungsfoto die Fläche zum
+        // Ablegen erreicht (dort steht die Ablage schon offen, der Impuls beim Öffnen fehlt)
+        if IntroGate.active && !isOwn(sender) { Haptics.tap() }
         ui.setPinCandidate(isOwn(sender) ? nil : Self.pinCandidate(sender.draggingPasteboard))
         // Eigenes Objekt zurück in die Ablage: einfach zurücklegen
         return isOwn(sender) ? .generic : .copy

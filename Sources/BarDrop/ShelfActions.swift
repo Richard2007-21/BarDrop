@@ -61,6 +61,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     }
 
     func select(_ entry: ShelfEntry, modifiers: NSEvent.ModifierFlags) {
+        if modifiers.isDisjoint(with: [.command, .shift]) { ui.jobSelection = [] }
         if modifiers.contains(.command) {
             if ui.selection.contains(entry.id) { ui.selection.remove(entry.id) } else { ui.selection.insert(entry.id) }
             ui.selectionAnchor = entry.id
@@ -94,6 +95,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     func clearSelection() {
         ui.selection = []
+        ui.jobSelection = []
     }
 
     /// Pfeiltasten: Auswahl verschieben. `step` ist ±1 oder ±Spaltenanzahl.
@@ -269,7 +271,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     func quickLook(urls: [URL]) {
         guard !urls.isEmpty else { return }
         previewURLs = urls
-        NSApp.activate(ignoringOtherApps: true)
+        AppActivation.activateKeepingWindows()
         panel?.makeKey()
         let ql = QLPreviewPanel.shared()!
         if QLPreviewPanel.sharedPreviewPanelExists() && ql.isVisible {
@@ -347,7 +349,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     func sharingServicePicker(_ picker: NSSharingServicePicker, didChoose service: NSSharingService?) {
         ui.sharingOpen = false
         if service != nil {
-            NSApp.activate(ignoringOtherApps: true)
+            AppActivation.activateKeepingWindows()
             if let urls = shareFinishURLs { finishAction(urls) }
         }
         shareFinishURLs = nil
@@ -500,7 +502,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             NSSound.beep()
             return false
         }
-        NSApp.activate(ignoringOtherApps: true)
+        AppActivation.activateKeepingWindows()
         service.perform(withItems: urls)
         return true
     }
@@ -585,7 +587,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
         alert.buttons.first?.hasDestructiveAction = true
         ui?.menuOpen = true                 // Ablage bleibt offen, solange die Frage steht
-        NSApp.activate(ignoringOtherApps: true)
+        AppActivation.activateKeepingWindows()
         let answer = alert.runModal()
         ui?.menuOpen = false
         return answer == .alertFirstButtonReturn
@@ -615,8 +617,26 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// Der Inhalt eines angehefteten Ordners ist zu sehen
     var isFolderOpen: Bool { ui.openStack == FolderBrowser.entryID && folder.isOpen }
 
+    /// Eintrag der Ablage, aus dem der gezeigte Ordner geöffnet wurde (Doppelklick auf einen
+    /// abgelegten Ordner): Zurück in der Ablage ist er wieder ausgewählt
+    private var folderSourceEntry: UUID?
+
+    /// Ein abgelegter Ordner öffnet sich in der Ablage wie ein angehefteter
+    func openFolder(from entry: ShelfEntry) {
+        guard !entry.isStack, let url = entry.files.first?.url, FolderBrowser.isBrowsable(url) else { return }
+        openFolder(url)
+        folderSourceEntry = entry.id
+    }
+
+    /// Der Eintrag ist ein einzelner Ordner, in den man hineingehen kann
+    func isBrowsableFolder(_ entry: ShelfEntry) -> Bool {
+        guard !entry.isStack, let url = entry.files.first?.url else { return false }
+        return FolderBrowser.isBrowsable(url)
+    }
+
     /// Angehefteten Ordner wie einen Stapel öffnen
     func openFolder(_ url: URL) {
+        folderSourceEntry = nil
         ui.selection = []
         ui.memberSelection = []
         ui.memberAnchor = nil
@@ -635,6 +655,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     func closeFolder() {
         ui.memberSelection = []
         withAnimation(settings.animationStyle.close) { ui.openStack = nil }
+        if let source = folderSourceEntry, store.entries.contains(where: { $0.id == source }) {
+            ui.selection = [source]
+            ui.selectionAnchor = source
+        }
+        folderSourceEntry = nil
     }
 
     func entry(_ id: UUID?) -> ShelfEntry? {
@@ -681,11 +706,14 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         ui.selection = []
     }
 
-    /// Doppelklick: Stapel öffnen, sonst Dateien öffnen.
+    /// Doppelklick: Stapel öffnen, einen einzelnen Ordner in der Ablage zeigen (wie einen
+    /// angehefteten), sonst Dateien öffnen.
     func activate(_ entry: ShelfEntry) {
         let targets = targets(for: entry)
         if targets.count == 1, entry.isStack {
             openStack(entry)
+        } else if targets.count == 1, isBrowsableFolder(entry) {
+            openFolder(from: entry)
         } else {
             open(targets)
         }
@@ -735,7 +763,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         let urls = targets.flatMap(\.urls)
         let multiple = targets.count > 1
         let menu = NSMenu()
-        addFileItems(to: menu, urls: urls, anchor: anchor) { [weak self] in self?.open(targets) }
+        addFileItems(to: menu, urls: urls, anchor: anchor) { [weak self] in
+            guard let self else { return }
+            // Ein einzelner Ordner: wie der Doppelklick in der Ablage zeigen
+            if !multiple, self.isBrowsableFolder(entry) { self.openFolder(from: entry) } else { self.open(targets) }
+        }
 
         if multiple {
             menu.addItem(.separator())

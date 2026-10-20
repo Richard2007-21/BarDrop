@@ -113,21 +113,41 @@ enum OpenChoice: Hashable {
 
     static var all: [OpenChoice] { OpenDelay.choices.map { .after($0) } + [.click] }
 
+    /// Ein Begriff und dahinter die Wartezeit, z. B. „Schnell (0,3 s)“
     var title: String {
         switch self {
         case .click: return L("Only on click", "Nur per Klick")
         case .after(let delay):
-            if delay <= OpenDelay.instant { return L("Instantly", "Sofort") }
-            let s = Int(delay.rounded())
-            return s == 1 ? L("After 1 second", "Nach 1 Sekunde") : L("After \(s) seconds", "Nach \(s) Sekunden")
+            if delay <= OpenDelay.immediate + 0.01 { return L("Instantly", "Sofort") }
+            let seconds = OpenDelay.format(delay)
+            switch delay {
+            case ..<0.5: return L("Quick (\(seconds))", "Schnell (\(seconds))")
+            case ..<1.5: return L("Short (\(seconds))", "Kurz (\(seconds))")
+            case ..<2.5: return L("Medium (\(seconds))", "Mittel (\(seconds))")
+            case ..<3.5: return L("Long (\(seconds))", "Lang (\(seconds))")
+            case ..<4.5: return L("Longer (\(seconds))", "Länger (\(seconds))")
+            default: return L("Very long (\(seconds))", "Sehr lang (\(seconds))")
+            }
         }
     }
 }
 
 /// Verzögerung, bis die Ablage nach dem ersten Streifen ganz aufgeht.
 enum OpenDelay {
-    static let instant = 0.3
-    static let choices: [Double] = [instant, 1, 2, 3, 4, 5]
+    /// Ohne Wartezeit: Die Ablage geht auf, sobald der Zeiger den Rand erreicht, ohne
+    /// erst den Streifen zu zeigen
+    static let immediate = 0.0
+    /// Standard: ein kurzer Moment am Streifen, damit sie nicht aus Versehen aufgeht
+    static let quick = 0.3
+    /// Alle bisherigen Wartezeiten bleiben wählbar: Eigene Einstellungen werden nie überschrieben
+    static let choices: [Double] = [immediate, quick, 1, 2, 3, 4, 5]
+
+    /// „0,3 s“ bzw. „0.3 s“, ganze Sekunden ohne Nachkomma
+    static func format(_ delay: Double) -> String {
+        let whole = abs(delay - delay.rounded()) < 0.01
+        let number = whole ? "\(Int(delay.rounded()))" : String(format: "%.1f", delay)
+        return L(number, number.replacingOccurrences(of: ".", with: ",")) + " s"
+    }
 }
 
 /// Wann die Ablage beim Ziehen von Objekten erscheint.
@@ -531,7 +551,7 @@ final class AppSettings: ObservableObject {
             Key.sortOrder: SortOrder.newestFirst.rawValue,
             Key.showOutline: true,
             Key.showTitle: true,
-            Key.openDelay: OpenDelay.instant,
+            Key.openDelay: OpenDelay.quick,
             Key.language: AppLanguage.system.rawValue,
             Key.reopenWhereLeft: false,
             Key.exactPointer: false,
@@ -610,7 +630,7 @@ final class AppSettings: ObservableObject {
             ?? (defaults.bool(forKey: Key.showTitle) ? .bardrop : .shelf)
         // Auf eine der wählbaren Wartezeiten runden (ältere Versionen hatten andere)
         let storedDelay = defaults.double(forKey: Key.openDelay)
-        openDelay = OpenDelay.choices.min { abs($0 - storedDelay) < abs($1 - storedDelay) } ?? OpenDelay.instant
+        openDelay = OpenDelay.choices.min { abs($0 - storedDelay) < abs($1 - storedDelay) } ?? OpenDelay.quick
         let storedLanguage = AppLanguage(rawValue: defaults.string(forKey: Key.language) ?? "") ?? .system
         language = storedLanguage
         AppLanguage.current = storedLanguage.resolved
@@ -703,7 +723,7 @@ final class AppSettings: ObservableObject {
         hapticsEnabled = true
         animationStyle = .standard
         openMode = .automatic
-        openDelay = OpenDelay.instant
+        openDelay = OpenDelay.quick
         reopenWhereLeft = false
         exactPointer = false
         diagnosticsEnabled = false

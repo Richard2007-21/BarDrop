@@ -275,6 +275,10 @@ struct BetaBadge: View {
             .padding(.vertical, 2)
             .background(Capsule().fill(Color.primary.opacity(0.10)))
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+            // Mittig wirkt die Kapsel erst auf der Mitte der Kleinbuchstaben des Namens daneben,
+            // nicht auf der Mitte der Zeile (die liegt auf Höhe der Großbuchstaben): gemessen
+            // an „Plugins“ 1,5 pt tiefer, 1 pt gleicht die Großbuchstaben mit aus
+            .offset(y: 1)
             .accessibilityLabel("Beta")
     }
 }

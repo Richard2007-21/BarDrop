@@ -13,7 +13,8 @@ enum PluginDialogs {
     @discardableResult
     static func run(_ alert: NSAlert, ui: ShelfUIModel?) -> NSApplication.ModalResponse {
         ui?.menuOpen = true
-        NSApp.activate(ignoringOtherApps: true)
+        // Die Einstellungen bleiben dabei, wo sie waren (Frage kam aus der Ablage)
+        AppActivation.activateKeepingWindows()
         let answer = alert.runModal()
         ui?.menuOpen = false
         return answer

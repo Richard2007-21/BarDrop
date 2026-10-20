@@ -22,6 +22,8 @@ final class ShelfUIModel: ObservableObject {
     /// Auswahl der Dateien im geöffneten Stapel (IDs der Dateien)
     @Published var memberSelection: Set<UUID> = []
     var memberAnchor: UUID?
+    /// Ausgewählte Platzhalter laufender Plugins (IDs der Aufträge); ⌫ bricht sie ab
+    @Published var jobSelection: Set<UUID> = []
 
     /// Bitte an die Ablage, eine Kachel ganz sichtbar zu machen (Pfeiltasten). Die laufende
     /// Nummer macht jede Bitte neu, auch für dieselbe Kachel.

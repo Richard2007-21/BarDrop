@@ -70,7 +70,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 
 **Ablage**
 * Links oder rechts, feste Höhe oder dort, wo der Zeiger den Rand erreicht (ganzer Rand oder mittlere Hälfte)
-* Öffnet sofort oder nach 1 bis 5 Sekunden am Rand, per Klick oder per Kurzbefehl; ein Klick auf den Streifen überspringt die Wartezeit
+* Öffnet sofort, nach einem kurzen Moment (Standard) oder nach 1 bis 5 Sekunden am Rand, per Klick oder per Kurzbefehl; ein Klick auf den Streifen überspringt die Wartezeit
 * Großzügiger Trefferbereich, du musst den Streifen nicht genau treffen, oder auf Wunsch ein kleiner, der nur auf den Streifen selbst reagiert
 * Apps ausnehmen, in denen der Rand die Ablage nicht öffnen soll, zum Beispiel Spiele, und auf Wunsch im Vollbild geschlossen bleiben
 * Auch schnell an den Rand geworfene Dateien werden sicher aufgenommen
@@ -82,7 +82,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Dateien, Ordner, Bilder aus dem Web (WebP, AVIF und HEIC lassen sich als PNG oder JPEG speichern), Links und Text
 * Neue Bildschirmfotos landen auf Wunsch automatisch in der Ablage
 * Umwandeln per Rechtsklick: Bilder, PDF-Seiten, Textdokumente, Audio und Video, nur mit dem, was macOS mitbringt
-* Neueste zuerst, Stapel, Auswahl wie im Finder
+* Neueste zuerst, Stapel, Auswahl wie im Finder; ein Doppelklick auf einen Ordner zeigt seinen Inhalt direkt in der Ablage
 * Dateien aus dem Finder als Original oder als eigene Kopie
 * Versehentlich entfernt oder in den Papierkorb gelegt? `⌘Z` holt es zurück
 * Verschobene oder umbenannte Dateien bleiben in der Ablage, Dateien aus iCloud werden bei Bedarf geladen, Dateien von getrennten Laufwerken bleiben ausgegraut erhalten
@@ -121,7 +121,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 | `⌘X` | Ausschneiden: in die Zwischenablage und aus der Ablage |
 | `⌘C`, `⌥⌘C` | Kopieren, Pfad kopieren |
 | `⌘V` | Aus der Zwischenablage einfügen |
-| `⌫` | Auswahl aus der Ablage entfernen, danach ist das nächste Objekt ausgewählt |
+| `⌫` | Auswahl aus der Ablage entfernen, danach ist das nächste Objekt ausgewählt; bricht ausgewählte Plugins ab |
 | `⌘⌫` | Auswahl in den Papierkorb legen |
 | `⌘Z`, `⇧⌘Z` | Widerrufen, wiederholen |
 | `⌘↑` | Zurück aus einem Stapel |

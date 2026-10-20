@@ -11,7 +11,8 @@ import AppKit
 enum SettingsTheme {
     // Dunkel: Farben von Klack abgenommen. Hell: Systemfarben von macOS, damit Kontraste,
     // Flächen und Linien wie in Apples eigenen Fenstern wirken. Seitenleiste und Inhalt
-    // liegen leicht durchscheinend über dem Schreibtisch, Karten sind deckend.
+    // liegen leicht durchscheinend über dem Schreibtisch, Karten und Auswahllisten ebenfalls,
+    // aber deutlich weniger (siehe `cardOpacity`).
     /// Deckkraft von Seitenleiste und Inhalt über dem Schreibtisch (dunkel): etwas
     /// durchscheinender als früher (70 %), aber Text und Karten bleiben auf jedem Hintergrund ruhig
     static let backdropOpacity = 0.64
@@ -24,8 +25,14 @@ enum SettingsTheme {
                                          light: systemColor(.windowBackgroundColor, alpha: 0.8))
     static let contentBackdrop = dynamic(dark: rgb(0.192, 0.196, 0.2, backdropOpacity),
                                          light: systemColor(.windowBackgroundColor, alpha: 0.96))
+    /// Deckkraft der Karten und Auswahllisten: ein Hauch durchscheinend, deutlich weniger
+    /// als Seitenleiste und Inhalt (dunkel 64 %), damit Text und Regler ruhig bleiben
+    static let cardOpacity = 0.88
     /// Karten
-    static let card = dynamic(dark: rgb(0.184, 0.188, 0.188), light: .controlBackgroundColor)
+    static let card = dynamic(dark: rgb(0.184, 0.188, 0.188, cardOpacity),
+                              light: systemColor(.controlBackgroundColor, alpha: 0.97))
+    /// Deckend, für Flächen über anderen Inhalten (angehobene Zeile beim Umsortieren)
+    static let cardSolid = dynamic(dark: rgb(0.184, 0.188, 0.188), light: .controlBackgroundColor)
     /// Gewählter Eintrag der Seitenleiste
     static let selectedRow = dynamic(dark: rgb(0.212, 0.212, 0.216), light: .unemphasizedSelectedContentBackgroundColor)
     /// Rand der Karten

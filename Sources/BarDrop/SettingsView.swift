@@ -964,7 +964,7 @@ private struct ActionRow: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: lifted ? SettingsTheme.cardRadius : 8, style: .continuous)
-                .fill(selected ? Color(nsColor: .controlAccentColor) : (lifted ? SettingsTheme.card : Color.clear))
+                .fill(selected ? Color(nsColor: .controlAccentColor) : (lifted ? SettingsTheme.cardSolid : Color.clear))
                 .padding(lifted ? 0 : 4)
         )
         .overlay(

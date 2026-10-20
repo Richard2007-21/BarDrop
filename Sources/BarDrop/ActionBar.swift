@@ -9,6 +9,8 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     var onDrop: (NSPasteboard, NSView) -> Void = { _, _ in }
     var onOwnDrop: ([URL], NSView) -> Void = { _, _ in }
     var onClick: (NSView) -> Void = { _ in }
+    /// Maustaste gedrückt bzw. losgelassen (die Aktion wird dabei kurz größer)
+    var onPress: (Bool) -> Void = { _ in }
     /// Vorgang, den der Zeiger beim Drüberziehen zeigt (Ordner: verschieben oder kopieren)
     var operation: (NSDraggingInfo) -> NSDragOperation = { _ in .copy }
     /// Art der Aktion (Einführung: nur die passende Aktion nimmt etwas an)
@@ -39,10 +41,12 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     override func mouseDown(with event: NSEvent) {
         pressed = true
         downEvent = event
+        onPress(true)
     }
 
     override func mouseUp(with event: NSEvent) {
         let inside = bounds.contains(convert(event.locationInWindow, from: nil))
+        if pressed { onPress(false) }
         if pressed && inside { onClick(self) }
         pressed = false
         downEvent = nil
@@ -52,6 +56,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         guard let dragOut, let down = downEvent, let window else { return }
         let a = down.locationInWindow, b = event.locationInWindow
         guard hypot(a.x - b.x, a.y - b.y) > 4 else { return }
+        if pressed { onPress(false) }
         pressed = false
         downEvent = nil
 
@@ -154,6 +159,7 @@ struct ActionDropTarget: NSViewRepresentable {
     var onDrop: (NSPasteboard, NSView) -> Void
     var onOwnDrop: ([URL], NSView) -> Void
     var onClick: (NSView) -> Void
+    var onPress: (Bool) -> Void = { _ in }
     var operation: (NSDraggingInfo) -> NSDragOperation = { _ in .copy }
     var kind: QuickAction.Kind? = nil
     var dragOut: (image: () -> NSImage, remove: () -> Void)? = nil
@@ -173,6 +179,7 @@ struct ActionDropTarget: NSViewRepresentable {
         view.onDrop = onDrop
         view.onOwnDrop = onOwnDrop
         view.onClick = onClick
+        view.onPress = onPress
         view.operation = operation
         view.kind = kind
         view.dragOut = dragOut
@@ -298,6 +305,22 @@ struct QuickActionButton: View {
     @State private var targeted = false
     /// Wird gerade herausgezogen: blass an ihrem Platz, wie ein Symbol im Dock
     @State private var draggingOut = false
+    /// Gerade angeklickt: kurz größer wie beim Draufziehen, ohne Fläche dahinter und ohne Impuls
+    @State private var pressed = false
+    @State private var pressedAt = Date.distantPast
+
+    /// Ein schneller Klick soll trotzdem sichtbar sein: so lange bleibt sie mindestens groß
+    private static let minimumPress: TimeInterval = 0.14
+
+    private func setPressed(_ down: Bool) {
+        if down {
+            pressedAt = Date()
+            pressed = true
+        } else {
+            let wait = max(0, Self.minimumPress - Date().timeIntervalSince(pressedAt))
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { pressed = false }
+        }
+    }
 
     /// Ordner: wie der Finder verschieben oder kopieren, sonst immer „Kopieren“
     private func dropOperation(_ info: NSDraggingInfo) -> NSDragOperation {
@@ -337,7 +360,7 @@ struct QuickActionButton: View {
         return VStack(spacing: 4) {
             // Ohne Namen größer, damit die Leiste nicht leer wirkt
             QuickActionIcon(action: action, size: iconSize)
-                .scaleEffect(highlighted ? 1.1 : 1)
+                .scaleEffect(highlighted || pressed ? 1.1 : 1)
                 .opacity(draggingOut ? 0.3 : 1)
             if AppSettings.shared.showActionLabels {
                 // „Nur Ordner“: die übrigen Aktionen halten den Platz frei, damit alle
@@ -359,6 +382,7 @@ struct QuickActionButton: View {
                 .fill(Color.white.opacity(highlighted ? 0.12 : 0))
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: highlighted)
+        .animation(.spring(response: 0.22, dampingFraction: 0.7), value: pressed)
         .overlay(Group { if !shelfDemo {
             ActionDropTarget(
                 ui: ui,
@@ -389,6 +413,7 @@ struct QuickActionButton: View {
                     // ziehen): Ordner zeigen ihren Inhalt in der Ablage, Apps öffnen sich
                     actions.click(action)
                 },
+                onPress: { down in setPressed(down) },
                 operation: { info in dropOperation(info) },
                 kind: action.kind,
                 dragOut: dragOut,

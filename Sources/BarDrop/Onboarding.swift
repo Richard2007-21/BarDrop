@@ -190,8 +190,10 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         }
         updateCutout()
         if fresh {
+            // Ruhig abdunkeln, nicht wie geschnitten: etwas länger und weich an- und auslaufend
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.25
+                context.duration = 0.6
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 backdrops.forEach { $0.animator().alphaValue = 1 }
                 bandShades.forEach { $0.animator().alphaValue = 1 }
             }
@@ -204,6 +206,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
                     let width = CGFloat(self.settings.shelfWidth)
                     self.backdrops.forEach { $0.update(edge: edge, shelfWidth: width) }
                     self.bandShades.forEach { $0.update(edge: edge, shelfWidth: width) }
+                    self.refreshAfterEdgeChange()
                 }
         }
         if screenObserver == nil {
@@ -227,7 +230,8 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         backdrops = []
         bandShades = []
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
+            context.duration = 0.35
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             leaving.forEach { $0.animator().alphaValue = 0 }
         }, completionHandler: {
             leaving.forEach { $0.orderOut(nil) }
@@ -248,6 +252,23 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         windowObservers = [NSWindow.didMoveNotification, NSWindow.didResizeNotification].map {
             center.addObserver(forName: $0, object: window, queue: .main) { [weak self] _ in self?.updateCutout() }
         }
+    }
+
+    /// Nach dem Wechsel des Rands (erste Seite): Die Ablage zieht um und die abgedunkelten
+    /// Flächen werden neu verteilt. Dabei blieb das Fenster der Einführung teils ohne Fokus
+    /// und zeichnete sich nicht neu: Der Umschalter zeigte noch die alte Seite, und der
+    /// nächste Klick ging ins Leere. Darum hier neu zeichnen und den Fokus sichern, auch
+    /// noch einmal, nachdem die Ablage umgezogen ist.
+    private func refreshAfterEdgeChange() {
+        let refresh = { [weak self] in
+            guard let self, let window = self.window, window.isVisible else { return }
+            if !window.isKeyWindow { window.makeKey() }
+            window.contentView?.needsLayout = true
+            window.contentView?.needsDisplay = true
+            window.displayIfNeeded()
+        }
+        DispatchQueue.main.async(execute: refresh)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: refresh)
     }
 
     /// Klick daneben: zurück zur Einführung

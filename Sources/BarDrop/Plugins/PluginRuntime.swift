@@ -25,6 +25,9 @@ final class PluginJob: ObservableObject, Identifiable {
     @Published fileprivate(set) var progress: Double?
     @Published fileprivate(set) var label: String?
     @Published fileprivate(set) var paused = false
+    /// Datei, die das Plugin schon als Ergebnis geschrieben hat (sobald sie nicht mehr wächst):
+    /// Der Platzhalter zeigt dann sie statt der Ausgangsdatei
+    @Published var resultPreview: URL?
 
     fileprivate weak var runtime: PluginRuntime?
     /// Letzte Meldung an die Oberfläche (höchstens alle 100 ms, sonst zeichnet die Ablage zu oft)
@@ -251,9 +254,12 @@ final class PluginRuntime {
         }
     }
 
+    /// Endungen halb geladener oder noch entstehender Dateien: Sie zählen nicht zum Ergebnis
+    static let partialExtensions: Set<String> = ["part", "ytdl", "tmp", "download", "crdownload"]
+
     /// Fertige Dateien im Ausgabeordner, ohne versteckte und halb geladene
     private func collectOutput() -> [URL] {
-        let partial: Set<String> = ["part", "ytdl", "tmp", "download", "crdownload"]
+        let partial = Self.partialExtensions
         let items = (try? FileManager.default.contentsOfDirectory(at: outputDirectory, includingPropertiesForKeys: nil)) ?? []
         return items.filter { !$0.lastPathComponent.hasPrefix(".") && !partial.contains($0.pathExtension.lowercased()) }
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }

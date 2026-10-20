@@ -22,6 +22,7 @@ extension ShelfActions {
     }
 
     func selectMember(_ file: ShelfFile, modifiers: NSEvent.ModifierFlags) {
+        if modifiers.isDisjoint(with: [.command, .shift]) { ui.jobSelection = [] }
         let files = stackFiles
         if modifiers.contains(.command) {
             if ui.memberSelection.contains(file.id) {
@@ -87,27 +88,84 @@ extension ShelfActions {
     }
 
     func clearCurrentSelection() {
+        ui.jobSelection = []
         if isInStack { ui.memberSelection = [] } else { clearSelection() }
     }
 
     var hasCurrentSelection: Bool {
-        isInStack ? !ui.memberSelection.isEmpty : !ui.selection.isEmpty
+        !ui.jobSelection.isEmpty || (isInStack ? !ui.memberSelection.isEmpty : !ui.selection.isEmpty)
     }
 
+    // MARK: Platzhalter laufender Plugins
+
+    /// Klick auf einen Platzhalter: auswählen wie eine Kachel (⌘ bzw. ⇧ fügt hinzu)
+    func selectJob(_ job: PluginJob, modifiers: NSEvent.ModifierFlags) {
+        panel?.makeKey()
+        if modifiers.contains(.command) || modifiers.contains(.shift) {
+            if ui.jobSelection.contains(job.id) { ui.jobSelection.remove(job.id) } else { ui.jobSelection.insert(job.id) }
+        } else {
+            ui.jobSelection = [job.id]
+            if isInStack { ui.memberSelection = [] } else { ui.selection = [] }
+        }
+        if isInStack { ui.memberAnchor = job.id } else { ui.selectionAnchor = job.id }
+    }
+
+    /// Ausgewählte Platzhalter abbrechen (⌫); true, wenn welche ausgewählt waren
+    @discardableResult
+    func cancelSelectedJobs() -> Bool {
+        guard !ui.jobSelection.isEmpty else { return false }
+        let selected = plugins.jobs.filter { ui.jobSelection.contains($0.id) }
+        ui.jobSelection = []
+        selected.forEach { plugins.cancel($0) }
+        return !selected.isEmpty
+    }
+
+    /// Kacheln der aktuellen Ansicht in der Reihenfolge, in der man sie sieht, samt den
+    /// Platzhaltern laufender Plugins (für die Pfeiltasten)
+    var visualIDs: [UUID] {
+        let runner = plugins
+        if isInStack {
+            return stackFiles.flatMap { file -> [UUID] in
+                let shown = runner.replacingJob(for: file.id)?.id ?? file.id
+                return [shown] + runner.jobs(nextTo: [file.id]).map(\.id)
+            }
+        }
+        return orderedEntries.flatMap { entry -> [UUID] in
+            var shown = entry.id
+            if !entry.isStack, let file = entry.files.first, let job = runner.replacingJob(for: file.id) { shown = job.id }
+            return [shown] + runner.jobs(nextTo: entry.files.map(\.id)).map(\.id)
+        }
+    }
+
+    /// Pfeiltasten: Auswahl verschieben, auch über Platzhalter. `step` ist ±1 oder ±Spaltenanzahl.
     func moveCurrentSelection(by step: Int, extend: Bool) {
-        guard isInStack else { return moveSelection(by: step, extend: extend) }
-        let ids = stackFiles.map(\.id)
+        let ids = visualIDs
         guard !ids.isEmpty else { return }
-        let current = ui.memberAnchor.flatMap { ids.firstIndex(of: $0) } ?? (step > 0 ? -1 : ids.count)
+        let inStack = isInStack
+        let anchor = inStack ? ui.memberAnchor : ui.selectionAnchor
+        let current = anchor.flatMap { ids.firstIndex(of: $0) } ?? (step > 0 ? -1 : ids.count)
         let id = ids[min(max(current + step, 0), ids.count - 1)]
-        if extend { ui.memberSelection.insert(id) } else { ui.memberSelection = [id] }
-        ui.memberAnchor = id
+        let isJob = plugins.job(for: id) != nil
+        if !extend {
+            ui.jobSelection = []
+            if inStack { ui.memberSelection = [] } else { ui.selection = [] }
+        }
+        if isJob {
+            ui.jobSelection.insert(id)
+        } else if inStack {
+            ui.memberSelection.insert(id)
+        } else {
+            ui.selection.insert(id)
+        }
+        if inStack { ui.memberAnchor = id } else { ui.selectionAnchor = id }
         ui.requestScroll(to: id)
     }
 
     /// Entfernen per Taste: Danach ist das Objekt dahinter ausgewählt (am Ende das davor),
     /// sodass man mit ⌫ gleich weitermachen kann, wie in Mail.
     func removeCurrentSelection(sound: Bool = true) {
+        // Ausgewählte Platzhalter: das Plugin abbrechen. Waren nur sie ausgewählt, ist das alles
+        if cancelSelectedJobs(), !hasCurrentSelection { return }
         // Im angehefteten Ordner wie im Finder: ⌫ allein tut nichts, ⌘⌫ legt in den Papierkorb
         if isFolderOpen { return NSSound.beep() }
         if isInStack {
@@ -170,6 +228,8 @@ extension ShelfActions {
         let urls = currentSelectionURLs
         guard !urls.isEmpty else { return NSSound.beep() }
         Self.copyFiles(urls)
+        // Ausschneiden bricht keine Plugins ab: Platzhalter bleiben, nur nicht mehr ausgewählt
+        ui.jobSelection = []
         removeCurrentSelection(sound: false)
         announce(urls.count == 1 ? L("1 item cut", "1 Objekt ausgeschnitten")
                                  : L("\(urls.count) items cut", "\(urls.count) Objekte ausgeschnitten"),
@@ -185,6 +245,11 @@ extension ShelfActions {
 
     func openCurrentSelection() {
         if isInStack { return openMembers(selectedMembers) }
+        // ↩ bzw. ⌘O auf einem einzelnen Ordner: wie der Doppelklick in der Ablage zeigen
+        let selected = selectedEntries
+        if selected.count == 1, let entry = selected.first, isBrowsableFolder(entry) {
+            return openFolder(from: entry)
+        }
         currentSelectionURLs.forEach { NSWorkspace.shared.open($0) }
     }
 

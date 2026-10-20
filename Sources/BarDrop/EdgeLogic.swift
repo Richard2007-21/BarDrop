@@ -152,11 +152,15 @@ enum EdgeLogic {
                 // beim Start, nach dem Verstellen oder in der Einführung): Der Impuls kommt,
                 // sobald der Zeiger ihn erreicht. Sonst bliebe dieses Öffnen ohne Impuls.
                 if state.level != .hidden && !state.hapticGiven { result.haptic = true }
+                // „Sofort“: ohne Streifen und Wartezeit gleich ganz öffnen
+                let immediate = c.openMode == .automatic && c.openDelay <= 0.01
                 switch state.level {
                 case .hidden where s.inRevealZone:
                     // Nur im erlaubten Bereich: Dort sitzt der Streifen genau mittig am Zeiger
-                    result.target = .peek
+                    result.target = immediate ? .expanded : .peek
                     result.haptic = true
+                case .peek where immediate, .hint where immediate:
+                    result.target = .expanded
                 case .peek where elapsed > 0.1:
                     result.target = .hint
                 case .hint where elapsed > c.openDelay && c.openMode == .automatic:

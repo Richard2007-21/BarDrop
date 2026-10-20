@@ -70,7 +70,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 
 **Shelf**
 * Left or right edge, at a fixed height or wherever the pointer reaches the edge (whole edge or middle half)
-* Opens instantly or after 1 to 5 seconds at the edge, on click or with a keyboard shortcut; a click on the strip skips the wait
+* Opens instantly, after a short moment (standard) or after 1 to 5 seconds at the edge, on click or with a keyboard shortcut; a click on the strip skips the wait
 * Generous hit area, so you don’t have to hit the strip exactly, or optionally a small one that only reacts to the strip itself
 * Exclude apps in which the edge shouldn’t open the shelf, for example games, and optionally stay closed in full screen
 * Files flung quickly at the edge are still caught
@@ -82,7 +82,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * Files, folders, images from the web (WebP, AVIF and HEIC can be saved as PNG or JPEG), links and text
 * New screenshots can land in the shelf automatically
 * Convert with a right-click: images, PDF pages, text documents, audio and video, using only what macOS includes
-* Newest first, stacks, selection like in the Finder
+* Newest first, stacks, selection like in the Finder; double-click a folder to see its contents right in the shelf
 * Files from the Finder as the original or as a copy of their own
 * Removed something by accident, or moved it to the Trash? `⌘Z` brings it back
 * Moved or renamed files stay in the shelf, iCloud files are downloaded when needed, files from disconnected drives stay grayed out
@@ -121,7 +121,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 | `⌘X` | Cut: to the clipboard and out of the shelf |
 | `⌘C`, `⌥⌘C` | Copy, copy path |
 | `⌘V` | Paste from clipboard |
-| `⌫` | Remove selection from the shelf, the next item is selected |
+| `⌫` | Remove selection from the shelf, the next item is selected; cancels selected plugins |
 | `⌘⌫` | Move selection to the Trash |
 | `⌘Z`, `⇧⌘Z` | Undo, redo |
 | `⌘↑` | Back from a stack |

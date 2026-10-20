@@ -17,6 +17,10 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     /// Höchstens so viele Plugins gleichzeitig; weitere warten (schont den Mac)
     static let maxConcurrent = 3
     private var waiting: [PluginJob] = []
+    /// Sieht nach, ob laufende Plugins schon ein Ergebnis geschrieben haben (Vorschau im Platzhalter)
+    private var previewTimer: Timer?
+    /// Letzter Stand je Auftrag: neueste Ergebnisdatei und ihre Größe
+    private var previewCandidates: [UUID: (url: URL, size: Int)] = [:]
     /// Fehler eines Laufs per Rechtsklick oder Aktionsleiste als Dialog zeigen (Tests: aus)
     var showsErrorDialogs = true
     private var watchers: Set<AnyCancellable> = []
@@ -181,6 +185,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             onNotify: { [weak self] text in self?.actions?.announce(text, duration: 2) }
         )
         runtimes[job.id] = runtime
+        watchResults()
         // Der Arbeitsordner bleibt, bis alle gestarteten Programme beendet sind
         runtime.onStopped = { try? FileManager.default.removeItem(at: work) }
         PluginLog.shared.record(plugin.id, "start",
@@ -192,6 +197,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
 
     private func finished(_ job: PluginJob, result: Result<[URL], PluginRunError>, workDirectory: URL) {
         runtimes.removeValue(forKey: job.id)
+        previewCandidates.removeValue(forKey: job.id)
+        watchResults()
         defer {
             if !waiting.isEmpty, runtimes.count < Self.maxConcurrent { launch(waiting.removeFirst()) }
         }
@@ -296,6 +303,54 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             withTransaction(transaction) { jobs.removeAll { $0.id == job.id } }
         }
         waiting.removeAll { $0.id == job.id }
+        actions?.ui.jobSelection.remove(job.id)
+    }
+
+    // MARK: Vorschau des Ergebnisses
+
+    /// Solange Plugins laufen, zweimal pro Sekunde in ihre Ausgabeordner sehen
+    private func watchResults() {
+        if runtimes.isEmpty {
+            previewTimer?.invalidate()
+            previewTimer = nil
+            previewCandidates = [:]
+            return
+        }
+        guard previewTimer == nil else { return }
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.scanResults() }
+        RunLoop.main.add(timer, forMode: .common)
+        previewTimer = timer
+    }
+
+    /// Die neueste fertige Datei eines Laufs wird zur Vorschau, sobald sie zweimal
+    /// hintereinander gleich groß ist: Eine Datei, die noch geschrieben wird, gäbe ein
+    /// halbes oder kaputtes Vorschaubild.
+    private func scanResults() {
+        for (id, runtime) in runtimes {
+            guard let job = jobs.first(where: { $0.id == id }),
+                  let candidate = Self.newestResult(in: runtime.outputDirectory) else { continue }
+            let previous = previewCandidates[id]
+            previewCandidates[id] = candidate
+            guard previous?.url == candidate.url, previous?.size == candidate.size,
+                  job.resultPreview != candidate.url else { continue }
+            job.resultPreview = candidate.url
+            NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
+        }
+    }
+
+    /// Neueste fertige Datei im Ausgabeordner (keine versteckten, halb geladenen oder leeren)
+    static func newestResult(in directory: URL) -> (url: URL, size: Int)? {
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { return nil }
+        var best: (url: URL, size: Int, date: Date)?
+        for url in urls where !PluginRuntime.partialExtensions.contains(url.pathExtension.lowercased()) {
+            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
+                  let size = values.fileSize, size > 0 else { continue }
+            let date = values.contentModificationDate ?? .distantPast
+            if best == nil || date > best!.date { best = (url, size, date) }
+        }
+        return best.map { ($0.url, $0.size) }
     }
 
     /// Abbrechen auch, solange ein Plugin noch wartet

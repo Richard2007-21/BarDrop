@@ -2,14 +2,16 @@ import AppKit
 import SwiftUI
 
 /// Platzhalter für ein laufendes Plugin, direkt neben dem Original (bei „Original ersetzen“
-/// an seiner Stelle): das Vorschaubild der Datei, an der das Plugin arbeitet. Es ist erst
-/// unscharf und wird mit dem Fortschritt klar. Meldet das Plugin keinen Fortschritt, wird es
-/// sanft klarer und wieder unscharf („atmet“). Welches Plugin arbeitet, zeigt sein Symbol
-/// oben rechts im Kopf der Ablage.
+/// an seiner Stelle): eine sichtbare, aber durchsichtige Vorschau, die mit dem Fortschritt
+/// deckend wird. Gezeigt wird das Ergebnis, sobald das Plugin eine fertige Datei geschrieben
+/// hat, bis dahin die Datei, an der es arbeitet. Meldet das Plugin keinen Fortschritt, wird
+/// die Vorschau sanft deckender und wieder durchsichtiger („atmet“). Welches Plugin arbeitet,
+/// zeigt sein Symbol oben rechts im Kopf der Ablage.
 ///
-/// Bedienung wie bei Downloads im Finder und im App Store: Fährt der Zeiger darüber, wird
-/// die Mitte zum Knopf für Anhalten bzw. Fortsetzen, und oben rechts erscheint ein kleines
-/// x zum Abbrechen. Der Rechtsklick bietet dasselbe zusätzlich an.
+/// Auswählen wie eine Kachel (Klick, ⌘- bzw. ⇧-Klick, Lasso, Pfeiltasten); ⌫ bricht ab.
+/// Wie bei Downloads im Finder und im App Store: Fährt der Zeiger darüber, wird das Zeichen
+/// in der Mitte zum Knopf für Anhalten bzw. Fortsetzen, und oben rechts erscheint ein
+/// kleines x zum Abbrechen. Der Rechtsklick bietet dasselbe zusätzlich an.
 struct PluginJobTile: View {
     @ObservedObject var job: PluginJob
     @ObservedObject var ui: ShelfUIModel
@@ -22,11 +24,13 @@ struct PluginJobTile: View {
 
     var body: some View {
         TileLabel(title: job.isStarted ? (job.label ?? job.title) : L("Waiting", "Wartet"),
-                  isSelected: false, isKey: false, iconSize: iconSize) {
+                  isSelected: ui.jobSelection.contains(job.id), isKey: ui.isKey || ui.level == .expanded,
+                  iconSize: iconSize) {
             PluginPreview(job: job, size: iconSize, hovering: showsControls)
         }
         .overlay(Group { if !shelfDemo {
-            PluginJobMenuArea(ui: ui) { actions.menu(for: job) }
+            PluginJobMenuArea(ui: ui, menu: { actions.menu(for: job) },
+                              onClick: { modifiers in actions.selectJob(job, modifiers: modifiers) })
         } })
         // Über der Fläche für den Rechtsklick, damit die Knöpfe Klicks bekommen
         .overlay(alignment: .top) { if showsControls { controls } }
@@ -43,11 +47,12 @@ struct PluginJobTile: View {
         let cancelSize = max(16, (iconSize * 0.24).rounded())
         return ZStack {
             if job.isStarted {
+                // Nur so groß wie das Zeichen in der Mitte: Ein Klick daneben wählt aus
                 Button {
                     if job.paused { job.resume() } else { job.pause() }
                 } label: {
                     Circle().fill(Color.clear)
-                        .frame(width: iconSize * 0.6, height: iconSize * 0.6)
+                        .frame(width: iconSize * 0.38, height: iconSize * 0.38)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -74,7 +79,8 @@ struct PluginJobTile: View {
     }
 }
 
-/// Vorschaubild der Datei, unscharf je nach Fortschritt
+/// Vorschau, durchsichtig je nach Fortschritt: das Ergebnis, sobald es da ist, sonst die
+/// Datei, an der das Plugin arbeitet
 private struct PluginPreview: View {
     @ObservedObject var job: PluginJob
     let size: CGFloat
@@ -82,26 +88,35 @@ private struct PluginPreview: View {
     var hovering = false
     @State private var breathing = false
 
-    /// Ganz am Anfang so unscharf, dass man das Bild nur ahnt
-    private var maxBlur: CGFloat { max(4, (size * 0.12).rounded()) }
+    /// Am Anfang gut zu sehen, aber deutlich durchsichtig
+    private static let startOpacity = 0.3
 
     private var breathes: Bool {
         job.isStarted && !job.paused && job.progress == nil && !AnimationStyle.reduceMotion
     }
 
-    private var blur: CGFloat {
-        if !job.isStarted { return maxBlur }
-        if let progress = job.progress { return maxBlur * CGFloat(1 - progress) }
-        return breathing ? maxBlur * 0.45 : maxBlur
+    private var opacity: Double {
+        let base: Double
+        if !job.isStarted {
+            base = Self.startOpacity
+        } else if let progress = job.progress {
+            base = Self.startOpacity + (1 - Self.startOpacity) * progress
+        } else {
+            base = breathing ? 0.6 : Self.startOpacity
+        }
+        return job.paused ? base * 0.75 : base
     }
+
+    private var shownURL: URL { job.resultPreview ?? job.item.url }
 
     var body: some View {
         ZStack {
-            ThumbnailView(url: job.item.url, size: size)
-                .blur(radius: blur)
-                .saturation(job.progress.map { 0.5 + 0.5 * $0 } ?? 0.6)
-                .opacity(job.paused ? 0.75 : 1)
+            ThumbnailView(url: shownURL, size: size)
+                .id(shownURL)
+                .transition(.opacity)
+                .opacity(opacity)
                 .animation(.easeOut(duration: 0.3), value: job.progress)
+                .animation(.easeOut(duration: 0.3), value: job.paused)
                 .animation(breathes ? .easeInOut(duration: 1.6).repeatForever(autoreverses: true) : .easeOut(duration: 0.3),
                            value: breathing)
             centerGlyph
@@ -131,33 +146,45 @@ private struct PluginPreview: View {
     }
 }
 
-/// Fläche über dem Platzhalter: Rechtsklick (und ⌃-Klick) öffnet sein Menü
+/// Fläche über dem Platzhalter: Klick wählt aus, Rechtsklick (und ⌃-Klick) öffnet sein Menü
 private struct PluginJobMenuArea: NSViewRepresentable {
     let ui: ShelfUIModel
     let menu: () -> NSMenu
+    var onClick: (NSEvent.ModifierFlags) -> Void = { _ in }
 
     func makeNSView(context: Context) -> MenuNSView {
         let view = MenuNSView()
-        view.ui = ui
-        view.menuProvider = menu
+        configure(view)
         return view
     }
 
-    func updateNSView(_ view: MenuNSView, context: Context) {
+    func updateNSView(_ view: MenuNSView, context: Context) { configure(view) }
+
+    private func configure(_ view: MenuNSView) {
         view.ui = ui
         view.menuProvider = menu
+        view.onClick = onClick
     }
 
     final class MenuNSView: NSView {
         weak var ui: ShelfUIModel?
         var menuProvider: () -> NSMenu = { NSMenu() }
+        var onClick: (NSEvent.ModifierFlags) -> Void = { _ in }
 
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-        override func rightMouseDown(with event: NSEvent) { show(event) }
+        override func rightMouseDown(with event: NSEvent) {
+            onClick([])
+            show(event)
+        }
 
         override func mouseDown(with event: NSEvent) {
-            if event.modifierFlags.contains(.control) { show(event) }
+            if event.modifierFlags.contains(.control) {
+                onClick([])
+                show(event)
+            } else {
+                onClick(event.modifierFlags)
+            }
         }
 
         private func show(_ event: NSEvent) {
