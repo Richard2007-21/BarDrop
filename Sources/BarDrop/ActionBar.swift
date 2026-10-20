@@ -31,8 +31,13 @@ final class ActionDropNSView: NSView, NSDraggingSource {
 
     private var pressed = false
     private var downEvent: NSEvent?
-    /// Form der Ablage beim Start: außerhalb löst sich die Aktion, dort losgelassen verschwindet sie
+    /// Form der Ablage beim Start: dort losgelassen gleitet die Aktion zurück, draußen verschwindet sie
     private var dragStartFrame: NSRect = .zero
+    /// Verlässt der Zeiger diesen Bereich, löst sich die Aktion: so früh, dass das Symbol in
+    /// der Leiste den Rand der Ablage nie erreicht (dort würde es abgeschnitten)
+    private var detachFrame: NSRect = .zero
+    /// Bild am Zeiger nach dem Lösen, beim Start einmal erzeugt
+    private var dragImage: NSImage?
     /// Der Zeiger zeigt gerade die Wolke (draußen, die Aktion verschwindet beim Loslassen)
     private var showsPoof = false
 
@@ -96,6 +101,14 @@ final class ActionDropNSView: NSView, NSDraggingSource {
             // An der schwarzen Form messen, nicht am Fenster (das ist wegen des Schattens größer)
             let body = ui?.expandedBody ?? .zero
             dragStartFrame = body.isEmpty ? window.frame : body
+            let image = dragOut?.image()
+            dragImage = image
+            // Um den halben Symbolrand nach innen; steht die Aktion schon so nah am Rand
+            // (untere Reihe), reicht dort ein kurzes Stück vom Startpunkt
+            let half = max((image?.size.width ?? 40) / 2, 12)
+            let start = window.convertPoint(toScreen: down.locationInWindow)
+            detachFrame = dragStartFrame.insetBy(dx: half, dy: half)
+                .union(NSRect(x: start.x - 8, y: start.y - 8, width: 16, height: 16))
             ui?.actionMoving = true
             trackInBar(event)
         }
@@ -106,7 +119,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     private func trackInBar(_ event: NSEvent) {
         guard let window else { return }
         let screenPoint = window.convertPoint(toScreen: event.locationInWindow)
-        if dragOut?.remove != nil, !dragStartFrame.contains(screenPoint) {
+        if dragOut?.remove != nil, !detachFrame.contains(screenPoint) {
             detach(event)
             return
         }
@@ -146,22 +159,26 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         guard let dragOut else { return }
         mode = .detached
         ui?.actionMoving = false
-        onMove(nil)
+        // Erst ausblenden, dann an den Platz zurück: Sonst flog das Symbol sichtbar zurück,
+        // während schon das Bild am Zeiger hing
         onDraggingOut(true)
+        onMove(nil)
         Haptics.drop()
         let item = NSPasteboardItem()
         item.setString("", forType: Self.actionType)
         let dragging = NSDraggingItem(pasteboardWriter: item)
-        let size: CGFloat = 40
+        // Genau dort, wo das Symbol in der Leiste gerade hing (mittig am Zeiger), gleich groß
+        let image = dragImage ?? dragOut.image()
+        let size = image.size
         let point = convert(event.locationInWindow, from: nil)
-        dragging.setDraggingFrame(NSRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size),
-                                  contents: dragOut.image())
+        dragging.setDraggingFrame(NSRect(x: point.x - size.width / 2, y: point.y - size.height / 2,
+                                         width: size.width, height: size.height),
+                                  contents: image)
         // Wie beim Herausziehen von Objekten: Die Ablage bleibt, solange der Drag läuft
         ui?.ownDragActive = true
         let session = beginDraggingSession(with: [dragging], event: event, source: self)
-        session.animatesToStartingPositionsOnCancelOrFail = false
-        NSCursor.disappearingItem.set()
-        showsPoof = true
+        // Die Wolke erst, wenn der Zeiger wirklich draußen ist (draggingSession movedTo)
+        session.animatesToStartingPositionsOnCancelOrFail = true
     }
 
     // MARK: Herausziehen (Quelle)
@@ -457,8 +474,15 @@ struct QuickActionButton: View {
     /// „Per Ziehen anheften“ eingeschaltet ist
     private var dragOut: (image: () -> NSImage, remove: (() -> Void)?) {
         let action = action
+        // Genau das Symbol aus der Leiste, in der Größe, in der es gerade am Zeiger hängt.
+        // Vorher war es das Bild der Datei bzw. das Systemsymbol: Bei „Teilen“ (in der Leiste
+        // als Kachel gezeichnet) hing dann nur das Zeichen ohne Kachel am Zeiger.
+        let size = iconSize * 1.1
         let image: () -> NSImage = {
-            action.icon
+            let renderer = ImageRenderer(content: QuickActionIcon(action: action, size: size))
+            renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+            return renderer.nsImage
+                ?? action.icon
                 ?? NSImage(systemSymbolName: action.fallbackSymbol, accessibilityDescription: nil)
                 ?? NSImage()
         }
@@ -538,7 +562,14 @@ struct QuickActionButton: View {
                 kind: action.kind,
                 dragOut: dragOut,
                 onDraggingOut: { value in
-                    withAnimation(.easeOut(duration: 0.15)) { draggingOut = value }
+                    // Beim Lösen sofort weg (nur ein Symbol), beim Zurückkommen sanft
+                    if value {
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) { draggingOut = true }
+                    } else {
+                        withAnimation(.easeOut(duration: 0.15)) { draggingOut = false }
+                    }
                 },
                 actionID: action.id,
                 onReorder: { from in
