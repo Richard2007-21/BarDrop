@@ -21,10 +21,10 @@ Quellcode: `Sources/BarDrop/Plugins/`. Ändert sich dort etwas, wird diese Datei
 | Regel | Wert |
 | --- | --- |
 | Format | ZIP-Archiv, Endung `.bdrop` |
-| Größe | höchstens 5 MB (5 242 880 Byte) |
+| Größe | höchstens 5 MB (5 242 880 Byte), ausgepackt höchstens 20 MB |
 | Aufbau | `manifest.json` direkt im Archiv **oder** in genau einem Ordner darin (versteckte Einträge und `__MACOSX` zählen nicht) |
 | Skript | die Datei, die `script` im Manifest nennt; höchstens 1 MB; UTF-8 |
-| Weitere Dateien | erlaubt (Texte, Vorlagen); das Skript liest sie mit `bardrop.readFile` |
+| Weitere Dateien | erlaubt (Texte, Vorlagen); das Skript liest sie mit `bardrop.readFile(bardrop.pluginDirectory + "/vorlage.txt")`. Der Import-Dialog nennt sie, und sie gehören zum Fingerabdruck (6). |
 | Symbolische Verweise | werden beim Entpacken gelöscht |
 
 Entpackt wird mit `/usr/bin/ditto`. Installiert liegt ein Plugin in `~/Library/Application Support/BarDrop/Plugins/<id>/`. Der Ordnername muss der `id` entsprechen.
@@ -53,13 +53,13 @@ Unbekannte Schlüssel werden ignoriert. Ein Schlüssel mit falschem Typ (z. B. Z
 | `minAppVersion` | Text | nein | Älteste BarDrop-Version, z. B. `"1.31.0"`. Verglichen wird ohne Beta-Zusatz: 1.31.0 Beta 2 zählt als 1.31.0. Ist BarDrop älter, wird das Plugin abgelehnt. Empfehlung: immer setzen. |
 | `script` | Text | nein | Dateiname des Skripts, Standard `"main.js"`. Muss auf `.js` enden, darf keinen `/` enthalten und nicht mit `.` beginnen. |
 | `match` | Objekt | ja | Wofür das Plugin zuständig ist, siehe 4. |
-| `triggers` | Liste | nein | Teilmenge von `"menu"`, `"action"`, `"automatic"`. Fehlt der Schlüssel, gelten alle drei. Unbekannte Werte werden still übergangen. Eine leere Liste `[]` heißt: über keinen Weg startbar. |
+| `triggers` | Liste | nein | Teilmenge von `"menu"`, `"action"`, `"automatic"`. Fehlt der Schlüssel, gelten alle drei. Unbekannte Werte werden übergangen. Bleibt kein bekannter Wert übrig (auch bei `[]`), lehnt BarDrop das Plugin ab. |
 | `automaticByDefault` | Wahrheitswert | nein | „Automatisch beim Ablegen“ ist von Anfang an an. Gilt **nur**, wenn `triggers` `automatic` erlaubt und das Plugin weder `network` noch `run` noch `tools` hat. |
 | `permissions` | Liste | nein | Teilmenge von `"network"`, `"run"`, `"clipboard"`, siehe 6. Ein **unbekannter** Wert lässt das ganze Plugin ablehnen. |
 | `tools` | Liste | nein | Programme, die BarDrop nachlädt, siehe 7. Verlangt das Recht `run`. |
 | `settings` | Liste | nein | Einstellungen des Plugins, siehe 3.3. |
 | `canReplaceOriginal` | Wahrheitswert | nein | Zeigt den Schalter „Original ersetzen“ (Standard aus), siehe 8. |
-| `consent` | Text (3.2) | nein | Hinweis, dem der Nutzer **einmal** zustimmen muss, bevor das Plugin eingeschaltet werden oder laufen kann. |
+| `consent` | Text (3.2) | nein | Hinweis, dem der Nutzer **einmal** zustimmen muss, bevor das Plugin eingeschaltet werden oder laufen kann. Ändert ein Update den Text, fragt BarDrop erneut. |
 
 ### 3.2 Texte in zwei Sprachen
 
@@ -131,7 +131,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 * `extensions`: Vergleich ohne Groß- und Kleinschreibung; führende Punkte werden entfernt (`".PNG"` = `png`).
 * `types`: Uniform Type Identifier. Ein Objekt passt auch, wenn sein Typ davon **abgeleitet** ist: `public.image` passt zu PNG, JPEG, HEIC usw., `public.movie` zu MP4 und MOV, `public.text` zu TXT, Markdown, Quelltext. Unbekannte Bezeichner werden übergangen.
-* `links.hosts`: gilt **nur für Links**. `example.com` passt zu `example.com` und jeder Subdomain (`www.example.com`, `m.example.com`), aber nicht zu `notexample.com`. `*` passt zu jedem Link mit `http` oder `https`. Nur die Domain angeben, ohne `https://`, ohne Pfad, ohne Port.
+* `links.hosts`: gilt **nur für Links**. `example.com` passt zu `example.com` und jeder Subdomain (`www.example.com`, `m.example.com`), aber nicht zu `notexample.com`. `*.example.com` bedeutet dasselbe wie `example.com`. `*` allein passt zu jedem Link mit `http` oder `https`; an anderer Stelle ist `*` nicht erlaubt. Nur die Domain angeben, ohne `https://`, ohne Pfad, ohne Port.
 * `links.patterns`: gilt **nur für Links**. Reguläre Ausdrücke (ICU-Syntax von macOS), geprüft auf die ganze Adresse, **ohne** Groß- und Kleinschreibung; ein Treffer irgendwo genügt. Mit `^` am Anfang verankern. In JSON jeden `\` doppelt schreiben.
 * Ein Link passt außerdem auf `extensions: ["webloc"]`.
 
@@ -159,7 +159,7 @@ Ein automatisches Plugin läuft nur, wenn es **ohne Rückfrage** laufen kann: Zu
 
 * Ein Aufruf ohne das Recht in `permissions` scheitert **sofort** mit dem Fehler `Permission “…” is missing in manifest.json`, ohne Frage.
 * Steht das Recht im Manifest, ist aber noch nicht erteilt: Bei Rechtsklick und Aktionsleiste fragt BarDrop **einmal**. „Nicht erlauben“ lässt den Aufruf scheitern (`fetch`, `download`, `run` werden abgelehnt, `setClipboard` tut nichts) und fragt beim nächsten Lauf erneut. Bei automatischen Läufen fragt BarDrop nie.
-* Erteilte Rechte gelten für **genau diesen Code**: eine SHA-256-Prüfsumme über `manifest.json` und das Skript. Jede Änderung an einer der beiden Dateien setzt alle Rechte zurück. Aktualisierungen aus dem Katalog behalten Rechte, die das Plugin weiter braucht.
+* Erteilte Rechte gelten für **genau diesen Code**: eine SHA-256-Prüfsumme über **alle Dateien** des Plugins (Pfad und Inhalt; nur `.DS_Store` zählt nicht), denn das Skript kann weitere Dateien lesen und als Code ausführen. Jede Änderung an irgendeiner Datei setzt alle Rechte zurück. Aktualisierungen aus dem Katalog behalten Rechte, die das Plugin weiter braucht.
 * Der Dialog fragt „Darf „…“ auf das Internet zugreifen?“, „Darf „…“ Programme ausführen?“ bzw. „Darf „…“ die Zwischenablage verwenden?“, mit „Erlauben“ und „Nicht erlauben“.
 * Einstellungen → Plugins → Plugin → Rechte zeigt je Recht „erlaubt“ oder „fragt zuerst“. „Erlauben“ fragt sofort nach allen fehlenden Rechten und Programmen (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat), „Zurücksetzen“ nimmt alle Rechte zurück.
 * Es gibt **keine Sandbox von macOS** um Plugins. Das Skript selbst kann ohne Rechte nur die Aufrufe aus 9 nutzen. Ein mit `run` gestartetes Programm hat aber die vollen Rechte des Benutzers.
@@ -179,7 +179,7 @@ BarDrop liefert nie Programme Dritter mit. Ein Plugin kann Programme nennen, die
 
 | Schlüssel | Pflicht | Bedeutung |
 | --- | --- | --- |
-| `id` | ja | Name, unter dem das Skript es startet: `bardrop.run("mytool", […])`. Gilt für alle Plugins gemeinsam: Gleiche `id` heißt gleiche Datei. |
+| `id` | ja | Name, unter dem das Skript es startet: `bardrop.run("mytool", […])`. Plugins teilen sich ein Programm nur, wenn `id` **und** Download-Adresse gleich sind. |
 | `name` | ja | Anzeige im Dialog. |
 | `url` | ja | `https://`, zeigt auf **eine einzelne ausführbare Datei** für macOS. Archive (ZIP, DMG, PKG) werden **nicht** entpackt. Umleitungen werden befolgt. |
 | `sha256` | eins von beiden | Prüfsumme der Datei. |
@@ -201,7 +201,7 @@ Beispiel für ein Programm im Archiv:
   "archive": "zip", "executable": "tool", "license": "MIT", "refreshDays": 30 }
 ```
 
-Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, Lizenz und dem Hinweis, dass das Programm mit denselben Rechten läuft wie das Plugin). Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“ mit Prozent), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` mit `meta.json` daneben. Die Erlaubnis wird je Plugin gespeichert und gilt danach auch für automatische Läufe. Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
+Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, Lizenz und dem Hinweis, dass das Programm mit denselben Rechten läuft wie das Plugin). Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“ mit Prozent), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>-<Kennung der Adresse>/<id>` mit `meta.json` daneben; zwei Plugins mit derselben `id`, aber verschiedenen Adressen überschreiben sich also nicht. Die Erlaubnis wird je Plugin **für genau diese Adresse** gespeichert und gilt danach auch für automatische Läufe. Ändert ein Update die Adresse, fragt BarDrop erneut. Ohne Frage neu geladen wird nur ein veraltetes Programm von derselben Adresse (`refreshDays`, neue Prüfsumme). Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
 
 ## 8. Ergebnis
 
@@ -214,7 +214,8 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, L
 **Platzhalter:** Während ein Plugin läuft, steht neben dem Original (bei „Original ersetzen“ an seiner Stelle) ein Ring mit dem Symbol des Plugins und dem Namen (oder dem `label` aus `bardrop.progress`). Ohne Fortschritt dreht ein kurzer Bogen, mit Fortschritt füllt sich der Ring. Rechtsklick: Fortschritt in Prozent (läuft im offenen Menü mit), „Anhalten“ bzw. „Fortsetzen“, „Abbrechen“. Wartet ein Plugin noch, gibt es nur „Abbrechen“.
 
 * **Anhalten:** gestartete Programme und alle Programme, die diese selbst gestartet haben, bekommen `SIGSTOP`, Downloads pausieren. Das Skript selbst und `bardrop.sleep` laufen weiter.
-* **Abbrechen:** gestartete Programme und ihre Unterprogramme bekommen `SIGTERM`, Anfragen werden abgebrochen, das Ergebnis wird verworfen.
+* **Abbrechen:** wirkt sofort: Der Platzhalter verschwindet und der Platz für das nächste Plugin wird frei. Gestartete Programme und ihre Unterprogramme bekommen `SIGTERM`, wer nach 3 s noch läuft, `SIGKILL`. Anfragen werden abgebrochen, das Ergebnis wird verworfen. Der Arbeitsordner wird erst gelöscht, wenn alle Programme beendet sind. Programme, die das Skript ohne `await` gestartet hat, werden genauso beendet; nach dem Ende startet keines mehr.
+* **Ausschalten oder Entfernen** eines Plugins bricht seine laufenden und wartenden Aufträge ab, ebenso das Ausschalten aller Plugins.
 * Beim Beenden von BarDrop werden laufende Plugins abgebrochen.
 
 ## 9. Das Skript
@@ -227,7 +228,8 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… herunterladen?“ mit Herkunft, L
 * Jeder Lauf hat einen **eigenen, frischen Kontext**: Globale Variablen überleben keinen Lauf. Dauerhaftes gibt es nur über `settings`.
 * Das Skript wird zuerst einmal ganz ausgeführt (globale Definitionen), dann wird `run(item)` aufgerufen.
 * Ein Fehler beim ersten Ausführen (z. B. Syntaxfehler) ist ein Fehlschlag. Fehlt `run`, ebenfalls („Im Skript fehlt die Funktion run“).
-* Endlosschleifen lassen sich nicht hart stoppen: „Abbrechen“ entfernt den Platzhalter, das Skript läuft im Hintergrund weiter, bis BarDrop beendet wird.
+* Endlosschleifen lassen sich nicht hart stoppen: „Abbrechen“ entfernt den Platzhalter sofort und gibt den Platz frei, das Skript selbst rechnet aber im Hintergrund weiter, bis BarDrop beendet wird.
+* Das Skript wird als **normales Skript** geladen, nicht als Modul: kein `import`/`export`, kein `await` und kein `return` außerhalb von Funktionen. `function run`, `var run =`, `let run =` und `const run =` funktionieren alle.
 
 ### 9.2 item
 
@@ -248,9 +250,10 @@ Alle Aufrufe mit `await` liefern ein Versprechen.
 | Aufruf | Recht | Ergebnis und Regeln |
 | --- | --- | --- |
 | `bardrop.outputDirectory` | | Pfad des Ausgabeordners (Text). Dort liegt am Ende das Ergebnis. |
+| `bardrop.pluginDirectory` | | Pfad des eigenen Plugin-Ordners (Text), mit `manifest.json`, Skript und weiteren Dateien. Für `bardrop.readFile(bardrop.pluginDirectory + "/vorlage.txt")`. |
 | `bardrop.writeFile(name, text)` | | Schreibt `text` als UTF-8 in den Ausgabeordner (andere Werte werden wie mit `String()` zu Text, Objekte also zu `[object Object]`: vorher `JSON.stringify` verwenden). `name` muss Text sein, `text` darf nicht `undefined` oder `null` sein, sonst Fehler. Liefert den Pfad. Der Name wird bereinigt (siehe 9.4); gibt es ihn schon, heißt die Datei `Name 2.txt` usw. |
-| `bardrop.createLink(url, title)` | | Legt `<title>.webloc` im Ausgabeordner an (ohne `title`: die Domain). `url` braucht ein Schema (`https:`). Liefert den Pfad. Ungültige Adresse: Fehler. |
-| `bardrop.readFile(path)` | | Liest eine Datei als Text (UTF-8, ungültige Bytes werden ersetzt), höchstens 20 MB. Ein Pfad ohne `/` am Anfang gilt relativ zum Ausgabeordner. Erlaubt nur: `item.path` selbst, Dateien im Ausgabeordner, Dateien im eigenen Plugin-Ordner. Sonst Fehler. Binärdaten lassen sich so nicht lesen; dafür `bardrop.run`. |
+| `bardrop.createLink(url, title)` | | Legt `<title>.webloc` im Ausgabeordner an (ohne `title`: die Domain). Nur `http`- und `https`-Adressen. Liefert den Pfad. Ungültige Adresse: Fehler. |
+| `bardrop.readFile(path)` | | Liest eine Datei als Text (UTF-8, ungültige Bytes werden ersetzt), höchstens 20 MB. Ein Pfad ohne `/` am Anfang gilt relativ zum Ausgabeordner; eigene Dateien also mit `bardrop.pluginDirectory`. Erlaubt nur: `item.path` selbst, Dateien im Ausgabeordner, Dateien im eigenen Plugin-Ordner. Sonst Fehler. Binärdaten lassen sich so nicht lesen; dafür `bardrop.run`. |
 | `bardrop.progress(anteil, label)` | | `anteil` 0 bis 1 (wird begrenzt); keine Zahl (z. B. `null`) heißt „ohne Fortschritt“. `label` optional, höchstens 60 Zeichen, ersetzt den Namen unter dem Platzhalter. Die Anzeige erneuert sich höchstens alle 100 ms. |
 | `bardrop.notify(text)` | | Kurze Meldung oben in der Ablage, höchstens 80 Zeichen, etwa 2 Sekunden. |
 | `bardrop.isCancelled()` | | `true`, wenn der Nutzer abgebrochen hat. In langen Schleifen abfragen. |
@@ -304,7 +307,7 @@ python3 scripts/check_plugin.py MeinPlugin/ --pack   # prüfen und .bdrop erzeug
 python3 scripts/check_plugin.py MeinPlugin.bdrop     # fertige Datei prüfen
 ```
 
-Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaScriptCore nicht gibt, vergleicht genutzte Aufrufe mit `permissions` und prüft mit Node.js (falls installiert) die Syntax.
+Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaScriptCore nicht gibt, vergleicht genutzte Aufrufe mit `permissions` und prüft mit Node.js (falls installiert) die Syntax, und zwar wie BarDrop als normales Skript. Link-Muster prüft es nach den Regeln von macOS (ICU): `(?<name>…)` geht, Pythons `(?P<name>…)` und `{,3}` nicht. Mit `--pack` bleiben versteckte Dateien und Ordner (`.git`, `.DS_Store`) draußen.
 
 **Danach von Hand:**
 

@@ -10,6 +10,9 @@ enum PluginPackage {
     static let typeIdentifier = "io.github.zzuuuiii.bardrop.plugin"
     /// Höchstgröße einer .bdrop-Datei: Plugins sind Skripte, keine Programme
     static let maxPackageSize = 5 * 1024 * 1024
+    /// Höchstgröße ausgepackt: Eine kleine ZIP-Datei kann sonst Gigabytes ergeben, und
+    /// das Entpacken geschieht schon vor der Rückfrage
+    static let maxUnpackedSize = 20 * 1024 * 1024
     static let maxScriptSize = 1024 * 1024
 
     static var contentType: UTType {
@@ -39,10 +42,40 @@ enum PluginPackage {
         let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
         guard size > 0 else { throw PackageError.unreadable }
         guard size <= maxPackageSize else { throw PackageError.tooLarge }
+        guard let unpacked = unpackedSize(of: file) else { throw PackageError.notAnArchive }
+        guard unpacked <= maxUnpackedSize else { throw PackageError.tooLarge }
         let target = scratch.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
-        try extract(file, to: target)
-        return try read(directory: locateRoot(in: target), appVersion: appVersion)
+        do {
+            try extract(file, to: target)
+            return try read(directory: locateRoot(in: target), appVersion: appVersion)
+        } catch {
+            // Nichts Halbfertiges liegen lassen
+            try? FileManager.default.removeItem(at: target)
+            throw error
+        }
+    }
+
+    /// Summe der ausgepackten Größen laut Inhaltsverzeichnis des Archivs (`zipinfo -t`,
+    /// gehört zu macOS), ohne etwas zu entpacken. nil, wenn es kein lesbares ZIP ist.
+    static func unpackedSize(of archive: URL) -> Int? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/zipinfo")
+        process.arguments = ["-t", archive.path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        return parseUnpackedSize(String(decoding: data, as: UTF8.self))
+    }
+
+    /// „3 files, 1234 bytes uncompressed, 567 bytes compressed:  54.0%“ → 1234
+    static func parseUnpackedSize(_ summary: String) -> Int? {
+        guard let range = summary.range(of: #"(\d+) bytes uncompressed"#, options: .regularExpression) else { return nil }
+        return Int(summary[range].prefix { $0.isNumber })
     }
 
     /// Liest ein schon entpacktes Plugin (installierte Plugins).
@@ -79,8 +112,8 @@ enum PluginPackage {
         throw PackageError.missingManifest
     }
 
-    /// Entpackt mit `ditto` (gehört zu macOS). Pfade außerhalb des Ziels und Verweise
-    /// werden danach entfernt.
+    /// Entpackt mit `ditto` (gehört zu macOS). `ditto` legt nichts außerhalb des Ziels an
+    /// (Pfade mit `..` werden gekürzt); symbolische Verweise werden danach entfernt.
     static func extract(_ archive: URL, to target: URL) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
@@ -119,11 +152,30 @@ enum PluginPackage {
         guard process.terminationStatus == 0 else { throw PackageError.unreadable }
     }
 
-    /// Prüfsumme über Manifest und Skript: ändert sich der Code, gelten erteilte Rechte nicht mehr
-    static func fingerprint(manifest: Data, script: String) -> String {
+    /// Prüfsumme über **alle** Dateien des Plugins (Pfad und Inhalt, sortiert): ändert sich
+    /// irgendetwas, gelten erteilte Rechte nicht mehr. Nicht nur Manifest und Skript, denn
+    /// das Skript kann weitere Dateien lesen und als Code ausführen. Ausgenommen ist nur
+    /// `.DS_Store`, das der Finder beim Ansehen des Ordners anlegt.
+    static func fingerprint(directory: URL) -> String {
+        let fm = FileManager.default
+        let base = directory.standardizedFileURL.path
+        var files: [(path: String, url: URL)] = []
+        if let walker = fm.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey]) {
+            for case let url as URL in walker {
+                guard url.lastPathComponent != ".DS_Store",
+                      (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+                let full = url.standardizedFileURL.path
+                guard full.hasPrefix(base + "/") else { continue }
+                files.append((String(full.dropFirst(base.count + 1)), url))
+            }
+        }
         var hasher = SHA256()
-        hasher.update(data: manifest)
-        hasher.update(data: Data(script.utf8))
+        for file in files.sorted(by: { $0.path < $1.path }) {
+            let data = (try? Data(contentsOf: file.url)) ?? Data()
+            // Pfad und Länge vor dem Inhalt: keine zwei verschiedenen Ordner ergeben dieselbe Folge
+            hasher.update(data: Data("\(file.path)\u{0}\(data.count)\u{0}".utf8))
+            hasher.update(data: data)
+        }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
@@ -151,7 +203,8 @@ extension PluginPackage.PackageError {
         case .unreadable:
             return L("The file can’t be read.", "Die Datei lässt sich nicht lesen.")
         case .tooLarge:
-            return L("The file is too large for a plugin (at most 5 MB).", "Die Datei ist zu groß für ein Plugin (höchstens 5 MB).")
+            return L("The file is too large for a plugin (at most 5 MB, 20 MB unpacked).",
+                     "Die Datei ist zu groß für ein Plugin (höchstens 5 MB, ausgepackt 20 MB).")
         case .notAnArchive:
             return L("The file isn’t a BarDrop plugin.", "Die Datei ist kein BarDrop-Plugin.")
         case .missingManifest:

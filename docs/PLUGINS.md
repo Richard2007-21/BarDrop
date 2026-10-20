@@ -21,10 +21,10 @@ Source: `Sources/BarDrop/Plugins/`. When something changes there, this file, its
 | Rule | Value |
 | --- | --- |
 | Format | ZIP archive, extension `.bdrop` |
-| Size | at most 5 MB (5,242,880 bytes) |
+| Size | at most 5 MB (5,242,880 bytes), at most 20 MB unpacked |
 | Layout | `manifest.json` at the top of the archive **or** in exactly one folder inside it (hidden entries and `__MACOSX` don’t count) |
 | Script | the file named by `script` in the manifest; at most 1 MB; UTF-8 |
-| Other files | allowed (texts, templates); the script reads them with `bardrop.readFile` |
+| Other files | allowed (texts, templates); the script reads them with `bardrop.readFile(bardrop.pluginDirectory + "/template.txt")`. The import dialog lists them, and they are part of the fingerprint (6). |
 | Symbolic links | deleted when unpacking |
 
 BarDrop unpacks with `/usr/bin/ditto`. An installed plugin lives in `~/Library/Application Support/BarDrop/Plugins/<id>/`; the folder name must equal the `id`.
@@ -53,13 +53,13 @@ Unknown keys are ignored. A key with the wrong type (for example a number instea
 | `minAppVersion` | text | no | Oldest BarDrop version, e.g. `"1.31.0"`. Compared without the beta suffix: 1.31.0 Beta 2 counts as 1.31.0. An older BarDrop rejects the plugin. Recommended: always set it. |
 | `script` | text | no | File name of the script, default `"main.js"`. Must end in `.js`, contain no `/` and not start with `.`. |
 | `match` | object | yes | What the plugin handles, see 4. |
-| `triggers` | list | no | Subset of `"menu"`, `"action"`, `"automatic"`. Missing means all three. Unknown values are skipped silently. An empty list `[]` means it can’t be started at all. |
+| `triggers` | list | no | Subset of `"menu"`, `"action"`, `"automatic"`. Missing means all three. Unknown values are skipped. If no known value is left (also with `[]`), BarDrop rejects the plugin. |
 | `automaticByDefault` | boolean | no | “Automatically when dropped” starts on. **Only** when `triggers` allows `automatic` and the plugin has neither `network` nor `run` nor `tools`. |
 | `permissions` | list | no | Subset of `"network"`, `"run"`, `"clipboard"`, see 6. An **unknown** value rejects the whole plugin. |
 | `tools` | list | no | Programs BarDrop loads, see 7. Requires the `run` permission. |
 | `settings` | list | no | The plugin’s settings, see 3.3. |
 | `canReplaceOriginal` | boolean | no | Shows a “Replace original” switch (off by default), see 8. |
-| `consent` | text (3.2) | no | A note the user has to agree to **once** before the plugin can be turned on or run. |
+| `consent` | text (3.2) | no | A note the user has to agree to **once** before the plugin can be turned on or run. If an update changes the text, BarDrop asks again. |
 
 ### 3.2 Text in two languages
 
@@ -131,7 +131,7 @@ BarDrop always stores links itself as `.webloc`.
 
 * `extensions`: case-insensitive; leading dots are removed (`".PNG"` = `png`).
 * `types`: Uniform Type Identifiers. An item also matches if its type **conforms** to it: `public.image` matches PNG, JPEG, HEIC …, `public.movie` matches MP4 and MOV, `public.text` matches TXT, Markdown and source code. Unknown identifiers are skipped.
-* `links.hosts`: **links only**. `example.com` matches `example.com` and every subdomain (`www.example.com`, `m.example.com`), but not `notexample.com`. `*` matches every `http` or `https` link. Only the domain: no `https://`, no path, no port.
+* `links.hosts`: **links only**. `example.com` matches `example.com` and every subdomain (`www.example.com`, `m.example.com`), but not `notexample.com`. `*.example.com` means the same as `example.com`. `*` on its own matches every `http` or `https` link; anywhere else `*` isn’t allowed. Only the domain: no `https://`, no path, no port.
 * `links.patterns`: **links only**. Regular expressions (macOS ICU syntax) on the whole address, **case-insensitive**; a match anywhere is enough. Anchor with `^`. Double every `\` in JSON.
 * A link also matches `extensions: ["webloc"]`.
 
@@ -159,7 +159,7 @@ An automatic plugin only runs if it can run **without asking**: consent given (`
 
 * A call without the permission in `permissions` fails **immediately** with `Permission “…” is missing in manifest.json`, without asking.
 * Listed but not yet granted: for right-click and action bar, BarDrop asks **once**. “Don’t Allow” makes the call fail (`fetch`, `download`, `run` are rejected, `setClipboard` does nothing) and asks again next time. Automatic runs never ask.
-* Granted permissions apply to **exactly this code**: a SHA-256 over `manifest.json` and the script. Any change to either file resets all permissions. Updates from the catalog keep the permissions the plugin still needs.
+* Granted permissions apply to **exactly this code**: a SHA-256 over **all files** of the plugin (path and content; only `.DS_Store` doesn’t count), because the script can read other files and run them as code. Any change to any file resets all permissions. Updates from the catalog keep the permissions the plugin still needs.
 * The dialog asks “Allow “…” to access the internet?”, “Allow “…” to run programs?” or “Allow “…” to use the clipboard?”, with “Allow” and “Don’t Allow”.
 * Settings → Plugins → plugin → Permissions shows “allowed” or “asks first” for each permission. “Allow” asks for all missing permissions and programs right away (for example after an edited script lost its permissions), “Reset” takes all permissions back.
 * There is **no macOS sandbox** around plugins. Without permissions, the script can only use the calls in 9. A program started with `run`, however, has the user’s full rights.
@@ -179,7 +179,7 @@ BarDrop never ships third-party programs. A plugin can name programs that BarDro
 
 | Key | Required | Meaning |
 | --- | --- | --- |
-| `id` | yes | Name the script starts it by: `bardrop.run("mytool", […])`. Shared by all plugins: the same `id` means the same file. |
+| `id` | yes | Name the script starts it by: `bardrop.run("mytool", […])`. Plugins share a program only if `id` **and** download address are the same. |
 | `name` | yes | Shown in the dialog. |
 | `url` | yes | `https://`, pointing to **one single executable** for macOS. Archives (ZIP, DMG, PKG) are **not** unpacked. Redirects are followed. |
 | `sha256` | one of both | Checksum of the file. |
@@ -201,7 +201,7 @@ Example of a program inside an archive:
   "archive": "zip", "executable": "tool", "license": "MIT", "refreshDays": 30 }
 ```
 
-Sequence: if the file is missing, BarDrop asks (“Download …?” with origin, license and the note that the program runs with the same rights as the plugin). After “Download” it downloads (the placeholder shows “Loading …” with percent), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>/<id>` with `meta.json` next to it. The permission is stored per plugin and then also applies to automatic runs. If two runs need it at the same time, only one downloads, the other waits. Removing a plugin keeps loaded programs.
+Sequence: if the file is missing, BarDrop asks (“Download …?” with origin, license and the note that the program runs with the same rights as the plugin). After “Download” it downloads (the placeholder shows “Loading …” with percent), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>-<address tag>/<id>` with `meta.json` next to it, so two plugins with the same `id` but different addresses don’t overwrite each other. The permission is stored per plugin **for exactly this address** and then also applies to automatic runs. If an update changes the address, BarDrop asks again. Only an outdated program from the same address (`refreshDays`, new checksum) is downloaded again without asking. If two runs need it at the same time, only one downloads, the other waits. Removing a plugin keeps loaded programs.
 
 ## 8. Result
 
@@ -214,7 +214,8 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin,
 **Placeholder:** while a plugin runs, a ring with the plugin’s symbol and name (or the `label` from `bardrop.progress`) stands next to the original (with “Replace original”, in its place). Without progress a short arc spins; with progress the ring fills. Right-click: progress in percent (updates while the menu is open), “Pause” or “Resume”, “Cancel”. A plugin that is still waiting only offers “Cancel”.
 
 * **Pause:** started programs and every program they started themselves get `SIGSTOP`, downloads pause. The script itself and `bardrop.sleep` keep running.
-* **Cancel:** started programs and their child programs get `SIGTERM`, requests are cancelled, the result is discarded.
+* **Cancel:** takes effect at once: the placeholder disappears and the slot for the next plugin is free. Started programs and their child programs get `SIGTERM`, anything still running after 3 s gets `SIGKILL`. Requests are cancelled, the result is discarded. The work folder is deleted only once all programs have ended. Programs the script started without `await` are ended the same way; after the end, none are started.
+* **Turning off or removing** a plugin cancels its running and waiting jobs, and so does turning off all plugins.
 * Quitting BarDrop cancels running plugins.
 
 ## 9. The script
@@ -227,7 +228,8 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin,
 * Every run has its **own, fresh context**: globals don’t survive a run. Only `settings` persist.
 * The script is first evaluated once as a whole (global definitions), then `run(item)` is called.
 * An error during that first evaluation (e.g. a syntax error) is a failure. So is a missing `run` (“The script has no function run”).
-* Endless loops can’t be stopped hard: “Cancel” removes the placeholder, but the script keeps running in the background until BarDrop quits.
+* Endless loops can’t be stopped hard: “Cancel” removes the placeholder at once and frees the slot, but the script itself keeps computing in the background until BarDrop quits.
+* The script is loaded as a **classic script**, not a module: no `import`/`export`, no `await` and no `return` outside functions. `function run`, `var run =`, `let run =` and `const run =` all work.
 
 ### 9.2 item
 
@@ -248,9 +250,10 @@ Every call used with `await` returns a promise.
 | Call | Permission | Result and rules |
 | --- | --- | --- |
 | `bardrop.outputDirectory` | | Path of the output folder (text). The result goes here. |
+| `bardrop.pluginDirectory` | | Path of the plugin’s own folder (text), with `manifest.json`, the script and other files. For `bardrop.readFile(bardrop.pluginDirectory + "/template.txt")`. |
 | `bardrop.writeFile(name, text)` | | Writes `text` as UTF-8 to the output folder (other values become text as with `String()`, so objects become `[object Object]`: use `JSON.stringify` first). `name` must be text, `text` must not be `undefined` or `null`, otherwise error. Returns the path. The name is cleaned (9.4); if it exists, the file becomes `Name 2.txt` etc. |
-| `bardrop.createLink(url, title)` | | Creates `<title>.webloc` in the output folder (without `title`: the domain). `url` needs a scheme (`https:`). Returns the path. Invalid address: error. |
-| `bardrop.readFile(path)` | | Reads a file as text (UTF-8, invalid bytes replaced), at most 20 MB. A path that doesn’t start with `/` is relative to the output folder. Allowed only: `item.path` itself, files in the output folder, files in the plugin’s own folder. Otherwise error. Binary data can’t be read this way; use `bardrop.run`. |
+| `bardrop.createLink(url, title)` | | Creates `<title>.webloc` in the output folder (without `title`: the domain). Only `http` and `https` addresses. Returns the path. Invalid address: error. |
+| `bardrop.readFile(path)` | | Reads a file as text (UTF-8, invalid bytes replaced), at most 20 MB. A path that doesn’t start with `/` is relative to the output folder; for the plugin’s own files use `bardrop.pluginDirectory`. Allowed only: `item.path` itself, files in the output folder, files in the plugin’s own folder. Otherwise error. Binary data can’t be read this way; use `bardrop.run`. |
 | `bardrop.progress(fraction, label)` | | `fraction` 0 to 1 (clamped); not a number (e.g. `null`) means “no progress”. `label` optional, at most 60 characters, replaces the name under the placeholder. The display updates at most every 100 ms. |
 | `bardrop.notify(text)` | | Short note at the top of the shelf, at most 80 characters, about 2 seconds. |
 | `bardrop.isCancelled()` | | `true` once the user cancelled. Check it in long loops. |
@@ -304,7 +307,7 @@ python3 scripts/check_plugin.py MyPlugin/ --pack   # check and write the .bdrop
 python3 scripts/check_plugin.py MyPlugin.bdrop     # check a finished file
 ```
 
-It checks every rule from 2 to 7, warns about calls that don’t exist in JavaScriptCore, compares the calls used with `permissions`, and checks the syntax with Node.js if it is installed.
+It checks every rule from 2 to 7, warns about calls that don’t exist in JavaScriptCore, compares the calls used with `permissions`, and checks the syntax with Node.js if it is installed, as a classic script like BarDrop does. It checks link patterns by the rules of macOS (ICU): `(?<name>…)` works, Python’s `(?P<name>…)` and `{,3}` don’t. With `--pack`, hidden files and folders (`.git`, `.DS_Store`) stay out.
 
 **Then by hand:**
 

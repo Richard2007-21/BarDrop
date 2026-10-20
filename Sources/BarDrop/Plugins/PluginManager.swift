@@ -6,7 +6,7 @@ struct InstalledPlugin: Identifiable, Equatable {
     let manifest: PluginManifest
     let directory: URL
     let script: String
-    /// Über Manifest und Skript; ändert sich beim Bearbeiten
+    /// Über alle Dateien des Plugins; ändert sich beim Bearbeiten
     let fingerprint: String
     /// Aus dem Katalog als Standard-Plugin installiert: nicht löschbar, nicht bearbeitbar
     let isStandard: Bool
@@ -32,8 +32,12 @@ struct PluginState: Codable, Equatable {
     var grantedFingerprint: String?
     /// Dem Hinweis des Plugins (`consent`) zugestimmt
     var consented = false
-    /// Programme (`tools`), deren Download der Nutzer schon erlaubt hat. Gilt auch für
-    /// automatische Läufe, die selbst nie fragen.
+    /// Der Hinweistext, dem zugestimmt wurde. Ändert ihn ein Update, wird neu gefragt.
+    /// nil bei Zustimmungen aus älteren Fassungen (gelten weiter).
+    var consentedText: String?
+    /// Programme (`tools`), deren Download der Nutzer schon erlaubt hat, als
+    /// `PluginTool.approvalKey` (Programm und Adresse). Gilt auch für automatische Läufe,
+    /// die selbst nie fragen.
     var approvedTools: [String] = []
     var isStandard = false
 
@@ -49,6 +53,7 @@ struct PluginState: Codable, Equatable {
         granted = (try c.decodeIfPresent([String].self, forKey: .granted) ?? []).compactMap(PluginPermission.init(rawValue:))
         grantedFingerprint = try c.decodeIfPresent(String.self, forKey: .grantedFingerprint)
         consented = try c.decodeIfPresent(Bool.self, forKey: .consented) ?? false
+        consentedText = try c.decodeIfPresent(String.self, forKey: .consentedText)
         approvedTools = try c.decodeIfPresent([String].self, forKey: .approvedTools) ?? []
         isStandard = try c.decodeIfPresent(Bool.self, forKey: .isStandard) ?? false
     }
@@ -153,8 +158,7 @@ final class PluginManager: ObservableObject {
             do {
                 let unpacked = try PluginPackage.read(directory: dir, appVersion: appVersion)
                 guard unpacked.manifest.id == dir.lastPathComponent else { continue }
-                let manifestData = (try? Data(contentsOf: dir.appendingPathComponent("manifest.json"))) ?? Data()
-                let stamp = PluginPackage.fingerprint(manifest: manifestData, script: unpacked.script)
+                let stamp = PluginPackage.fingerprint(directory: dir)
                 found.append(InstalledPlugin(manifest: unpacked.manifest, directory: dir, script: unpacked.script,
                                              fingerprint: stamp, isStandard: states[unpacked.manifest.id]?.isStandard ?? false))
             } catch let error as PluginPackage.PackageError {
@@ -189,9 +193,7 @@ final class PluginManager: ObservableObject {
     /// Liest ein einzelnes Plugin neu, bevor es läuft (es könnte bearbeitet worden sein).
     func refreshed(_ id: String) -> InstalledPlugin? {
         guard let current = plugin(id) else { return nil }
-        let manifestData = (try? Data(contentsOf: current.manifestURL)) ?? Data()
-        let script = (try? String(contentsOf: current.scriptURL, encoding: .utf8)) ?? ""
-        if PluginPackage.fingerprint(manifest: manifestData, script: script) != current.fingerprint { reload() }
+        if PluginPackage.fingerprint(directory: current.directory) != current.fingerprint { reload() }
         return plugin(id)
     }
 
@@ -264,6 +266,26 @@ final class PluginManager: ObservableObject {
         for spec in plugin.manifest.settings ?? [] { values[spec.key] = value(spec, of: plugin.id).any }
         values["replaceOriginal"] = state(plugin.id).replaceOriginal
         return values
+    }
+
+    /// Hat der Nutzer dem jetzigen Hinweis des Plugins zugestimmt? (Ohne Hinweis: ja)
+    func hasConsented(_ plugin: InstalledPlugin) -> Bool {
+        guard let consent = plugin.manifest.consent else { return true }
+        let s = state(plugin.id)
+        guard s.consented else { return false }
+        return s.consentedText == nil || s.consentedText == Self.consentKey(consent)
+    }
+
+    func recordConsent(_ plugin: InstalledPlugin) {
+        update(plugin.id) { s in
+            s.consented = true
+            s.consentedText = plugin.manifest.consent.map(Self.consentKey)
+        }
+    }
+
+    /// Alle Sprachen des Hinweises, stabil sortiert
+    private static func consentKey(_ text: LocalizedText) -> String {
+        text.values.sorted { $0.key < $1.key }.map { $0.key + ":" + $0.value }.joined(separator: "\n")
     }
 
     func isGranted(_ permission: PluginPermission, for plugin: InstalledPlugin) -> Bool {
@@ -347,8 +369,7 @@ final class PluginManager: ObservableObject {
             throw InstallError.failed(error.localizedDescription)
         }
         try? fm.removeItem(at: unpacked.directory)
-        let manifestData = (try? Data(contentsOf: target.appendingPathComponent("manifest.json"))) ?? Data()
-        let stamp = PluginPackage.fingerprint(manifest: manifestData, script: unpacked.script)
+        let stamp = PluginPackage.fingerprint(directory: target)
         update(id) { s in
             s.isStandard = standard
             if keepPermissions, s.grantedFingerprint != nil {

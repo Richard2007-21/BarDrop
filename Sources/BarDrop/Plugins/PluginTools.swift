@@ -1,8 +1,11 @@
+import CryptoKit
 import Foundation
 
 /// Programme, die Plugins brauchen (im Manifest unter `tools`). BarDrop bringt keines
 /// davon mit: Sie werden erst nach Zustimmung geladen, geprüft und unter
-/// ~/Library/Application Support/BarDrop/Tools abgelegt, wo alle Plugins sie nutzen können.
+/// ~/Library/Application Support/BarDrop/Tools abgelegt. Je Programm und Download-Adresse
+/// gibt es einen eigenen Ordner: Plugins teilen sich ein Programm nur, wenn es dieselbe
+/// Datei von derselben Adresse ist, und überschreiben sich nicht gegenseitig.
 final class PluginTools {
     let directory: URL
 
@@ -39,7 +42,18 @@ final class PluginTools {
     }
 
     private func folder(_ tool: PluginTool) -> URL {
+        let source = SHA256.hash(data: Data(tool.resolvedURL.utf8)).prefix(4).map { String(format: "%02x", $0) }.joined()
+        return directory.appendingPathComponent(PluginTools.safeName(tool.id) + "-" + source, isDirectory: true)
+    }
+
+    /// Ordner aus älteren Fassungen (nur nach `id` benannt)
+    private func legacyFolder(_ tool: PluginTool) -> URL {
         directory.appendingPathComponent(PluginTools.safeName(tool.id), isDirectory: true)
+    }
+
+    private func storedMeta(of tool: PluginTool) -> Meta? {
+        guard let data = try? Data(contentsOf: folder(tool).appendingPathComponent("meta.json")) else { return nil }
+        return try? JSONDecoder().decode(Meta.self, from: data)
     }
 
     private func binary(_ tool: PluginTool) -> URL {
@@ -56,9 +70,7 @@ final class PluginTools {
     func installed(_ tool: PluginTool) -> URL? {
         let url = binary(tool)
         guard FileManager.default.isExecutableFile(atPath: url.path),
-              let data = try? Data(contentsOf: folder(tool).appendingPathComponent("meta.json")),
-              let meta = try? JSONDecoder().decode(Meta.self, from: data),
-              meta.url == tool.resolvedURL else { return nil }
+              let meta = storedMeta(of: tool), meta.url == tool.resolvedURL else { return nil }
         if let pinned = tool.sha256, pinned.lowercased() != meta.sha256 { return nil }
         if let days = tool.refreshDays, Date().timeIntervalSince(meta.fetched) > Double(days) * 86_400 { return nil }
         return url
@@ -74,9 +86,11 @@ final class PluginTools {
         loadLock.lock()
         defer { loadLock.unlock() }
         if let url = installed(tool) { return url }
-        // Ein veraltetes, aber vorhandenes Programm wird ohne erneute Frage aktualisiert
-        let hadVersion = FileManager.default.fileExists(atPath: binary(tool).path)
-        guard hadVersion || ask() else { throw ToolError.declined }
+        // Ein veraltetes Programm von derselben Adresse (z. B. „latest“ nach `refreshDays`)
+        // wird ohne erneute Frage aktualisiert. Eine neue Adresse fragt immer.
+        let sameSource = FileManager.default.fileExists(atPath: binary(tool).path)
+            && storedMeta(of: tool)?.url == tool.resolvedURL
+        guard sameSource || ask() else { throw ToolError.declined }
         let who = owner.isEmpty ? tool.id : owner
         PluginLog.shared.record(who, "programm", "\(tool.id): lade \(tool.resolvedURL)")
         let started = Date()
@@ -121,6 +135,8 @@ final class PluginTools {
         removexattr(target.path, "com.apple.quarantine", 0)
         let meta = Meta(url: tool.resolvedURL, sha256: expected, fetched: Date())
         try JSONEncoder().encode(meta).write(to: folder(tool).appendingPathComponent("meta.json"))
+        // Fassung aus dem alten, nur nach `id` benannten Ordner wird nicht mehr gebraucht
+        try? fm.removeItem(at: legacyFolder(tool))
         PluginLog.shared.record(who, "programm", "\(tool.id): geladen und geprüft, \(size / 1_000_000) MB in \(String(format: "%.1f", Date().timeIntervalSince(started))) s (\(expected.prefix(12)))")
         return target
     }

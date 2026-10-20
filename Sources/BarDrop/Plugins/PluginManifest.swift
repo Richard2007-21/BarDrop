@@ -234,6 +234,10 @@ struct PluginTool: Codable, Hashable, Identifiable {
     }
 
     var resolvedURL: String { url.replacingOccurrences(of: "{arch}", with: Self.architecture) }
+
+    /// Wofür der Nutzer den Download erlaubt hat: dieses Programm von genau dieser Adresse.
+    /// Ändert ein Update des Plugins die Adresse, wird neu gefragt.
+    var approvalKey: String { id + "|" + resolvedURL }
     var resolvedChecksums: String? { checksums?.replacingOccurrences(of: "{arch}", with: Self.architecture) }
 }
 
@@ -377,6 +381,7 @@ struct PluginManifest: Codable, Hashable {
         case needsNewerApp(String)
         case invalidScriptName
         case invalidTool(String)
+        case noTrigger
     }
 
     /// Prüft das Manifest. `appVersion`: laufende Version von BarDrop.
@@ -395,6 +400,9 @@ struct PluginManifest: Codable, Hashable {
         guard !script.contains("/"), !script.hasPrefix("."), script.hasSuffix(".js") else {
             throw ValidationError.invalidScriptName
         }
+        // `triggers` angegeben, aber kein bekannter Auslöser (leer oder Tippfehler): Das
+        // Plugin wäre nirgends zu sehen
+        if let triggers, triggers.isEmpty { throw ValidationError.noTrigger }
         let hasMatch = !(match.types ?? []).isEmpty || !(match.extensions ?? []).isEmpty
             || !(match.links?.hosts ?? []).isEmpty || !(match.links?.patterns ?? []).isEmpty
         guard hasMatch else { throw ValidationError.nothingToMatch }
@@ -460,6 +468,9 @@ extension PluginManifest.ValidationError {
         case .invalidTool(let t):
             return L("The program “\(t)” is described incorrectly in manifest.json.",
                      "Das Programm „\(t)“ ist in der manifest.json falsch beschrieben.")
+        case .noTrigger:
+            return L("The plugin names no known way to start it (“triggers”: menu, action or automatic).",
+                     "Das Plugin nennt keinen bekannten Auslöser („triggers“: menu, action oder automatic).")
         }
     }
 }

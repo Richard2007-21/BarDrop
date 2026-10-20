@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Startet Plugins für Objekte der Ablage und bringt ihre Ergebnisse zurück:
@@ -18,10 +19,26 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     private var waiting: [PluginJob] = []
     /// Fehler eines Laufs per Rechtsklick oder Aktionsleiste als Dialog zeigen (Tests: aus)
     var showsErrorDialogs = true
+    private var watchers: Set<AnyCancellable> = []
 
     init(manager: PluginManager = .shared, actions: ShelfActions) {
         self.manager = manager
         self.actions = actions
+        // Ausgeschaltet oder entfernt: laufende und wartende Aufträge des Plugins abbrechen
+        manager.objectWillChange
+            .merge(with: AppSettings.shared.$pluginsEnabled.map { _ in () }.eraseToAnyPublisher())
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.cancelInactiveJobs() }
+            .store(in: &watchers)
+    }
+
+    /// Aufträge von Plugins, die nicht mehr eingeschaltet (oder nicht mehr installiert) sind
+    func cancelInactiveJobs() {
+        guard !jobs.isEmpty else { return }
+        for job in jobs where !manager.isActive(job.plugin.id) {
+            PluginLog.shared.record(job.plugin.id, "abbruch", "Plugin ausgeschaltet oder entfernt")
+            cancel(job)
+        }
     }
 
     private var store: ShelfStore? { actions?.store }
@@ -79,7 +96,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     /// Frisch abgelegte Dateien: je Datei das erste passende Plugin mit „Automatisch“
     func handleDropped(_ files: [ShelfFile]) {
         guard settings.pluginsEnabled, !IntroGate.active else { return }
-        let automatic = manager.activePlugins.filter { manager.isAutomatic($0) }
+        // Frisch von der Platte, wie beim Rechtsklick: ein bearbeitetes Plugin läuft mit dem neuen Code
+        let automatic = manager.activePlugins.filter { manager.isAutomatic($0) }.compactMap { manager.refreshed($0.id) }
         guard !automatic.isEmpty else { return }
         var started: [String: Int] = [:]
         var blocked: InstalledPlugin?
@@ -114,7 +132,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     /// Zustimmung, Rechte und Programme eines automatischen Plugins: was fehlt, beim
     /// Ablegen erfragen (ohne Dialoge, etwa in Tests, nur prüfen)
     private func prepareForDrop(_ plugin: InstalledPlugin) -> Bool {
-        let missingTools = (plugin.manifest.tools ?? []).filter { !manager.state(plugin.id).approvedTools.contains($0.id) }
+        let missingTools = (plugin.manifest.tools ?? []).filter { !manager.state(plugin.id).approvedTools.contains($0.approvalKey) }
         if readyForAutomatic(plugin) && missingTools.isEmpty { return true }
         guard showsErrorDialogs else { return false }
         let ui = actions?.ui
@@ -125,7 +143,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         }
         for tool in missingTools {
             guard PluginDialogs.allowDownload(of: tool, for: plugin, ui: ui) else { return false }
-            manager.update(plugin.id) { s in if !s.approvedTools.contains(tool.id) { s.approvedTools.append(tool.id) } }
+            manager.update(plugin.id) { s in if !s.approvedTools.contains(tool.approvalKey) { s.approvedTools.append(tool.approvalKey) } }
         }
         return readyForAutomatic(plugin)
     }
@@ -143,7 +161,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
 
     /// Hat das Plugin alles, um ohne Rückfrage zu laufen?
     func readyForAutomatic(_ plugin: InstalledPlugin) -> Bool {
-        if plugin.manifest.consent != nil && !manager.state(plugin.id).consented { return false }
+        if !manager.hasConsented(plugin) { return false }
         return plugin.manifest.allPermissions.allSatisfy { manager.isGranted($0, for: plugin) }
     }
 
@@ -155,9 +173,13 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     private func launch(_ job: PluginJob) {
         let work = manager.scratchDirectory.appendingPathComponent(job.id.uuidString, isDirectory: true)
         let plugin = job.plugin
+        var values = manager.settingsValues(of: plugin)
+        // Derselbe Wert, nach dem die Ablage das Original ausblendet (beim Einreihen
+        // festgelegt), auch wenn der Schalter umgelegt wurde, während der Auftrag wartete
+        values["replaceOriginal"] = job.replacesOriginal
         let runtime = PluginRuntime(
             job: job, workDirectory: work, tools: tools, prompter: self,
-            settingsValues: manager.settingsValues(of: plugin),
+            settingsValues: values,
             granted: Set(plugin.manifest.allPermissions.filter { manager.isGranted($0, for: plugin) }),
             approvedTools: Set(manager.state(plugin.id).approvedTools),
             onGrant: { [weak self] permission in self?.manager.grant(permission, for: plugin) },
@@ -167,6 +189,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             onNotify: { [weak self] text in self?.actions?.announce(text, duration: 2) }
         )
         runtimes[job.id] = runtime
+        // Der Arbeitsordner bleibt, bis alle gestarteten Programme beendet sind
+        runtime.onStopped = { try? FileManager.default.removeItem(at: work) }
         PluginLog.shared.record(plugin.id, "start",
                                 "\(plugin.manifest.version) \(job.automatic ? "automatisch" : "von Hand")\(job.replacesOriginal ? ", ersetzt Original" : "") · \(job.item.kind.rawValue) „\(job.item.url.lastPathComponent)“\(job.item.link.map { " " + $0.absoluteString } ?? "")")
         runtime.start { [weak self] result in
@@ -177,7 +201,6 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     private func finished(_ job: PluginJob, result: Result<[URL], PluginRunError>, workDirectory: URL) {
         runtimes.removeValue(forKey: job.id)
         defer {
-            try? FileManager.default.removeItem(at: workDirectory)
             if !waiting.isEmpty, runtimes.count < Self.maxConcurrent { launch(waiting.removeFirst()) }
         }
         switch result {

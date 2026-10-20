@@ -21,14 +21,14 @@ enum PluginDialogs {
 
     /// Zustimmung zum Hinweis des Plugins (`consent`), einmalig
     static func confirmConsent(_ plugin: InstalledPlugin, manager: PluginManager, ui: ShelfUIModel?) -> Bool {
-        guard let consent = plugin.manifest.consent, !manager.state(plugin.id).consented else { return true }
+        guard let consent = plugin.manifest.consent, !manager.hasConsented(plugin) else { return true }
         let alert = makeAlert(plugin.manifest)
         alert.messageText = L("Use “\(plugin.manifest.name.text)”?", "„\(plugin.manifest.name.text)“ verwenden?")
         alert.informativeText = consent.text
         alert.addButton(withTitle: L("Agree", "Zustimmen"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
         guard run(alert, ui: ui) == .alertFirstButtonReturn else { return false }
-        manager.update(plugin.id) { $0.consented = true }
+        manager.recordConsent(plugin)
         return true
     }
 
@@ -76,9 +76,9 @@ enum PluginDialogs {
             manager.grant(permission, for: plugin)
         }
         // Programme, die das Plugin laden muss: jetzt erlauben, beim Ablegen fragt niemand
-        for tool in plugin.manifest.tools ?? [] where !manager.state(plugin.id).approvedTools.contains(tool.id) {
+        for tool in plugin.manifest.tools ?? [] where !manager.state(plugin.id).approvedTools.contains(tool.approvalKey) {
             guard allowDownload(of: tool, for: plugin, ui: nil) else { return false }
-            manager.update(plugin.id) { $0.approvedTools.append(tool.id) }
+            manager.update(plugin.id) { $0.approvedTools.append(tool.approvalKey) }
         }
         return true
     }
@@ -125,7 +125,8 @@ enum PluginImporter {
                        "Dieses Plugin stammt nicht aus dem Katalog von BarDrop. Installiere nur Plugins von Menschen, denen du vertraust. Das Skript kannst du dir unten ansehen."))
         alert.informativeText = lines.joined(separator: "\n\n")
         alert.alertStyle = .warning
-        let accessory = NSHostingView(rootView: ImportDetails(manifest: manifest, script: unpacked.script))
+        let accessory = NSHostingView(rootView: ImportDetails(manifest: manifest, script: unpacked.script,
+                                                              otherFiles: otherFiles(in: unpacked)))
         accessory.frame = NSRect(x: 0, y: 0, width: 420, height: 250)
         alert.accessoryView = accessory
         alert.addButton(withTitle: existing == nil ? L("Install", "Installieren") : L("Update", "Aktualisieren"))
@@ -146,6 +147,23 @@ enum PluginImporter {
             showFailure(error.localizedDescription, file: url)
         }
         return nil
+    }
+
+    /// Dateien im Plugin außer manifest.json und dem Skript (das Skript kann sie lesen und
+    /// als Code ausführen, darum zeigt der Dialog sie an)
+    static func otherFiles(in unpacked: PluginPackage.Unpacked) -> [String] {
+        let base = unpacked.directory.standardizedFileURL.path
+        let known: Set<String> = ["manifest.json", unpacked.manifest.script]
+        let walker = FileManager.default.enumerator(at: unpacked.directory, includingPropertiesForKeys: [.isRegularFileKey])
+        var names: [String] = []
+        while let url = walker?.nextObject() as? URL {
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            let path = url.standardizedFileURL.path
+            guard path.hasPrefix(base + "/") else { continue }
+            let relative = String(path.dropFirst(base.count + 1))
+            if !known.contains(relative) && url.lastPathComponent != ".DS_Store" { names.append(relative) }
+        }
+        return names.sorted()
     }
 
     /// Dateiauswahl für „Plugin importieren“
@@ -176,6 +194,16 @@ enum PluginImporter {
 private struct ImportDetails: View {
     let manifest: PluginManifest
     let script: String
+    var otherFiles: [String] = []
+
+    private var otherFilesText: String {
+        var text = L("More files: ", "Weitere Dateien: ") + otherFiles.prefix(8).joined(separator: ", ")
+        if otherFiles.count > 8 {
+            let more = otherFiles.count - 8
+            text += " " + L("and \(more) more", "und \(more) weitere")
+        }
+        return text
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -192,6 +220,13 @@ private struct ImportDetails: View {
                             .font(.system(size: 12))
                     }
                 }
+            }
+            if !otherFiles.isEmpty {
+                Label(otherFilesText, systemImage: "doc.on.doc")
+                    .font(.system(size: 12))
+                    .lineLimit(2)
+                    .help(L("The script can read these files and run them as code.",
+                            "Das Skript kann diese Dateien lesen und als Code ausführen."))
             }
             ScriptText(script: script, fontSize: 11)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

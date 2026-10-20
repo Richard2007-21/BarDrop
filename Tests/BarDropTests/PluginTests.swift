@@ -400,4 +400,145 @@ final class PluginTests: XCTestCase {
         log.clear()
         XCTAssertFalse(FileManager.default.fileExists(atPath: log.logURL.path))
     }
+
+    // MARK: Korrekturen aus der Prüfung der Schnittstelle (Oktober 2026)
+
+    /// `const run` und `let run` liegen nicht auf dem globalen Objekt, sind aber gültig
+    func testConstAndLetRunWork() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let viaConst = try installed(manager, script: "const run = (item) => { bardrop.writeFile('const.txt', 'ok'); };")
+        XCTAssertEqual(try run(viaConst, on: makeFile("a.txt")).get().map(\.lastPathComponent), ["const.txt"])
+        let viaLet = try installed(manager, script: "let run = async function (item) { bardrop.writeFile('let.txt', 'ok'); };")
+        XCTAssertEqual(try run(viaLet, on: makeFile("a.txt")).get().map(\.lastPathComponent), ["let.txt"])
+    }
+
+    /// Abbrechen wartet nicht auf ein Skript, das seine Warteschlange blockiert
+    func testCancelEndsBusyScriptAtOnce() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        // Rechnet 4 s ohne Pause (begrenzt, damit der Test keinen Kern dauerhaft belegt)
+        let plugin = try installed(manager, script: "function run(item) { var end = Date.now() + 4000; while (Date.now() < end) {} }")
+        let started = Date()
+        let result = run(plugin, on: makeFile("a.txt"), timeout: 10) { job in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { job.cancel() }
+        }
+        XCTAssertEqual(result, .failure(.cancelled))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2.5, "Abbrechen darf nicht auf das Skript warten")
+    }
+
+    /// Ein Programm, das SIGTERM übergeht, wird nach 3 s hart beendet
+    func testCancelKillsProgramIgnoringTerm() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, permissions: ["run"], script: """
+        async function run(item) { await bardrop.run('/bin/sh', ['-c', 'trap "" TERM; sleep 31.7']); }
+        """)
+        _ = run(plugin, on: makeFile("a.txt"), granted: [.run], timeout: 10) { job in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { job.cancel() }
+        }
+        // Der Prozess der Shell muss spätestens nach gut 3 s weg sein
+        let deadline = Date().addingTimeInterval(6)
+        var alive = true
+        while Date() < deadline {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+            // Shell und sleep übergehen beide SIGTERM (ignorierte Signale werden vererbt)
+            task.arguments = ["-f", #"sleep 31\.7"#]
+            task.standardOutput = FileHandle.nullDevice
+            try task.run()
+            task.waitUntilExit()
+            alive = task.terminationStatus == 0
+            if !alive { break }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertFalse(alive, "Programm läuft nach dem Abbrechen weiter")
+    }
+
+    func testTriggersWithoutKnownValueAreRejected() throws {
+        for triggers in [#"[]"#, #"["menue"]"#] {
+            let manifest = try JSONDecoder().decode(PluginManifest.self,
+                                                    from: Data(manifestJSON(extra: ", \"triggers\": \(triggers)").utf8))
+            XCTAssertThrowsError(try manifest.validate(appVersion: "1.31.0")) {
+                XCTAssertEqual($0 as? PluginManifest.ValidationError, .noTrigger)
+            }
+        }
+        let mixed = try JSONDecoder().decode(PluginManifest.self,
+                                             from: Data(manifestJSON(extra: #", "triggers": ["menu", "later"]"#).utf8))
+        XCTAssertNoThrow(try mixed.validate(appVersion: "1.31.0"))
+        XCTAssertEqual(mixed.allTriggers, [.menu])
+    }
+
+    func testHostRuleWithLeadingWildcard() {
+        let link = URL(string: "https://de.wikipedia.org/wiki/Mac")!
+        XCTAssertTrue(PluginMatcher.matchesHost(link, ["*.wikipedia.org"]))
+        XCTAssertTrue(PluginMatcher.matchesHost(URL(string: "https://wikipedia.org")!, ["*.wikipedia.org"]))
+        XCTAssertFalse(PluginMatcher.matchesHost(link, ["wiki*.org"]))
+        XCTAssertFalse(PluginMatcher.matchesHost(URL(string: "https://notwikipedia.org")!, ["*.wikipedia.org"]))
+    }
+
+    /// Rechte gelten für alle Dateien des Plugins, nicht nur für Manifest und Skript
+    func testFingerprintCoversAllFiles() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, permissions: ["network"], script: "function run(item) {}")
+        manager.grant(.network, for: plugin)
+        // .DS_Store vom Finder zählt nicht
+        try Data([0]).write(to: plugin.directory.appendingPathComponent(".DS_Store"))
+        XCTAssertTrue(manager.isGranted(.network, for: try XCTUnwrap(manager.refreshed(plugin.id))))
+        try "eval('x')".write(to: plugin.directory.appendingPathComponent("data.txt"), atomically: true, encoding: .utf8)
+        let edited = try XCTUnwrap(manager.refreshed(plugin.id))
+        XCTAssertNotEqual(edited.fingerprint, plugin.fingerprint)
+        XCTAssertFalse(manager.isGranted(.network, for: edited))
+    }
+
+    func testPluginReadsOwnFilesViaPluginDirectory() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, script: """
+        function run(item) { bardrop.writeFile('out.txt', bardrop.readFile(bardrop.pluginDirectory + '/vorlage.txt')); }
+        """)
+        try "Vorlage".write(to: plugin.directory.appendingPathComponent("vorlage.txt"), atomically: true, encoding: .utf8)
+        let current = try XCTUnwrap(manager.refreshed(plugin.id))
+        let urls = try run(current, on: makeFile("a.txt")).get()
+        XCTAssertEqual(try String(contentsOf: urls[0], encoding: .utf8), "Vorlage")
+    }
+
+    func testCreateLinkOnlyForWebAddresses() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, script: "function run(item) { bardrop.createLink('file:///System/Applications/Calculator.app', 'x'); }")
+        guard case .failure = run(plugin, on: makeFile("a.txt")) else { return XCTFail("file:-Link darf nicht entstehen") }
+    }
+
+    /// Eine kleine ZIP-Datei, die ausgepackt riesig wäre, wird gar nicht erst entpackt
+    func testUnpackRejectsHugeArchiveWithoutLeftovers() throws {
+        let folder = makePluginFolder(script: "function run(item) {}")
+        try Data(count: 25 * 1024 * 1024).write(to: folder.appendingPathComponent("fill.txt"))
+        let file = base.appendingPathComponent("Huge.bdrop")
+        try PluginPackage.pack(folder, to: file)
+        let scratch = base.appendingPathComponent("scratch-huge")
+        XCTAssertThrowsError(try PluginPackage.unpack(file, into: scratch, appVersion: "1.31.0")) {
+            XCTAssertEqual($0 as? PluginPackage.PackageError, .tooLarge)
+        }
+        let left = (try? FileManager.default.contentsOfDirectory(atPath: scratch.path)) ?? []
+        XCTAssertTrue(left.isEmpty, "nichts Entpacktes liegen lassen")
+        XCTAssertEqual(PluginPackage.parseUnpackedSize("3 files, 1234 bytes uncompressed, 567 bytes compressed:  54.0%"), 1234)
+    }
+
+    /// Freigaben für Programme gelten für genau eine Adresse; Zustimmungen für genau einen Hinweis
+    func testApprovalsBoundToAddressAndConsentText() throws {
+        let a = try JSONDecoder().decode(PluginTool.self, from: Data(#"{"id": "tool", "name": "T", "url": "https://a.example/tool", "sha256": "x"}"#.utf8))
+        let b = try JSONDecoder().decode(PluginTool.self, from: Data(#"{"id": "tool", "name": "T", "url": "https://b.example/tool", "sha256": "x"}"#.utf8))
+        XCTAssertNotEqual(a.approvalKey, b.approvalKey)
+
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        func plugin(_ consent: String) throws -> InstalledPlugin {
+            let manifest = try JSONDecoder().decode(PluginManifest.self,
+                                                    from: Data(manifestJSON(extra: ", \"consent\": \"\(consent)\"").utf8))
+            return InstalledPlugin(manifest: manifest, directory: base, script: "", fingerprint: "f", isStandard: false)
+        }
+        let first = try plugin("Alter Hinweis")
+        XCTAssertFalse(manager.hasConsented(first))
+        manager.recordConsent(first)
+        XCTAssertTrue(manager.hasConsented(first))
+        XCTAssertFalse(manager.hasConsented(try plugin("Neuer Hinweis")))
+        // Zustimmung aus einer älteren Fassung (ohne gespeicherten Text) gilt weiter
+        manager.update(first.id) { $0.consentedText = nil }
+        XCTAssertTrue(manager.hasConsented(try plugin("Neuer Hinweis")))
+    }
 }

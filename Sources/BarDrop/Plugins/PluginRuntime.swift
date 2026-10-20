@@ -111,7 +111,16 @@ final class PluginRuntime {
     private var context: JSContext?
     /// Beim Start festgehalten (Updater gehört dem Hauptthread)
     private let appVersion = Updater.shared.currentVersion
+    /// Nur unter `lock`: Abbrechen meldet das Ende vom Hauptthread aus, auch wenn das
+    /// Skript seine Warteschlange nie wieder freigibt (Endlosschleife)
     private var completion: ((Result<[URL], PluginRunError>) -> Void)?
+    /// Kommt auf dem Hauptthread, sobald alle gestarteten Programme beendet sind (erst
+    /// dann darf der Arbeitsordner weg). Immer nach `completion`.
+    var onStopped: (() -> Void)?
+
+    /// Eigene Sitzung je Lauf: keine Cookies und kein Zwischenspeicher mit BarDrop oder
+    /// anderen Plugins, alles verschwindet mit dem Lauf
+    private let session = URLSession(configuration: .ephemeral)
 
     private let lock = NSLock()
     private var processes: [Process] = []
@@ -120,6 +129,8 @@ final class PluginRuntime {
     private var _paused = false
 
     var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return _cancelled }
+    /// Der Lauf ist zu Ende (fertig, gescheitert oder abgebrochen)
+    var isFinished: Bool { lock.lock(); defer { lock.unlock() }; return completion == nil }
 
     init(job: PluginJob, workDirectory: URL, tools: PluginTools, prompter: PluginPrompter?,
          settingsValues: [String: Any], granted: Set<PluginPermission>, approvedTools: Set<String> = [],
@@ -146,7 +157,7 @@ final class PluginRuntime {
 
     /// Startet das Skript. `completion` kommt auf dem Hauptthread, genau einmal.
     func start(completion: @escaping (Result<[URL], PluginRunError>) -> Void) {
-        self.completion = completion
+        lock.lock(); self.completion = completion; lock.unlock()
         try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         queue.async { [self] in
             let vm = JSVirtualMachine()
@@ -171,8 +182,10 @@ final class PluginRuntime {
             })();
             """)
             context.evaluateScript(plugin.script, withSourceURL: plugin.scriptURL)
-            guard self.completion != nil else { return }
-            guard context.objectForKeyedSubscript("run")?.isObject == true else {
+            guard !isFinished else { return }
+            // Als Name prüfen, nicht als Eigenschaft des globalen Objekts: `const run = …`
+            // und `let run = …` liegen nicht auf dem globalen Objekt, sind aber gültig
+            guard context.evaluateScript("typeof run === 'function'")?.toBool() == true else {
                 return finish(.failure(.script(L("The script has no function “run”.", "Im Skript fehlt die Funktion „run“."))))
             }
             let bootstrap = """
@@ -204,28 +217,38 @@ final class PluginRuntime {
         return text.isEmpty ? "Error" : text
     }
 
-    /// Nur auf `queue`
+    /// Beendet den Lauf, genau einmal. Aus der Warteschlange des Skripts oder (beim
+    /// Abbrechen) vom Hauptthread.
     private func finish(_ result: Result<[URL], PluginRunError>) {
-        guard let completion else { return }
+        lock.lock()
+        guard let completion else { lock.unlock(); return }
         self.completion = nil
+        let cancelled = _cancelled
+        let running = processes
+        processes = []
+        let open = tasks
+        tasks = []
+        lock.unlock()
         var final = result
-        if isCancelled { final = .failure(.cancelled) }
+        if cancelled { final = .failure(.cancelled) }
         if case .success = final {
             final = .success(collectOutput())
         }
-        lock.lock()
-        let running = processes
-        processes = []
-        tasks.forEach { $0.cancel() }
-        tasks = []
-        lock.unlock()
-        for process in running where process.isRunning {
-            ProcessTree.signal(process.processIdentifier, SIGCONT)
-            ProcessTree.signal(process.processIdentifier, SIGTERM)
-        }
-        // Kontext freigeben, aber nicht mitten in einem eigenen Aufruf
-        queue.async { [weak self] in self?.context = nil }
+        open.forEach { $0.cancel() }
+        // Erst das Ergebnis melden (es wird aus dem Arbeitsordner übernommen), dann die
+        // Programme beenden und erst danach den Ordner freigeben
         DispatchQueue.main.async { completion(final) }
+        ProcessTree.terminate(running) { [self] in
+            DispatchQueue.main.async { self.onStopped?() }
+        }
+        // Kontext freigeben, aber nicht mitten in einem eigenen Aufruf. Hängt das Skript
+        // in einer Endlosschleife, kommt das nie dran; der Platzhalter ist trotzdem weg.
+        // Die Sitzung ebenfalls dort schließen: Neue Anfragen entstehen nur auf dieser
+        // Warteschlange, so kommt keine mehr nach dem Schließen.
+        queue.async { [weak self] in
+            self?.context = nil
+            self?.session.finishTasksAndInvalidate()
+        }
     }
 
     /// Fertige Dateien im Ausgabeordner, ohne versteckte und halb geladene
@@ -236,20 +259,15 @@ final class PluginRuntime {
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 
+    /// Abbrechen wirkt sofort: Platzhalter weg, Platz für das nächste Plugin frei, Programme
+    /// und Anfragen werden beendet. Nicht über die Warteschlange des Skripts, die eine
+    /// Endlosschleife nie wieder freigibt.
     func cancel() {
         lock.lock()
         guard !_cancelled else { lock.unlock(); return }
         _cancelled = true
-        let running = processes
-        let open = tasks
         lock.unlock()
-        for process in running where process.isRunning {
-            let pid = process.processIdentifier
-            ProcessTree.signal(pid, SIGCONT)
-            ProcessTree.signal(pid, SIGTERM)
-        }
-        open.forEach { $0.cancel() }
-        queue.async { [weak self] in self?.finish(.failure(.cancelled)) }
+        finish(.failure(.cancelled))
     }
 
     /// Anhalten: laufende Programme stehen (SIGSTOP), Downloads pausieren. Fortsetzen
@@ -281,6 +299,8 @@ final class PluginRuntime {
         api.setObject(language, forKeyedSubscript: "language" as NSString)
         api.setObject(appVersion, forKeyedSubscript: "appVersion" as NSString)
         api.setObject(outputDirectory.path, forKeyedSubscript: "outputDirectory" as NSString)
+        // Eigener Ordner des Plugins (manifest.json, Skript, Vorlagen): für readFile
+        api.setObject(plugin.directory.standardizedFileURL.path, forKeyedSubscript: "pluginDirectory" as NSString)
         api.setObject(["id": plugin.id, "version": plugin.manifest.version], forKeyedSubscript: "plugin" as NSString)
         api.setObject(settingsValues, forKeyedSubscript: "settings" as NSString)
 
@@ -326,7 +346,9 @@ final class PluginRuntime {
 
         let createLink: @convention(block) (JSValue, JSValue) -> JSValue = { [weak self] address, title in
             guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
-            guard address.isString, let link = URL(string: address.toString()), link.scheme != nil else {
+            // Nur Webadressen: ein Link auf file:// o. Ä. würde beim Öffnen Dateien oder Apps starten
+            guard address.isString, let link = URL(string: address.toString()),
+                  ["http", "https"].contains(link.scheme?.lowercased() ?? "") else {
                 ctx.exception = JSValue(newErrorFromMessage: L("Invalid web address.", "Ungültige Webadresse."), in: ctx)
                 return JSValue(undefinedIn: ctx)
             }
@@ -422,7 +444,7 @@ final class PluginRuntime {
         }
         let resolve: (Any?) -> Void = { [weak self] value in
             self?.queue.async {
-                guard self?.completion != nil else { return }
+                guard self?.isFinished == false else { return }
                 resolveFn?.call(withArguments: value.map { [$0] } ?? [])
                 resolveFn = nil
                 rejectFn = nil
@@ -430,7 +452,7 @@ final class PluginRuntime {
         }
         let reject: (String) -> Void = { [weak self] message in
             self?.queue.async {
-                guard self?.completion != nil, let reject = rejectFn else { return }
+                guard self?.isFinished == false, let reject = rejectFn else { return }
                 reject.call(withArguments: [JSValue(newErrorFromMessage: message, in: reject.context)!])
                 resolveFn = nil
                 rejectFn = nil
@@ -485,6 +507,8 @@ final class PluginRuntime {
 
     private func track(_ task: URLSessionTask) {
         lock.lock()
+        // Schon zu Ende (etwa gerade abgebrochen): gar nicht erst laden
+        guard completion != nil else { lock.unlock(); return task.cancel() }
         tasks.append(task)
         let paused = _paused
         lock.unlock()
@@ -519,7 +543,7 @@ final class PluginRuntime {
         guard let request = request(address, options) else { return reject(L("Invalid web address.", "Ungültige Webadresse.")) }
         let pluginID = plugin.id
         let host = request.url?.host ?? "?"
-        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
             self?.untrackFinished()
             if let error {
                 PluginLog.shared.record(pluginID, "netz", "fetch \(host): \(error.localizedDescription)")
@@ -544,7 +568,7 @@ final class PluginRuntime {
         guard let request = request(address, options) else { return reject(L("Invalid web address.", "Ungültige Webadresse.")) }
         let wanted = options.isObject ? options.forProperty("name").flatMap { $0.isString ? $0.toString() : nil } : nil
         let observation = ObservationHolder()
-        let task = URLSession.shared.downloadTask(with: request) { [weak self] file, response, error in
+        let task = session.downloadTask(with: request) { [weak self] file, response, error in
             observation.invalidate()
             guard let self else { return }
             self.untrackFinished()
@@ -616,14 +640,14 @@ final class PluginRuntime {
             }
             return try tools.ensure(tool, owner: plugin.id, ask: {
                 self.lock.lock()
-                let approved = self.approvedTools.contains(tool.id)
+                let approved = self.approvedTools.contains(tool.approvalKey)
                 self.lock.unlock()
                 if approved { return true }
                 guard !automatic, let prompter = self.prompter else { return false }
                 let allowed = DispatchQueue.main.sync { prompter.allowDownload(of: tool, for: plugin) }
                 if allowed {
-                    self.lock.lock(); self.approvedTools.insert(tool.id); self.lock.unlock()
-                    DispatchQueue.main.async { self.onToolApproved(tool.id) }
+                    self.lock.lock(); self.approvedTools.insert(tool.approvalKey); self.lock.unlock()
+                    DispatchQueue.main.async { self.onToolApproved(tool.approvalKey) }
                 }
                 return allowed
             }, cancelled: { self.isCancelled }, progress: { fraction in
@@ -668,7 +692,7 @@ final class PluginRuntime {
         let lineHandler: (String) -> Void = { [weak self] line in
             guard let self, let onOutput else { return }
             self.queue.async {
-                guard self.completion != nil else { return }
+                guard !self.isFinished else { return }
                 onOutput.call(withArguments: [line])
             }
         }
@@ -696,15 +720,18 @@ final class PluginRuntime {
             resolve(["code": Int(finished.terminationStatus), "stdout": result.stdout, "stderr": result.stderr])
         }
         lock.lock()
-        guard !_cancelled else { lock.unlock(); return reject(L("Cancelled", "Abgebrochen")) }
-        processes.append(process)
-        let paused = _paused
-        lock.unlock()
+        // Auch nach dem Ende nichts mehr starten: Ein Programm, auf das das Skript nicht
+        // gewartet hat, liefe sonst unbeobachtet weiter
+        guard !_cancelled, completion != nil else { lock.unlock(); return reject(L("Cancelled", "Abgebrochen")) }
+        // Starten und Eintragen unter der Sperre: Ein gleichzeitiges Ende sieht das
+        // Programm dann sicher und beendet es mit
         do {
             try process.run()
-            if paused { kill(process.processIdentifier, SIGSTOP) }
+            processes.append(process)
+            if _paused { kill(process.processIdentifier, SIGSTOP) }
+            lock.unlock()
         } catch {
-            lock.lock(); processes.removeAll { $0 === process }; lock.unlock()
+            lock.unlock()
             reject(error.localizedDescription)
         }
     }
@@ -787,6 +814,33 @@ enum ProcessTree {
     static func signal(_ pid: pid_t, _ sig: Int32) {
         for child in descendants(of: pid).reversed() { kill(child, sig) }
         kill(pid, sig)
+    }
+
+    /// Beendet Programme samt allen Programmen, die sie gestartet haben: erst höflich
+    /// (SIGTERM), nach 3 s hart (SIGKILL). Die Nachkommen werden vorher einmal ermittelt,
+    /// so werden auch Unterprogramme erreicht, deren Elternprogramm schon beendet ist.
+    /// `done` kommt, wenn nichts mehr läuft (auf einer Hintergrund-Warteschlange).
+    static func terminate(_ processes: [Process], done: @escaping () -> Void) {
+        let running = processes.filter(\.isRunning)
+        guard !running.isEmpty else { return done() }
+        let pids: [pid_t] = running.flatMap { process -> [pid_t] in
+            let pid = process.processIdentifier
+            return Array(descendants(of: pid).reversed()) + [pid]
+        }
+        for pid in pids {
+            kill(pid, SIGCONT)
+            kill(pid, SIGTERM)
+        }
+        let queue = DispatchQueue.global(qos: .utility)
+        func alive() -> [pid_t] { pids.filter { kill($0, 0) == 0 } }
+        func check(_ round: Int) {
+            let left = alive()
+            if left.isEmpty { return done() }
+            if round == 12 { left.forEach { kill($0, SIGKILL) } }
+            if round >= 16 { return done() }
+            queue.asyncAfter(deadline: .now() + 0.25) { check(round + 1) }
+        }
+        queue.asyncAfter(deadline: .now() + 0.25) { check(1) }
     }
 }
 

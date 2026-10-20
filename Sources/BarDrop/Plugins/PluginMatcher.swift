@@ -105,8 +105,11 @@ enum PluginMatcher {
     static func matchesHost(_ link: URL, _ hosts: [String]) -> Bool {
         guard let host = link.host?.lowercased() else { return false }
         for rule in hosts {
-            let r = rule.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ". "))
+            var r = rule.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ". "))
             if r == "*" { return link.scheme == "http" || link.scheme == "https" }
+            // „*.example.com“ meint dasselbe wie „example.com“ (Unterdomains passen ohnehin)
+            if r.hasPrefix("*.") { r.removeFirst(2) }
+            guard !r.isEmpty, !r.contains("*") else { continue }
             if host == r || host.hasSuffix("." + r) { return true }
         }
         return false
