@@ -101,6 +101,8 @@ final class EdgeController: NSObject {
     private var pendingResignFocus = false
     /// Der Zeiger war im letzten Takt über der offenen Ablage
     private var pointerInside = false
+    /// Die Übersicht war im letzten Takt offen
+    private var quickLookWasVisible = false
 
     /// Dauer der Schließanimation; erst danach darf das Fenster den Bildschirm wechseln.
     private let collapseDuration: TimeInterval = 0.35
@@ -824,7 +826,17 @@ final class EdgeController: NSObject {
         let dx = settings.edge == .right ? screen.frame.maxX - loc.x : loc.x - screen.frame.minX
         let expandedBody = bodyRect(.expanded, on: screen)
         ui.expandedBody = expandedBody
-        let locked = ui.isLocked || actions.isQuickLookVisible
+        let quickLookVisible = actions.isQuickLookVisible
+        let locked = ui.isLocked || quickLookVisible
+        // Übersicht geschlossen: Die Ablage bleibt offen wie nach dem Kurzbefehl. Der Zeiger
+        // steht dann meist dort, wo die Übersicht war, außerhalb der Ablage; sonst schloss sie
+        // nach 0,3 s und gab den Fokus ab, und die nächste Leertaste ging an das Fenster
+        // dahinter. Zu geht sie wie nach dem Kurzbefehl: einmal hinein- und hinausfahren, esc.
+        if quickLookWasVisible && !quickLookVisible && ui.level == .expanded {
+            logic.manualOpen = true
+            logic.manualHovered = expandedBody.insetBy(dx: -18, dy: -18).contains(loc)
+        }
+        quickLookWasVisible = quickLookVisible
 
         if ui.expandRequested {
             ui.expandRequested = false

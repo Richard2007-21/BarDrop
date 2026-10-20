@@ -174,12 +174,11 @@ struct ShelfContent: View {
     /// da, für sie soll nichts aufblitzen
     @State private var showPending = false
     /// Hinter der Aktionsleiste ganz deckend: eine klare Kante ohne Nebel und ohne Linie,
-    /// Kacheln verschwinden einfach unter der Leiste.
+    /// Kacheln verschwinden einfach unter der Leiste. Füllt die Leiste selbst aus, statt die
+    /// gemessene Höhe zu nutzen: Die ist beim Öffnen für ein paar Bilder noch 0, und die
+    /// Kacheln darunter schienen durch.
     private var barBackdrop: some View {
-        Rectangle()
-            .fill(Color.black)
-            .frame(height: barHeight)
-            .allowsHitTesting(false)
+        Color.black.allowsHitTesting(false)
     }
 
     /// Übergang unter dem Kopf: dieselbe S-Kurve wie über der Leiste, gespiegelt
@@ -321,7 +320,7 @@ struct ShelfContent: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 8)
                     .padding(.top, 2)
-                    .background(alignment: .bottom) { barBackdrop }
+                    .background { barBackdrop }
                     .background(
                         GeometryReader { g in
                             Color.clear.preference(key: BarHeightKey.self, value: g.size.height)
@@ -524,8 +523,22 @@ struct ShelfContent: View {
                 .frame(height: max(0, viewportHeight - barHeight))
                 .allowsHitTesting(false)
                 .transition(Self.tileTransition)
+        } else if store.entries.count > Self.lazyThreshold {
+            LazyVGrid(columns: lazyColumns, spacing: 6) { mainTileItems }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .transition(Self.tileTransition)
         } else {
-            grid {
+            grid { mainTileItems }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .transition(Self.tileTransition)
+        }
+    }
+
+    /// Kacheln der Ablage samt Platzhaltern (für beide Raster)
+    @ViewBuilder
+    private var mainTileItems: some View {
                 // Was gerade noch geladen wird (Bilder aus dem Web, große Dateien),
                 // steht sofort als Kachel da, an der Stelle, an der es landen wird
                 if showPending && settings.sortOrder == .newestFirst { pendingTiles }
@@ -556,11 +569,6 @@ struct ShelfContent: View {
                 }
                 if showPending && settings.sortOrder == .oldestFirst { pendingTiles }
                 if ui.showSampleTile { sizeGuides }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .transition(Self.tileTransition)
-        }
     }
 
     /// Beim Verstellen der Symbolgröße: leere Plätze in der neuen Größe, bis zwei Reihen
@@ -614,15 +622,22 @@ struct ShelfContent: View {
         .foregroundStyle(.white.opacity(ui.isDropTargeted ? 1 : 0.45))
     }
 
-    /// Ab so vielen Objekten (große Ordner wie Downloads) das sparsame `LazyVGrid`: Das
-    /// eigene Raster legt alle Kacheln samt Vorschaubild an, bei tausenden zu viel
-    private static let lazyThreshold = 300
+    /// Ab so vielen Objekten (große Ordner wie Downloads, sehr volle Ablage) das sparsame
+    /// `LazyVGrid`. Das eigene Raster legt alle Kacheln samt Vorschaubild an: bei vielen
+    /// zu viel, das Öffnen (mit Unschärfe über den ganzen Inhalt) wurde spürbar langsamer.
+    /// Darunter bleibt das eigene Raster, das beim schnellen Scrollen nicht springt.
+    private static let lazyThreshold = 80
+
+    /// Spalten für `LazyVGrid`, wie im eigenen Raster
+    private var lazyColumns: [GridItem] {
+        let icon = CGFloat(settings.tileIconSize)
+        return [GridItem(.adaptive(minimum: icon + 22, maximum: icon + 40), spacing: 8)]
+    }
 
     @ViewBuilder
     private func stackTiles(_ stack: ShelfEntry) -> some View {
         if stack.files.count > Self.lazyThreshold {
-            let icon = CGFloat(settings.tileIconSize)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: icon + 22, maximum: icon + 40), spacing: 8)], spacing: 6) {
+            LazyVGrid(columns: lazyColumns, spacing: 6) {
                 stackTileItems(stack)
             }
             .padding(.horizontal, 12)
