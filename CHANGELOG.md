@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.31.0-beta.6
+* **New:** Folders open right in the shelf, like a stack: click a folder in the action bar, or double-click a folder in the shelf (or press `↩`). Select, drag out, Quick Look, copy and move to the Trash work like in the Finder, a double-click opens subfolders, and files you drop there go into the folder. The header shows the folder’s name, `esc` goes back one level, and `⌘Z` puts files moved to the Trash back into the folder
+* **New:** “Open shelf” has a new option “Instantly” that opens the shelf the moment the pointer reaches the edge, without the strip first. Every option shows a word and its wait, such as “Quick (0.3 s)”, which stays the standard
+* **Changed:** Clicking an action no longer runs it on the selected items; drag items onto it instead. Clicking an app opens it, clicking a folder shows its contents, and the action grows briefly
+* **Changed:** Settings are tidier. “Position along the edge” is Fixed or Follows pointer; with Follows pointer a slider sets how much of the edge reacts (standard: two thirds in the middle). General fits on one card, “Open where you left off” is under Opening, exceptions are together, and new screenshots are under Storage
+* **Changed:** “After use” offers Keep in the shelf (new standard), Remove after dragging out and Always remove. If you had chosen “Remove after actions”, your items now stay in the shelf
+* **Changed:** The shelf’s title is always BarDrop, and the newest items always come first. “Never” is gone from “While dragging files”, the strip’s edge curve is fixed, and “Group into a stack” offers 2, 3, 5 or 10 items. The size sliders are called “Item size” and “Action size”; actions can be a little bigger (up to 54 pt)
+* **Changed:** Shorter notes at the top right of the shelf, such as “Removed”, “Copied” or “3 selected”. While plugins run, it says “Plugin running”
+* **Changed:** Right-click menus no longer show icons, also for plugins
+* **Fixed:** Quick Look with `space` works reliably, even when pressed quickly several times: the shelf keeps the focus, so `space` no longer reaches the window behind, and Quick Look no longer shows “No Items Selected”. The arrow keys go through the items. A click in another app closes Quick Look and the shelf, and after closing Quick Look the shelf closes as usual when the pointer is elsewhere
+* **Fixed:** Settings no longer jump to the front by themselves after a right-click in the shelf, Quick Look, sharing, Mail, Messages or questions from the shelf, and they are active again after closing Control Center or Notification Center
+* **Fixed:** Scrolling fast with momentum no longer skips items and jumps to the end
+* **Fixed:** While the shelf opens, items no longer shine through the action bar
+* **Fixed:** Moving the pointer quickly along the edge opens the shelf: the strip follows the pointer while it is visible
+* **Fixed:** Without “Open where you left off”, an open stack or folder closes only once the shelf is out of sight
+* Opening a folder starts at the top and looks the same whether it is pinned or in the shelf. Clicking a pinned folder that is already open keeps it open; from a subfolder it goes back to its top level
+* Settings: cards and pop-up lists are a little see-through, switches slide reliably to the new choice, the keys in the shortcut list show centered symbols, and the BETA label is a calm gray, centered next to “Plugins”
+* Introduction: the screen dims more gently, choosing left or right works with one click, a single quiet arrow points to the edge, and the trackpad gives a light tap when the photo reaches the shelf
+* Texts in English and German say the same thing everywhere; English uses American spelling
+* Plugins: the placeholder shows a preview of the file the plugin works on. It starts out see-through, becomes solid with the progress, and shows the result as soon as a finished file is there. Hovering shows Pause or Resume and × to cancel; placeholders can be selected like other items, and `⌫` cancels them
+* Plugins: consent, permissions and programs are asked in one short window instead of up to four in a row. Importing shows a short list; the script is under “View Script”
+* **Fixed:** Plugins: Cancel takes effect at once, even for a plugin stuck in an endless loop; programs that ignore the request to quit are ended after 3 seconds. Turning off or removing a plugin cancels its jobs
+* Plugins: permissions now cover all files of a plugin, so after this update plugins ask for their permissions once more. Permission to download a program is tied to its address, plugins with the same program name no longer overwrite each other, and a changed consent text asks again
+* Plugins: packages may be at most 20 MB unpacked, `*.example.com` in `links.hosts` works, and a plugin without a known trigger is rejected instead of never showing up
+* Plugins: `const run = …` and `let run = …` work like `function run`; new `bardrop.pluginDirectory`; `createLink` only accepts web addresses; `bardrop.notify` takes at most 40 characters
+* Plugins: each run has its own internet session, and automatic runs use the current code after an edit
+* `check_plugin.py` checks scripts the way BarDrop loads them, checks link patterns by macOS rules, and no longer packs hidden folders such as `.git`
+
 ## 1.31.0-beta.5
 * Plugins: an automatic plugin that is missing a permission (for example after an update of the plugin) now asks for it when you drop something, instead of silently not starting
 * Plugins: while a program is downloaded for a plugin, the placeholder shows the progress in percent; the plugin log notes the size and how long it took
