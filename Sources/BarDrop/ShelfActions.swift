@@ -659,7 +659,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             let left = folder.folder
             ui.memberSelection = []
             if folder.isOpen, folder.isNested {
-                withAnimation(settings.animationStyle.close) { folder.goUp() }
+                withAnimation(settings.animationStyle.close) { _ = folder.goUp() }
                 if let left {
                     let id = FolderBrowser.id(for: left)
                     ui.memberSelection = [id]

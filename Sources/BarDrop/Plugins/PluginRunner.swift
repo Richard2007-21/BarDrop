@@ -100,7 +100,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         let automatic = manager.activePlugins.filter { manager.isAutomatic($0) }.compactMap { manager.refreshed($0.id) }
         guard !automatic.isEmpty else { return }
         var started: [String: Int] = [:]
-        var blocked: InstalledPlugin?
+        var blocked = false
         var declined: Set<String> = []
         for file in files {
             let item = PluginItem(url: file.url)
@@ -113,7 +113,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
                     PluginLog.shared.record(plugin.id, "fehler", "automatisch nicht gestartet: Zustimmung, Rechte oder Programme nicht erteilt")
                 }
                 declined.insert(plugin.id)
-                blocked = plugin
+                blocked = true
                 continue
             }
             enqueue(PluginJob(plugin: plugin, item: item, anchorFileID: file.id, automatic: true,
@@ -124,7 +124,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             actions?.announce(L("Plugin active", "Plugin aktiv"), duration: 1.5)
         } else if started.count > 1 {
             actions?.announce(L("\(started.count) plugins active", "\(started.count) Plugins aktiv"), duration: 1.5)
-        } else if let blocked {
+        } else if blocked {
             actions?.announce(L("Plugin wasn’t started", "Plugin nicht gestartet"), duration: 2)
         }
     }
