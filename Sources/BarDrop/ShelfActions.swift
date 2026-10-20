@@ -271,47 +271,83 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         quickLookGeneration += 1
     }
 
-    /// Nach dem Öffnen oder Schließen ein paarmal nachsehen, ob die Übersicht so ist, wie sie
-    /// sein soll: offen mit dem eigenen Inhalt (sonst „Keine Objekte ausgewählt“) oder zu,
-    /// und dass die Ablage den Fokus behält. Sonst ging die nächste Leertaste an die App
-    /// dahinter. Ein neueres Öffnen oder Schließen löst ältere Nachsichten ab.
+    /// Hat die Übersicht wirklich den Tastaturfokus? Laut Diagnoseprotokoll meldet sie
+    /// `isKeyWindow` auch dann, wenn sie ihn nicht hat. Verlässlich sind nur die Mitteilungen.
+    private(set) var quickLookIsKey = false
+    private var quickLookObservers: [NSObjectProtocol] = []
+
+    /// Die Übersicht nimmt sich den Fokus manchmal selbst, laut Diagnoseprotokoll vor allem
+    /// während sie ausgeblendet wird, und das, während BarDrop nicht aktiv ist. Dann ging die
+    /// nächste Leertaste an die App dahinter. Hat niemand in die Übersicht geklickt, bekommt
+    /// die Ablage den Fokus sofort zurück, nicht erst einen Moment später.
+    private func observeQuickLookFocus() {
+        guard quickLookObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        quickLookObservers.append(center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil,
+                                                     queue: .main) { [weak self] note in
+            guard let self, let ql = note.object as? QLPreviewPanel else { return }
+            self.quickLookIsKey = true
+            let clickTypes: [NSEvent.EventType] = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+            let clicked = NSApp.currentEvent.map { clickTypes.contains($0.type) && $0.window === ql } ?? false
+            guard !clicked, self.ui.level == .expanded, let panel = self.panel else { return }
+            Diagnostics.shared.record("focus", "quick look took key without click, back to shelf")
+            panel.makeKey()
+            self.attachQuickLook(ql)
+        })
+        quickLookObservers.append(center.addObserver(forName: NSWindow.didResignKeyNotification, object: nil,
+                                                     queue: .main) { [weak self] note in
+            guard note.object is QLPreviewPanel else { return }
+            self?.quickLookIsKey = false
+        })
+    }
+
+    /// Die Übersicht an die Ablage binden, wie Apple es vorsieht: Sie sucht sich ihre Steuerung
+    /// (ShelfPanel.acceptsPreviewPanelControl) beim Fenster mit dem Fokus und bekommt dort
+    /// ihren Inhalt. Ohne diese Steuerung übergeht sie einen direkt gesetzten Inhalt und zeigt
+    /// „Keine Objekte ausgewählt“. Hat sie trotzdem keinen, wird er direkt gesetzt.
+    private func attachQuickLook(_ ql: QLPreviewPanel) {
+        if panel?.isKeyWindow == true { ql.updateController() }
+        if (ql.dataSource as AnyObject?) !== self || (ql.delegate as AnyObject?) !== self {
+            ql.dataSource = self
+            ql.delegate = self
+        }
+    }
+
+    /// Nach dem Öffnen oder Schließen nachsehen, ob die Übersicht so ist, wie sie sein soll,
+    /// und dass die Ablage den Fokus behält. Geschlossen wird erst nach dem Ausblenden noch
+    /// einmal: Ein zweites Schließen mitten im Ausblenden gab ihr laut Protokoll den Fokus.
+    /// Ein neueres Öffnen oder Schließen löst ältere Nachsichten ab.
     private func settleQuickLook() {
         let generation = quickLookGeneration
-        for delay in [0.05, 0.2, 0.45, Self.quickLookSettle + 0.05] {
+        for delay in [0.05, 0.45, Self.quickLookSettle + 0.1] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, generation == self.quickLookGeneration else { return }
-                self.enforceQuickLook()
+                self.enforceQuickLook(late: delay > 0.1)
             }
         }
     }
 
-    private func enforceQuickLook() {
+    private func enforceQuickLook(late: Bool) {
         guard QLPreviewPanel.sharedPreviewPanelExists(), let ql = QLPreviewPanel.shared() else { return }
         if quickLookWanted {
-            if (ql.dataSource as AnyObject?) !== self || (ql.delegate as AnyObject?) !== self {
+            if (ql.dataSource as AnyObject?) !== self {
                 Diagnostics.shared.record("focus", "quick look source restored")
-                ql.dataSource = self
-                ql.delegate = self
+                attachQuickLook(ql)
                 ql.reloadData()
             }
-            if !ql.isVisible {
+            if late && !ql.isVisible {
                 Diagnostics.shared.record("focus", "quick look shown again")
                 placeOnShelfScreen(ql)
+                attachQuickLook(ql)
                 ql.orderFrontRegardless()
                 ql.reloadData()
             }
-            // Gleich nach dem Öffnen hat niemand in die Übersicht geklickt: Hat sie den Fokus
-            // trotzdem, bekommt ihn die Ablage zurück
-            if ql.isKeyWindow, Date().timeIntervalSince(quickLookChangedAt) < Self.quickLookSettle {
-                Diagnostics.shared.record("focus", "quick look took key, back to shelf")
-                panel?.makeKey()
-            }
-        } else if ql.isVisible {
+        } else if late && ql.isVisible {
             Diagnostics.shared.record("focus", "quick look closed again")
             ql.orderOut(nil)
         }
-        if ui.level == .expanded, let panel, !panel.isKeyWindow,
-           !(quickLookWanted && ql.isKeyWindow), NSApp.keyWindow == nil || NSApp.keyWindow === ql {
+        if ui.level == .expanded, let panel, !panel.isKeyWindow, !quickLookIsKey || !quickLookWanted,
+           NSApp.keyWindow == nil || NSApp.keyWindow === ql {
             Diagnostics.shared.record("focus", "shelf key restored after quick look")
             panel.makeKey()
         }
@@ -326,20 +362,18 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         previewURLs = urls
         panel?.makeKey()
         let ql = QLPreviewPanel.shared()!
+        observeQuickLookFocus()
         let wasWanted = isQuickLookVisible
         markQuickLook(wanted: true)
+        attachQuickLook(ql)
         if wasWanted && ql.isVisible {
-            ql.dataSource = self
-            ql.delegate = self
             ql.reloadData()
             ql.currentPreviewItemIndex = 0
         } else {
             placeOnShelfScreen(ql)
-            // Inhalt direkt mitgeben: Ohne Fokus sucht die Übersicht ihre Quelle sonst
-            // vergeblich beim Fenster mit dem Fokus und zeigt „Keine Objekte ausgewählt“
-            ql.dataSource = self
-            ql.delegate = self
             ql.orderFrontRegardless()
+            // Erst jetzt, da sie zu sehen ist, sucht sie ihre Steuerung sicher
+            attachQuickLook(ql)
             ql.reloadData()
             // Die Übersicht merkt sich, welches Objekt sie zuletzt zeigte. Zeigte sie vorher
             // das dritte von dreien und jetzt nur eines, fand sie keines mehr
@@ -348,7 +382,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             DispatchQueue.main.async { [weak self] in self?.placeOnShelfScreen(ql) }
         }
         settleQuickLook()
-        Diagnostics.shared.record("focus", "quick look shown key=\(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "–")")
+        Diagnostics.shared.record("focus", "quick look shown key=\(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "–") source=\((ql.dataSource as AnyObject?) === self)")
     }
 
     /// Pfeiltasten in der Ablage, während die Übersicht offen ist: Die Übersicht zeigt das

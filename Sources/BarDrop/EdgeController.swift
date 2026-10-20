@@ -241,8 +241,9 @@ final class EdgeController: NSObject {
         guard actions.isQuickLookVisible else { return }
         // Klick in die Übersicht selbst (etwa um ein PDF zu blättern): Sie hat dann den
         // Fokus, und BarDrop gilt kurz als nicht aktiv. Das ist kein Wechsel weg von BarDrop
-        let ql = QLPreviewPanel.shared()!
-        if ql.isKeyWindow || NSApp.keyWindow === ql { return }
+        // Nicht `isKeyWindow` der Übersicht: Das meldet sie laut Diagnoseprotokoll auch ohne
+        // Fokus, und ein Klick in eine andere App schloss dann nichts
+        if actions.quickLookIsKey { return }
         actions.closeQuickLook()
         if ui.level == .expanded { close() }
     }
