@@ -82,10 +82,12 @@ final class OnboardingModel: ObservableObject {
     func complete(_ done: Step) {
         Diagnostics.shared.record("intro", "complete \(done) current=\(step)")
         guard step == done, !completed.contains(done) else { return }
-        Haptics.tap()
+        // Beim Ablegen gab es den Impuls schon, als das Foto die Ablage erreichte
+        if done != .drop { Haptics.tap() }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { _ = completed.insert(done) }
         // Der Hinweis auf ⌘Z nach dem Papierkorb braucht etwas länger zum Lesen
-        let pause = done == .retrieve ? 3.2 : 1.4
+        // Nach dem Ablegen ohne Bestätigung gleich weiter
+        let pause = done == .retrieve ? 3.2 : (done == .drop ? 0.5 : 1.4)
         DispatchQueue.main.asyncAfter(deadline: .now() + pause) { [weak self] in
             guard let self, self.step == done else { return }
             self.advance()
@@ -149,6 +151,17 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         if let window { Self.centerExactly(window, on: shelfScreen()) }
         window?.makeKeyAndOrderFront(nil)
         if let window { observeWindow(window) }
+        // Beim ersten Start kann die Aktivierung von BarDrop später ankommen (macOS
+        // aktiviert kooperativ). Das Fenster liegt dann zwar über allem, hat aber keinen
+        // Fokus: kurz danach noch einmal nachfassen
+        for delay in [0.3, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, let window = self.window, window.isVisible, !window.isKeyWindow,
+                      NSApp.modalWindow == nil else { return }
+                NSApp.activate(ignoringOtherApps: true)
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
         updateCutout()
         // Erst jetzt ist die Ablage verbunden: den aktuellen Schritt zeigen (Willkommen: offen)
         prepare(model.step)
@@ -200,7 +213,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         }
         if edgeSubscription == nil {
             // Rand auf der ersten Seite gewechselt: der freie Bereich wandert mit
-            edgeSubscription = settings.$edge.removeDuplicates().receive(on: RunLoop.main)
+            edgeSubscription = settings.$edge.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] edge in
                     guard let self else { return }
                     let width = CGFloat(self.settings.shelfWidth)
@@ -263,12 +276,16 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         let refresh = { [weak self] in
             guard let self, let window = self.window, window.isVisible else { return }
             if !window.isKeyWindow { window.makeKey() }
+            // Die Ansicht selbst neu auslegen lassen (erst das bringt SwiftUI dazu, den neuen
+            // Stand zu übernehmen), dann zeichnen
             window.contentView?.needsLayout = true
+            window.contentView?.layoutSubtreeIfNeeded()
             window.contentView?.needsDisplay = true
-            window.displayIfNeeded()
+            window.display()
         }
         DispatchQueue.main.async(execute: refresh)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: refresh)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: refresh)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: refresh)
     }
 
     /// Klick daneben: zurück zur Einführung
@@ -904,15 +921,13 @@ private struct TaskCard<Leading: View>: View {
     var body: some View {
         ZStack {
             if done {
-                VStack(spacing: 10) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.white, .green)
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                // Ohne großes Symbol: höchstens ein kurzer Satz (Ablegen: gar nichts, es geht
+                // gleich weiter, die Punkte unten zeigen den Fortschritt)
+                if !confirmation.isEmpty {
                     Text(confirmation)
                         .font(.system(size: 13.5, weight: .medium))
+                        .transition(.opacity)
                 }
-                .transition(.opacity)
             } else {
                 VStack(spacing: 12) {
                     leading()
@@ -998,7 +1013,7 @@ private struct DropPage: View {
             TaskCard(done: model.stepDone,
                      instruction: L("Drag this photo into the shelf at the \(edgeWord(settings)) edge.",
                                     "Zieh dieses Foto in die Ablage am \(edgeWord(settings)) Rand."),
-                     confirmation: L("The photo is in the shelf.", "Das Foto liegt in der Ablage.")) {
+                     confirmation: "") {
                 SampleTile(url: model.sampleURL, edge: settings.edge, onDragStarted: model.onSampleDragStarted)
             }
         }
@@ -1251,17 +1266,18 @@ private struct EdgeArrows: View {
     let edge: ScreenEdge
 
     var body: some View {
+        // Schlicht: ein einzelner, feiner Pfeil, der ruhig zum Rand hin gleitet und dabei
+        // ausblendet (statt dreier fetter, flackernder Pfeile)
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: AnimationStyle.reduceMotion)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 1) {
-                ForEach(0..<3, id: \.self) { i in
-                    let order = edge == .right ? Double(i) : Double(2 - i)
-                    let wave = 0.5 + 0.5 * sin((t * 3.2) - order * 0.9)
-                    Image(systemName: edge == .right ? "chevron.right" : "chevron.left")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color.secondary.opacity(AnimationStyle.reduceMotion ? 0.6 : 0.25 + 0.6 * wave))
-                }
-            }
+            let phase = AnimationStyle.reduceMotion ? 0.5 : (t / 1.8).truncatingRemainder(dividingBy: 1)
+            let eased = phase * phase * (3 - 2 * phase)
+            let fade = sin(.pi * phase)
+            Image(systemName: edge == .right ? "chevron.right" : "chevron.left")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(Color.secondary.opacity(AnimationStyle.reduceMotion ? 0.5 : 0.15 + 0.45 * fade))
+                .offset(x: (edge == .right ? 1 : -1) * CGFloat(eased) * 6)
+                .frame(width: 22)
         }
         .accessibilityHidden(true)
     }

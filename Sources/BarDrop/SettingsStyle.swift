@@ -30,9 +30,9 @@ enum SettingsTheme {
     /// durchscheinend, aber deutlich weniger als der Hintergrund. (Mit 88 % waren es nur 4 %,
     /// davon war nichts zu sehen.)
     static let cardOpacity = 0.55
-    /// Auswahllisten liegen direkt über dem (unscharfen) Schreibtisch: dieselbe Durchsicht
-    /// wie die Karten, also 84 %
-    static let menuOpacity = 0.84
+    /// Auswahllisten liegen direkt über dem (unscharfen) Schreibtisch: etwas mehr Durchsicht
+    /// als die Karten, aber weniger als der Hintergrund
+    static let menuOpacity = 0.72
     /// Karten
     static let card = dynamic(dark: rgb(0.184, 0.188, 0.188, cardOpacity),
                               light: systemColor(.controlBackgroundColor, alpha: 0.9))
@@ -348,43 +348,57 @@ struct PickerRow<Value: Hashable>: View {
 }
 
 /// Umschalter mit wenigen Möglichkeiten: dunkle Mulde wie bei den Tasten, die gewählte
-/// Möglichkeit als heller Knopf, der weich hinübergleitet; mit leichtem Impuls.
+/// Möglichkeit als heller Knopf, der weich hinübergleitet.
+///
+/// Der Knopf ist eine einzige Fläche, die zur gewählten Möglichkeit gleitet. Früher sprang
+/// er mit `matchedGeometryEffect` von einer Möglichkeit zur anderen; änderte sich dabei viel
+/// zugleich (Einführung: Rand wechselt, Vorführung und Ablage ziehen um), blieb er teils
+/// stehen, bis der nächste Klick die Ansicht neu zeichnete. Jede Möglichkeit ist so breit
+/// wie in fetter Schrift, damit nichts verrutscht, wenn sich die Wahl ändert.
 struct SegmentedValue<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [(Value, String)]
     @Environment(\.isEnabled) private var isEnabled
-    @Namespace private var knob
+    @State private var frames: [Int: CGRect] = [:]
+
+    private var selectedIndex: Int? { options.firstIndex { $0.0 == selection } }
+    private static var space: String { "segmented" }
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(Array(options.enumerated()), id: \.offset) { _, option in
-                let selected = option.0 == selection
+            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                let selected = index == selectedIndex
                 Button {
                     guard !selected else { return }
                     // Kein eigener Impuls: Der Klick auf dem Trackpad ist schon einer,
                     // zusammen fühlte es sich doppelt an
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) { selection = option.0 }
+                    selection = option.0
                 } label: {
-                    Text(option.1)
-                        .font(.system(size: 12.5, weight: selected ? .semibold : .regular))
-                        .foregroundStyle(selected ? Color.primary : Color.secondary)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .padding(.horizontal, 10)
-                        .frame(height: 24)
-                        .background {
-                            if selected {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(SettingsTheme.segmentKnob)
-                                    .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
-                                    .matchedGeometryEffect(id: "knob", in: knob)
-                            }
-                        }
-                        .contentShape(Rectangle())
+                    ZStack {
+                        // Platz für die fette Schrift, damit die Breite gleich bleibt
+                        Text(option.1).font(.system(size: 12.5, weight: .semibold)).hidden()
+                        Text(option.1)
+                            .font(.system(size: 12.5, weight: selected ? .semibold : .regular))
+                            .foregroundStyle(selected ? Color.primary : Color.secondary)
+                    }
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 10)
+                    .frame(height: 24)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .background(
+                    GeometryReader { g in
+                        Color.clear.preference(key: SegmentFramesKey.self,
+                                               value: [index: g.frame(in: .named(Self.space))])
+                    }
+                )
             }
         }
+        .background(alignment: .topLeading) { knob }
+        .coordinateSpace(name: Self.space)
+        .onPreferenceChange(SegmentFramesKey.self) { frames = $0 }
         .padding(2)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -395,6 +409,26 @@ struct SegmentedValue<Value: Hashable>: View {
                 .strokeBorder(SettingsTheme.separator, lineWidth: 1)
         )
         .opacity(isEnabled ? 1 : 0.45)
+    }
+
+    @ViewBuilder
+    private var knob: some View {
+        if let index = selectedIndex, let frame = frames[index] {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(SettingsTheme.segmentKnob)
+                .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
+                .frame(width: frame.width, height: frame.height)
+                .offset(x: frame.minX, y: frame.minY)
+                .animation(.spring(response: 0.28, dampingFraction: 0.82), value: index)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+private struct SegmentFramesKey: PreferenceKey {
+    static var defaultValue: [Int: CGRect] = [:]
+    static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
     }
 }
 
