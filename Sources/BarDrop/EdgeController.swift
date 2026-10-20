@@ -99,6 +99,8 @@ final class EdgeController: NSObject {
     }
     /// Fokus zurückgeben, sobald ein eigener Drag beendet ist.
     private var pendingResignFocus = false
+    /// Der Zeiger war im letzten Takt über der offenen Ablage
+    private var pointerInside = false
 
     /// Dauer der Schließanimation; erst danach darf das Fenster den Bildschirm wechseln.
     private let collapseDuration: TimeInterval = 0.35
@@ -892,6 +894,17 @@ final class EdgeController: NSObject {
             && !config.exactPointer
             && onScreen && !innerEdge && dx < config.dragExpand.distance
             && expandedBody.insetBy(dx: 0, dy: -12).contains(loc)
+        // Fährt der Zeiger in die offene Ablage, bekommt sie den Tastaturfokus, auch wenn sie
+        // ihn zwischendurch verloren hat (Übersicht, Dialog, Klick in die Einstellungen).
+        // Nicht während einer Vorschau oder der Einführung, nicht bei gedrückter Taste und
+        // nicht, solange Übersicht, Menü oder ein Dialog offen sind.
+        let inside = ui.level == .expanded && expandedBody.contains(loc)
+        if inside && !pointerInside && !mouseDown && !panel.isKeyWindow && !locked
+            && previewUntil == nil && NSApp.modalWindow == nil {
+            takeFocus()
+        }
+        pointerInside = inside
+
         let accept = (ui.level == .expanded && (expandedBody.contains(loc) || locked))
             || (ui.level == .hint && settings.hintAcceptsClick && !dragging && hintBody.contains(loc))
             || catchesThrow

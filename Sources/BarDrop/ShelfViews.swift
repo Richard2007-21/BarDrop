@@ -205,10 +205,10 @@ struct ShelfContent: View {
         return points
     }()
 
-    /// Spalten passend zur Symbolgröße
-    private var columns: [GridItem] {
+    /// Raster passend zur Symbolgröße (Spalten mindestens Symbol + 22 pt, höchstens + 40 pt)
+    private var grid: TileGridLayout {
         let icon = CGFloat(settings.tileIconSize)
-        return [GridItem(.adaptive(minimum: icon + 22, maximum: icon + 40), spacing: 8)]
+        return TileGridLayout(minimum: icon + 22, maximum: icon + 40, spacing: 8, rowSpacing: 6)
     }
 
     /// Geöffneter Stapel, solange er noch ein Stapel ist, oder der geöffnete Ordner
@@ -258,6 +258,10 @@ struct ShelfContent: View {
                         // Platz unter der letzten Reihe: Sie lässt sich ganz über die Leiste scrollen
                         .padding(.bottom, barHeight)
                         .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
+                        // Unsichtbarer Anker ganz oben (Stapel oder Ordner öffnen: oben beginnen)
+                        .overlay(alignment: .top) {
+                            Color.clear.frame(height: 1).id(Self.topID).allowsHitTesting(false)
+                        }
                         // Ohne Fokus laufen Einblend-Animationen nicht zuverlässig weiter: neue
                         // Kacheln dann sofort zeigen statt unsichtbar am Anfang der Animation
                         .transaction { if !ui.isKey { $0.animation = nil } }
@@ -295,6 +299,16 @@ struct ShelfContent: View {
                     .onDisappear { saveScroll() }
                     .onChange(of: geo.size.height) { _, height in viewportHeight = height }
                     .onPreferenceChange(ScrollOffsetKey.self) { scroll.offset = $0 }
+                    // Stapel oder Ordner geöffnet (oder Unterordner): oben beginnen, ohne
+                    // sichtbares Scrollen, egal wie weit die Ablage vorher gescrollt war
+                    .onChange(of: ui.openStack) { _, opened in
+                        guard opened != nil else { return }
+                        scrollToTop(proxy)
+                    }
+                    .onChange(of: folder.folder) { _, shown in
+                        guard shown != nil else { return }
+                        scrollToTop(proxy)
+                    }
                     // Pfeiltasten: Die ausgewählte Kachel bleibt ganz zu sehen, wie im Finder
                     .onChange(of: ui.scrollRequest) { _, request in
                         reveal(request, proxy: proxy, viewport: geo.size.height)
@@ -513,7 +527,7 @@ struct ShelfContent: View {
                 .allowsHitTesting(false)
                 .transition(Self.tileTransition)
         } else {
-            LazyVGrid(columns: columns, spacing: 6) {
+            grid {
                 // Was gerade noch geladen wird (Bilder aus dem Web, große Dateien),
                 // steht sofort als Kachel da, an der Stelle, an der es landen wird
                 if showPending && settings.sortOrder == .newestFirst { pendingTiles }
@@ -602,8 +616,30 @@ struct ShelfContent: View {
         .foregroundStyle(.white.opacity(ui.isDropTargeted ? 1 : 0.45))
     }
 
+    /// Ab so vielen Objekten (große Ordner wie Downloads) das sparsame `LazyVGrid`: Das
+    /// eigene Raster legt alle Kacheln samt Vorschaubild an, bei tausenden zu viel
+    private static let lazyThreshold = 300
+
+    @ViewBuilder
     private func stackTiles(_ stack: ShelfEntry) -> some View {
-        LazyVGrid(columns: columns, spacing: 6) {
+        if stack.files.count > Self.lazyThreshold {
+            let icon = CGFloat(settings.tileIconSize)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: icon + 22, maximum: icon + 40), spacing: 8)], spacing: 6) {
+                stackTileItems(stack)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        } else {
+            grid {
+                stackTileItems(stack)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+    }
+
+    @ViewBuilder
+    private func stackTileItems(_ stack: ShelfEntry) -> some View {
             ForEach(stack.files) { file in
                 if let job = runner.replacingJob(for: file.id) {
                     PluginJobTile(job: job, ui: ui, actions: actions, iconSize: CGFloat(settings.tileIconSize))
@@ -627,9 +663,6 @@ struct ShelfContent: View {
                     }
                 }
             }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
     }
 
     // MARK: An letzter Stelle öffnen
@@ -665,6 +698,16 @@ struct ShelfContent: View {
     }
 
     // MARK: Mitscrollen
+
+    /// Ganz nach oben, ohne Animation
+    private func scrollToTop(_ proxy: ScrollViewProxy) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { proxy.scrollTo(Self.topID, anchor: .top) }
+    }
+
+    /// Unsichtbarer Anker ganz oben im Inhalt
+    private static let topID = "shelf-top"
 
     /// Macht die Kachel `request.id` ganz sichtbar: oben unter dem Kopf, unten über der
     /// Aktionsleiste. Liegt sie schon ganz im sichtbaren Bereich, bleibt alles stehen.

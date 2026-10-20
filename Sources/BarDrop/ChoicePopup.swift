@@ -315,7 +315,7 @@ private struct ChoiceList: View {
             ZStack {
                 RoundedBlur(radius: SettingsTheme.cardRadius)
                 RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
-                    .fill(SettingsTheme.card)
+                    .fill(SettingsTheme.menu)
             }
         )
         .overlay(

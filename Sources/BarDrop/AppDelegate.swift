@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var screenshots: ScreenshotWatcher?
     /// Geöffnete .bdrop-Dateien, solange BarDrop noch startet
     private var pendingPluginFiles: [URL] = []
+    /// Gibt den Einstellungen den Fokus zurück, wenn ein Menü der Menüleiste ihn kurz hatte
+    private var focusReturn: SettingsFocusReturn?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Nach einem Update erst starten, wenn die alte Fassung beendet ist
@@ -61,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return self.controller.isIdle(for: 15 * 60)
                 && self.settingsWindow?.isVisible != true && self.onboarding == nil
         }
+        focusReturn = SettingsFocusReturn { [weak self] in self?.settingsWindow }
         Updater.shared.start()
         PluginManager.shared.start()
         // Links, für die ein Plugin zuständig ist, als Link übernehmen (nicht als Vorschaubild)

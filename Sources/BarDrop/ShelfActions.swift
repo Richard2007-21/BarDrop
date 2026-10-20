@@ -265,13 +265,21 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     }
 
     func closeQuickLook() {
-        if isQuickLookVisible { QLPreviewPanel.shared().orderOut(nil) }
+        guard isQuickLookVisible else { return }
+        QLPreviewPanel.shared().orderOut(nil)
+        // Weiter in der Ablage: Sie bekommt den Fokus zurück (sonst gingen Leertaste und
+        // Pfeile ins Leere oder an die Einstellungen)
+        if ui.level == .expanded { panel?.makeKey() }
     }
 
     func quickLook(urls: [URL]) {
         guard !urls.isEmpty else { return }
         previewURLs = urls
-        AppActivation.activateKeepingWindows()
+        // Erst warten, bis BarDrop wirklich aktiv ist, dann den Fokus setzen. Kam die
+        // Aktivierung erst nach dem Öffnen an, gab macOS den Fokus dem zuletzt aktiven
+        // Fenster von BarDrop zurück: Die Übersicht verlor ihn, Leertaste und Pfeile
+        // wirkten nicht mehr.
+        AppActivation.activateKeepingWindows(timeout: 0.25)
         panel?.makeKey()
         let ql = QLPreviewPanel.shared()!
         if QLPreviewPanel.sharedPreviewPanelExists() && ql.isVisible {
@@ -281,6 +289,12 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             ql.makeKeyAndOrderFront(nil)
             // Quick Look stellt beim Öffnen manchmal seinen alten Ort wieder her
             DispatchQueue.main.async { [weak self] in self?.placeOnShelfScreen(ql) }
+        }
+        // Sicherheitsnetz, falls die Aktivierung doch später nachwirkt
+        for delay in [0.0, 0.15, 0.4] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                if ql.isVisible && !ql.isKeyWindow && NSApp.isActive { ql.makeKey() }
+            }
         }
     }
 
@@ -314,7 +328,13 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     /// und die Ablage scrollt mit. Zeigt die Übersicht mehrere ausgewählte Objekte, blättert
     /// sie wie im Finder selbst darin.
     func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
-        guard let event, event.type == .keyDown, !quickLookPagesSelection else { return false }
+        guard let event, event.type == .keyDown else { return false }
+        // Leertaste schließt wie im Finder, auch wenn die Übersicht selbst den Fokus hat
+        if event.keyCode == 49 {
+            closeQuickLook()
+            return true
+        }
+        guard !quickLookPagesSelection else { return false }
         let step: Int
         switch event.keyCode {
         case 123: step = -1                      // ←

@@ -145,6 +145,12 @@ final class ShelfPanel: NSPanel {
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
         panel.delegate = nil
+        // Übersicht mit esc oder ihrem Knopf geschlossen: weiter in der Ablage
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let ui = self.actions?.ui, ui.level == .expanded,
+                  self.actions?.isQuickLookVisible == false else { return }
+            self.makeKey()
+        }
     }
 }
 

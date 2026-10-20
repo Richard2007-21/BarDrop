@@ -25,12 +25,20 @@ enum SettingsTheme {
                                          light: systemColor(.windowBackgroundColor, alpha: 0.8))
     static let contentBackdrop = dynamic(dark: rgb(0.192, 0.196, 0.2, backdropOpacity),
                                          light: systemColor(.windowBackgroundColor, alpha: 0.96))
-    /// Deckkraft der Karten und Auswahllisten: ein Hauch durchscheinend, deutlich weniger
-    /// als Seitenleiste und Inhalt (dunkel 64 %), damit Text und Regler ruhig bleiben
-    static let cardOpacity = 0.88
+    /// Deckkraft der Karten. Sie liegen auf dem Inhalt, der selbst zu 64 % deckt: Bei 55 %
+    /// scheint durch eine Karte etwa 16 % des Schreibtischs, daneben 36 %. Sichtbar
+    /// durchscheinend, aber deutlich weniger als der Hintergrund. (Mit 88 % waren es nur 4 %,
+    /// davon war nichts zu sehen.)
+    static let cardOpacity = 0.55
+    /// Auswahllisten liegen direkt über dem (unscharfen) Schreibtisch: dieselbe Durchsicht
+    /// wie die Karten, also 84 %
+    static let menuOpacity = 0.84
     /// Karten
     static let card = dynamic(dark: rgb(0.184, 0.188, 0.188, cardOpacity),
-                              light: systemColor(.controlBackgroundColor, alpha: 0.97))
+                              light: systemColor(.controlBackgroundColor, alpha: 0.9))
+    /// Fläche der Auswahllisten
+    static let menu = dynamic(dark: rgb(0.184, 0.188, 0.188, menuOpacity),
+                              light: systemColor(.controlBackgroundColor, alpha: 0.9))
     /// Deckend, für Flächen über anderen Inhalten (angehobene Zeile beim Umsortieren)
     static let cardSolid = dynamic(dark: rgb(0.184, 0.188, 0.188), light: .controlBackgroundColor)
     /// Gewählter Eintrag der Seitenleiste

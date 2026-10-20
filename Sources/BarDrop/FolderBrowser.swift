@@ -90,12 +90,32 @@ final class FolderBrowser: ObservableObject {
         isLoading = false
     }
 
+    /// Der Inhalt wurde seit dem Öffnen noch nicht gelesen: Er erscheint dann ohne
+    /// Animation, wie ein Stapel. Mit Feder wuchs der Inhalt sichtbar, das sah aus, als
+    /// würde gescrollt, und je nach Ausgangslage anders als beim angehefteten Ordner.
+    private var firstLoad = true
+
     private func show(_ url: URL) {
         folder = url
         files = []
         isLoading = true
+        firstLoad = true
         watch(url)
+        // Auf der eigenen Platte gleich lesen: Der Inhalt ist dann schon beim Überblenden
+        // da, wie bei einem Stapel. Netzlaufwerke und Ähnliches im Hintergrund.
+        if Self.isLocal(url), let listed = Self.list(url) {
+            reloadWork?.cancel()
+            generation += 1
+            files = listed
+            isLoading = false
+            firstLoad = false
+            return
+        }
         reload(after: 0)
+    }
+
+    private static func isLocal(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.volumeIsLocalKey]))?.volumeIsLocal == true
     }
 
     /// Neu lesen; mehrere Änderungen kurz hintereinander zählen als eine
@@ -116,8 +136,16 @@ final class FolderBrowser: ObservableObject {
                 guard let self, self.generation == current, self.folder == folder else { return }
                 self.isLoading = false
                 guard let listed else { return self.vanished() }
+                let first = self.firstLoad
+                self.firstLoad = false
                 guard listed != self.files else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { self.files = listed }
+                if first {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { self.files = listed }
+                } else {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) { self.files = listed }
+                }
             }
         }
     }
