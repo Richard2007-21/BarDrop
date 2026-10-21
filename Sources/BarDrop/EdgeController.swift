@@ -128,6 +128,8 @@ final class EdgeController: NSObject {
         actions.panel = panel
         panel.actions = actions
         panel.onEscape = { [weak self] in self?.close() }
+        actions.isFloating = { [weak self] in self?.isFloating ?? false }
+        actions.returnToEdge = { [weak self] in self?.returnFloatingToEdge(close: false) }
 
         let host = ShelfHostingView(rootView: ShelfRootView(ui: ui, store: store, settings: settings, actions: actions))
         let dropHandler = ShelfDropHandler(store: store, ui: ui)
@@ -1453,8 +1455,10 @@ extension EdgeController {
         case .stretching:
             dock(drag, side: drag.origin, screen: drag.originScreen)
         case .free:
-            if drag.leftZone, let near = nearestDock(for: drag.body), near.distance < EdgeTear.attachZone {
-                dock(drag, side: near.side, screen: near.screen)
+            // In Randnähe losgelassen rastet sie immer ein, auch wenn sie gleich nach dem Lösen
+            // schwungvoll zurückgeschoben wurde (sonst bliebe sie halb am Rand schweben)
+            if let near = nearestDock(for: drag.body), near.distance < EdgeTear.attachZone {
+                dock(drag, side: drag.leftZone ? near.side : drag.origin, screen: drag.leftZone ? near.screen : drag.originScreen)
             } else {
                 float(drag)
             }

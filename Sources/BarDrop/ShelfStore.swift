@@ -882,6 +882,23 @@ final class ShelfStore: ObservableObject {
         return files
     }
 
+    /// Entpackter Inhalt eines Archivs neben das Archiv: mehrere Dateien als ein Stapel, eine
+    /// einzeln. Liegt das Archiv in einem Stapel, kommt der Inhalt dort hinter das Archiv.
+    func insertUnpacked(_ files: [ShelfFile], nextTo fileID: UUID?) {
+        guard !files.isEmpty else { return }
+        var updated = entries
+        if let fileID, let pos = position(of: fileID) {
+            if updated[pos.entry].isStack {
+                updated[pos.entry].files.insert(contentsOf: files, at: pos.file + 1)
+            } else {
+                updated.insert(ShelfEntry(files: files), at: pos.entry + 1)
+            }
+        } else {
+            updated.insert(ShelfEntry(files: files), at: 0)
+        }
+        insertWithoutAnimation { $0 = updated }
+    }
+
     /// Legt übernommene Dateien eines Plugins direkt neben das Original (in der angezeigten
     /// Reihenfolge dahinter; in einem Stapel hinter die Datei im Stapel). Mit `replacing`
     /// wird das Original aus der Ablage genommen (widerrufbar). Liegt das Original nicht

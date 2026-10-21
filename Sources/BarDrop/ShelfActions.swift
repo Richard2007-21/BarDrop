@@ -2,11 +2,16 @@ import AppKit
 import Combine
 import SwiftUI
 import Quartz
+import UniformTypeIdentifiers
 
 /// Alle Aktionen auf Einträgen der Ablage (Kontextmenü, Tastatur, Aktionsleiste).
 final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDelegate, NSSharingServicePickerDelegate {
     let store: ShelfStore
     let ui: ShelfUIModel
+    /// Losgelöst schwebend (vom Rand-Controller gesetzt)
+    var isFloating: () -> Bool = { false }
+    /// Die schwebende Ablage zurück an ihren Rand legen
+    var returnToEdge: (() -> Void)?
     let settings: AppSettings
     var openSettings: () -> Void = {}
     weak var panel: NSPanel?
@@ -106,7 +111,81 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     // MARK: Aktionen auf Einträgen
 
     func open(_ entries: [ShelfEntry]) {
-        entries.flatMap(\.urls).forEach { NSWorkspace.shared.open($0) }
+        let urls = entries.flatMap(\.urls)
+        // ZIP-Archive werden in der Ablage entpackt: Sonst landete der Inhalt unsichtbar
+        // neben dem Archiv in BarDrops eigenem Speicher
+        urls.filter { !Self.isZip($0) }.forEach { NSWorkspace.shared.open($0) }
+        let zips = urls.filter(Self.isZip)
+        if !zips.isEmpty { unzip(zips) }
+    }
+
+    // MARK: Entpacken
+
+    /// ZIP-Archiv (nach Dateityp)
+    static func isZip(_ url: URL) -> Bool {
+        guard let type = UTType(filenameExtension: url.pathExtension.lowercased()) else { return false }
+        return type.conforms(to: .zip)
+    }
+
+    /// Entpackt ZIP-Archive direkt in die Ablage, neben das Archiv: mehrere Dateien als ein
+    /// Stapel, eine einzelne als eigenes Objekt
+    func unzip(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        announce(L("Unzipping", "Entpacken"))
+        for url in urls {
+            let anchor = store.entries.flatMap(\.files).first { $0.url == url }?.id
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = Self.extract(url)
+                DispatchQueue.main.async { [weak self] in
+                    self?.placeUnzipped(result?.items, nextTo: anchor)
+                    if let dir = result?.dir { try? FileManager.default.removeItem(at: dir) }
+                }
+            }
+        }
+    }
+
+    /// Entpackt mit ditto (wie das Archivierungsprogramm) in einen eigenen Ordner und liefert
+    /// dessen oberste Einträge, ohne die Begleitdaten aus macOS (__MACOSX, versteckte Dateien)
+    private static func extract(_ zip: URL) -> (dir: URL, items: [URL])? {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("BarDropEntpacken-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            process.arguments = ["-x", "-k", zip.path, dir.path]
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                try? fm.removeItem(at: dir)
+                return nil
+            }
+            let items = try fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+                .filter { $0.lastPathComponent != "__MACOSX" }
+                .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            return (dir, items)
+        } catch {
+            try? fm.removeItem(at: dir)
+            return nil
+        }
+    }
+
+    private func placeUnzipped(_ urls: [URL]?, nextTo anchor: UUID?) {
+        guard let urls, !urls.isEmpty else {
+            NSSound.beep()
+            announce(L("Couldn’t unzip", "Nicht entpackt"))
+            return
+        }
+        let files = store.adoptResults(urls)
+        guard !files.isEmpty else {
+            NSSound.beep()
+            announce(L("Couldn’t unzip", "Nicht entpackt"))
+            return
+        }
+        store.insertUnpacked(files, nextTo: anchor)
+        let ids = Set(files.map(\.id))
+        ui.selection = Set(store.entries.filter { $0.files.contains { ids.contains($0.id) } }.map(\.id))
+        announce(L("Unzipped", "Entpackt"))
     }
 
     func reveal(_ entries: [ShelfEntry]) {
@@ -840,6 +919,10 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             DispatchQueue.main.async { self?.share(urls, from: anchor) }
         })
         if let convert = convertMenuItem(for: urls, anchor: anchor) { menu.addItem(convert) }
+        let zips = urls.filter(Self.isZip)
+        if !zips.isEmpty {
+            menu.addItem(ClosureMenuItem(L("Unzip", "Entpacken")) { [weak self] in self?.unzip(zips) })
+        }
     }
 
     /// Kontextmenü für eine Kachel. Gilt für die ganze Auswahl, wenn die Kachel dazugehört.
@@ -1068,6 +1151,12 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 DispatchQueue.main.async {
                     if Self.confirmRemovingAll(count, ui: self.ui) { self.remove(self.store.entries) }
                 }
+            })
+        }
+        if isFloating() {
+            menu.addItem(.separator())
+            menu.addItem(ClosureMenuItem(L("Back to the Edge", "Zurück an den Rand")) { [weak self] in
+                self?.returnToEdge?()
             })
         }
         menu.addItem(.separator())
