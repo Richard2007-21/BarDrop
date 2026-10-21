@@ -176,33 +176,15 @@ struct ShelfContent: View {
     private var openBlur: CGFloat {
         sharpened || ui.ownDragActive ? 0 : settings.animationStyle.blur
     }
-    /// Hinter der Aktionsleiste ganz deckend: eine klare Kante ohne Nebel und ohne Linie,
-    /// Kacheln verschwinden einfach unter der Leiste. Füllt die Leiste selbst aus, statt die
-    /// gemessene Höhe zu nutzen: Die ist beim Öffnen für ein paar Bilder noch 0, und die
-    /// Kacheln darunter schienen durch.
-    ///
-    /// Beim Öffnen nie unscharf: Unschärfe machte die Ränder des Schwarz durchscheinend, und
-    /// die Kacheln dahinter waren durch die Leiste zu sehen. Damit die Kante in diesem Moment
-    /// trotzdem nicht hart wirkt, läuft das Schwarz nach oben weich aus, solange der Inhalt
-    /// noch unscharf ist; danach ist die Kante wieder klar.
-    ///
-    /// Das Schwarz ist eine AppKit-Ansicht, keine SwiftUI-Farbe: Die Kacheln liegen in einem
-    /// Scrollbereich, der selbst eine AppKit-Ansicht ist, und eine einfache SwiftUI-Fläche
-    /// landete teils unter ihm, die Symbole der Leiste aber darüber. Dann sah man die Symbole
-    /// ohne Schwarz, mit den Kacheln dahinter. Eine AppKit-Ansicht nach dem Scrollbereich
-    /// liegt sicher über ihm.
+    /// Deckendes Schwarz hinter der Aktionsleiste. Die Kacheln enden seit dem Umbau über der
+    /// Leiste (siehe body), es ist also nur noch eine Absicherung. Eine AppKit-Ansicht statt
+    /// einer SwiftUI-Farbe, weil eine SwiftUI-Fläche teils unter dem Scrollbereich landete.
     private var barBackdrop: some View {
-        let soft = openBlur * 2
-        return OpaqueBlack()
-            .overlay(alignment: .top) {
-                LinearGradient(colors: [.black.opacity(0), .black], startPoint: .top, endPoint: .bottom)
-                    .frame(height: soft)
-                    .offset(y: -soft)
-            }
+        OpaqueBlack()
             .allowsHitTesting(false)
     }
 
-    /// Übergang unter dem Kopf: dieselbe S-Kurve wie über der Leiste, gespiegelt
+    /// Übergang unter dem Kopf: weiche S-Kurve ins Schwarz
     private var topFade: some View {
         let stops: [Gradient.Stop] = Self.fadeCurve.reversed().map { point in
             Gradient.Stop(color: Color.black.opacity(point.1), location: 1 - point.0)

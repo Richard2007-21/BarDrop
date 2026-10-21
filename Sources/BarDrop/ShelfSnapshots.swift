@@ -1,10 +1,15 @@
 import AppKit
+import Combine
 
-/// Diagnose (nur mit eingeschaltetem Diagnoseprotokoll): Bilder der Ablage, genau so, wie
-/// sie gerade auf dem Bildschirm steht, in ~/Library/Logs/BarDrop/Bilder. Für Fehler, die
-/// nur zu sehen sind (Kacheln, die nicht erscheinen, Symbole, die springen): Das Protokoll
-/// sagt, was die App weiß, die Bilder, was davon gezeigt wird. Die Bilder bleiben auf
-/// diesem Mac; beim Ausschalten des Protokolls werden sie gelöscht.
+/// Diagnose für die Entwicklung: Bilder der Ablage, genau so, wie sie gerade auf dem
+/// Bildschirm steht, in ~/Library/Logs/BarDrop/Bilder. Für Fehler, die nur zu sehen sind
+/// (Kacheln, die nicht erscheinen, Symbole, die springen): Das Protokoll sagt, was die App
+/// weiß, die Bilder, was davon gezeigt wird.
+///
+/// Die Bilder zeigen Dateinamen und Vorschaubilder. Das Diagnoseprotokoll verspricht, so
+/// etwas nicht zu erfassen, darum gibt es sie nur, wenn der Ordner „Bilder“ dort schon
+/// angelegt ist (von Hand, BarDrop legt ihn nie selbst an) und das Protokoll läuft.
+/// Ausschalten des Protokolls löscht den Ordner samt Bildern.
 enum ShelfSnapshots {
     static let directory: URL = {
         FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
@@ -14,9 +19,17 @@ enum ShelfSnapshots {
     private static let keep = 60
     private static var counter = 0
 
+    /// Bilder und Befehle sind eingeschaltet (siehe oben)
+    static var isActive: Bool {
+        var isDirectory: ObjCBool = false
+        return Diagnostics.shared.isEnabled
+            && FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory)
+            && isDirectory.boolValue
+    }
+
     /// Das Fenster jetzt und nach den angegebenen Verzögerungen aufnehmen
     static func capture(_ window: NSWindow?, _ reason: String, after delays: [TimeInterval] = [0, 0.3, 1]) {
-        guard Diagnostics.shared.isEnabled, let window else { return }
+        guard isActive, let window else { return }
         for delay in delays {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 save(window, "\(reason)+\(Int(delay * 1000))ms")
@@ -41,7 +54,6 @@ enum ShelfSnapshots {
         }
         let rep = NSBitmapImageRep(cgImage: image)
         guard let data = rep.representation(using: .png, properties: [:]) else { return }
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         counter += 1
         let stamp = ISO8601DateFormatter.string(from: Date(), timeZone: .current,
                                                 formatOptions: [.withTime, .withColonSeparatorInTime])
@@ -55,7 +67,7 @@ enum ShelfSnapshots {
     /// Zustand der Scrollbereiche im Fenster ins Protokoll (Größe des Inhalts, ob etwas
     /// aussteht, in welchem Modus die Ereignisschleife läuft), jetzt und nach den Verzögerungen
     static func describe(_ window: NSWindow?, _ reason: String, after delays: [TimeInterval]) {
-        guard Diagnostics.shared.isEnabled, let window else { return }
+        guard isActive, let window else { return }
         for delay in delays {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 var parts: [String] = []
@@ -85,24 +97,36 @@ enum ShelfSnapshots {
     }
 }
 
-/// Diagnose (nur mit eingeschaltetem Diagnoseprotokoll): Schritte, die sonst nur mit der Maus
-/// gehen, aus einer Textdatei ausführen, damit sich ein Fehler genau gleich wiederholen lässt.
-/// Liegt ~/Library/Logs/BarDrop/Befehl.txt vor, wird sie gelesen, gelöscht und Zeile für
-/// Zeile ausgeführt: open, close, add <Pfad>, folder <Pfad>, back, move <von> <nach>,
-/// shot <Name>, wait <Sekunden>. Ohne Diagnoseprotokoll geschieht nichts.
+/// Diagnose für die Entwicklung, eingeschaltet wie die Bilder (siehe ShelfSnapshots):
+/// Schritte, die sonst nur mit der Maus gehen, aus einer Textdatei ausführen, damit sich ein
+/// Fehler genau gleich wiederholen lässt. Liegt ~/Library/Logs/BarDrop/Befehl.txt vor, wird
+/// sie gelesen, gelöscht und Zeile für Zeile ausgeführt: open, close, add <Pfad>,
+/// folder <Pfad>, back, move <von> <nach>, shot <Name>, wait <Sekunden>. Nachgesehen wird
+/// nur, solange das Diagnoseprotokoll läuft.
 final class DiagnosticCommands {
     private let controller: EdgeController
     private var timer: Timer?
+    private var observer: AnyCancellable?
     private let file = ShelfSnapshots.directory.deletingLastPathComponent()
         .appendingPathComponent("Befehl.txt")
 
     init(controller: EdgeController) {
         self.controller = controller
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.poll() }
+        let settings = AppSettings.shared
+        observer = settings.$diagnosticsEnabled.combineLatest(settings.$betaUpdates)
+            .map { $0 && $1 }
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] on in self?.setPolling(on) }
+    }
+
+    private func setPolling(_ on: Bool) {
+        timer?.invalidate()
+        timer = on ? Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.poll() } : nil
     }
 
     private func poll() {
-        guard Diagnostics.shared.isEnabled,
+        guard ShelfSnapshots.isActive,
               let text = try? String(contentsOf: file, encoding: .utf8) else { return }
         try? FileManager.default.removeItem(at: file)
         var delay: TimeInterval = 0
