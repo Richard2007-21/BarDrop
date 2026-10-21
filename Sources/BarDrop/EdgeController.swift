@@ -1677,10 +1677,9 @@ extension EdgeController {
         Diagnostics.shared.record("tear", "ended")
     }
 
-    /// Liegt an dieser Stelle ein sichtbares Fenster einer anderen App über der Ablage
-    /// (Kontrollzentrum, Menü)? Unsichtbare Fenster anderer Apps zählen nicht (die Ablage
-    /// war sonst gar nicht mehr bedienbar). Kurz zwischengespeichert, um nicht bei jedem
-    /// Takt das System zu fragen.
+    /// Liegt an dieser Stelle das Kontrollzentrum (oder ein Menü) über der Ablage? Nur diese
+    /// zählen: Eine allgemeinere Prüfung erfasste auch Fenster anderer Apps, die man nicht
+    /// sieht, und die Ablage war dann nicht mehr bedienbar. Kurz zwischengespeichert.
     private func coveredByOtherWindow(at point: NSPoint) -> Bool {
         let now = Date()
         if now.timeIntervalSince(coverCheck.time) < 0.15, hypot(point.x - coverCheck.point.x, point.y - coverCheck.point.y) < 4 {
@@ -1690,6 +1689,7 @@ extension EdgeController {
         let mainHeight = NSScreen.screens.first?.frame.maxY ?? 0
         let cgPoint = CGPoint(x: point.x, y: mainHeight - point.y)
         let own = ProcessInfo.processInfo.processIdentifier
+        let systemPanels = ["ControlCenter", "Control Center", "NotificationCenter", "Notification Center"]
         if let list = CGWindowListCopyWindowInfo([.optionOnScreenAboveWindow, .excludeDesktopElements],
                                                  CGWindowID(panel.windowNumber)) as? [[String: Any]] {
             for info in list {
@@ -1698,12 +1698,16 @@ extension EdgeController {
                       let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
                       let bounds = CGRect(dictionaryRepresentation: boundsDict),
                       bounds.contains(cgPoint) else { continue }
-                // Riesige Fenster über allem (Bildschirmaufnahme, Overlays) nicht mitzählen
-                if let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }),
-                   bounds.width >= screen.frame.width - 1, bounds.height >= screen.frame.height - 40 { continue }
-                covered = true
-                break
+                let owner = info[kCGWindowOwnerName as String] as? String ?? ""
+                let layer = info[kCGWindowLayer as String] as? Int ?? 0
+                if systemPanels.contains(owner) || layer == Int(CGWindowLevelForKey(.popUpMenuWindow)) {
+                    covered = true
+                    break
+                }
             }
+        }
+        if covered != coverCheck.covered {
+            Diagnostics.shared.record("tear", "float verdeckt=\(covered)")
         }
         coverCheck = (now, point, covered)
         return covered
