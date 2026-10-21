@@ -192,9 +192,15 @@ struct ShelfContent: View {
     /// die Kacheln dahinter waren durch die Leiste zu sehen. Damit die Kante in diesem Moment
     /// trotzdem nicht hart wirkt, läuft das Schwarz nach oben weich aus, solange der Inhalt
     /// noch unscharf ist; danach ist die Kante wieder klar.
+    ///
+    /// Das Schwarz ist eine AppKit-Ansicht, keine SwiftUI-Farbe: Die Kacheln liegen in einem
+    /// Scrollbereich, der selbst eine AppKit-Ansicht ist, und eine einfache SwiftUI-Fläche
+    /// landete teils unter ihm, die Symbole der Leiste aber darüber. Dann sah man die Symbole
+    /// ohne Schwarz, mit den Kacheln dahinter. Eine AppKit-Ansicht nach dem Scrollbereich
+    /// liegt sicher über ihm.
     private var barBackdrop: some View {
         let soft = openBlur * 2
-        return Color.black
+        return OpaqueBlack()
             .overlay(alignment: .top) {
                 LinearGradient(colors: [.black.opacity(0), .black], startPoint: .top, endPoint: .bottom)
                     .frame(height: soft)
@@ -1131,4 +1137,22 @@ extension EnvironmentValues {
         get { self[ShelfDemoKey.self] }
         set { self[ShelfDemoKey.self] = newValue }
     }
+}
+
+/// Deckendes Schwarz als eigene AppKit-Ansicht (siehe `barBackdrop`)
+private struct OpaqueBlack: NSViewRepresentable {
+    final class BlackView: NSView {
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.black.cgColor
+        }
+        required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
+        override var isOpaque: Bool { true }
+        // Klicks gehen an die Leiste darüber bzw. fallen durch, wie bei der Farbe vorher
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+
+    func makeNSView(context: Context) -> BlackView { BlackView(frame: .zero) }
+    func updateNSView(_ view: BlackView, context: Context) {}
 }
