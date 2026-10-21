@@ -397,9 +397,11 @@ struct ShelfContent: View {
                 }
             }
         }
-        .onChange(of: store.entries) { _, _ in
+        .onChange(of: store.entries) { _, entries in
             // Stapel aufgelöst oder entfernt: zurück zur Ablage
             if ui.openStack != nil && stack == nil { ui.openStack = nil }
+            // Diagnose: Die Oberfläche hat den neuen Inhalt verarbeitet (siehe refreshContent)
+            Diagnostics.shared.record("view", "entries=\(entries.count) level=\(ui.level) key=\(ui.isKey)")
         }
     }
 

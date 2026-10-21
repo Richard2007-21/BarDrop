@@ -103,6 +103,8 @@ final class EdgeController: NSObject {
     private var pointerInside = false
     /// Die Übersicht war im letzten Takt offen
     private var quickLookWasVisible = false
+    private var hostView: ShelfHostingView<ShelfRootView>?
+    private var shownEntryCount = 0
     /// Objekte, deren Vorschaubild schon geladen wird oder beim Start da waren
     private var knownFileIDs: Set<UUID>?
 
@@ -123,6 +125,7 @@ final class EdgeController: NSObject {
         panel.onEscape = { [weak self] in self?.close() }
 
         let host = ShelfHostingView(rootView: ShelfRootView(ui: ui, store: store, settings: settings, actions: actions))
+        hostView = host
         let dropHandler = ShelfDropHandler(store: store, ui: ui)
         dropHandler.actions = actions
         host.dropHandler = dropHandler
@@ -599,6 +602,19 @@ final class EdgeController: NSObject {
     private func refreshContent() {
         guard ui.level == .expanded else { return }
         redrawContent()
+        // Neuer Inhalt bei offener Ablage (etwa ein Bild aus dem Browser): Laut Protokoll
+        // zeichnete die Ablage ihn teils erst beim Schließen, obwohl er längst da war. Dann die
+        // Oberfläche ausdrücklich neu aufbauen lassen, wie es beim Schließen geschieht
+        let count = store.entries.reduce(0) { $0 + $1.files.count }
+        if count != shownEntryCount {
+            shownEntryCount = count
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let host = self.hostView, self.ui.level == .expanded else { return }
+                host.rootView = host.rootView
+                host.layoutSubtreeIfNeeded()
+                self.panel.displayIfNeeded()
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self, self.ui.level == .expanded else { return }
             if !self.panel.isKeyWindow, (NSEvent.pressedMouseButtons & 1) == 0,
