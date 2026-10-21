@@ -98,18 +98,23 @@ struct TearGoo: View, Animatable {
             // verschmelzende Form; so gibt es keinen Moment, in dem es durchscheint
             let dockIn = Double(min(1, tear.dock * 2))
             let gooOut = Double(max(0, tear.dock * 2 - 1))
-            if glass < 0.999 || attach > 0.01 {
-                // Das Schwarz zieht sich zum Rand hin zurück, als bliebe es dort hängen (beim
-                // Andocken kommt es von dort wieder)
-                solid.mask { darkness(attach: attach) }
-                    .opacity(1 - gooOut)
+            // Ein gemeinsamer Schatten für beide Formen: Während der Überblendung lagen sonst
+            // zwei Schatten übereinander, und er wurde kurz dunkler (im Video nachgemessen)
+            ZStack {
+                if glass < 0.999 || attach > 0.01 {
+                    // Das Schwarz zieht sich zum Rand hin zurück, als bliebe es dort hängen (beim
+                    // Andocken kommt es von dort wieder)
+                    solid.mask { darkness(attach: attach) }
+                        .opacity(1 - gooOut)
+                }
+                if dockIn > 0.001, let docked {
+                    DockedSpan(base: docked, reach: reach, gap: tear.gap, side: tear.side)
+                        .fill(Color.black)
+                        .opacity(dockIn)
+                }
             }
-            if dockIn > 0.001, let docked {
-                DockedSpan(base: docked, reach: reach, gap: tear.gap, side: tear.side)
-                    .fill(Color.black)
-                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
-                    .opacity(dockIn)
-            }
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
             if outline {
                 // Rahmen wechseln gegenläufig (sonst lagen kurz zwei Bögen übereinander)
                 Group {
@@ -178,7 +183,6 @@ struct TearGoo: View, Animatable {
             if tear.attach > 0.01 {
                 // Mit dem Rand verbunden: verschmelzende Formen (aufwendig, nur dann)
                 goo(grow: 0, color: .black)
-                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
             } else {
                 // Gelöst oder schwebend: ein einfaches abgerundetes Rechteck, das kostet beim
                 // Ziehen fast nichts
@@ -188,7 +192,6 @@ struct TearGoo: View, Animatable {
                     .fill(Color.black)
                     .padding(.horizontal, reach - (outline ? 1 : 0))
                     .padding(.vertical, inset - (outline ? 1 : 0))
-                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
             }
         }
     }
