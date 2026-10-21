@@ -593,6 +593,23 @@ struct ActionSettings: View {
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(L("Folder", "Ordner")) { chooseFolder() })
         menu.addItem(ClosureMenuItem("App") { chooseApp() })
+        // Kurzbefehle aus der App Kurzbefehle: Objekte darauf ziehen führt sie aus
+        let shortcuts = NSMenu()
+        let names = ShortcutRunner.list()
+        if names.isEmpty {
+            let none = NSMenuItem(title: L("No shortcuts found", "Keine Kurzbefehle gefunden"), action: nil, keyEquivalent: "")
+            shortcuts.addItem(none)
+        }
+        for name in names {
+            let item = ClosureMenuItem(name) { add(QuickAction(kind: .shortcut, path: name)) }
+            if settings.quickActions.contains(where: { $0.kind == .shortcut && $0.path == name }) {
+                item.action = nil
+            }
+            shortcuts.addItem(item)
+        }
+        let shortcutItem = NSMenuItem(title: L("Shortcut", "Kurzbefehl"), action: nil, keyEquivalent: "")
+        shortcutItem.submenu = shortcuts
+        menu.addItem(shortcutItem)
         // Eingeschaltete Plugins, die in der Aktionsleiste laufen können
         let plugins = PluginManager.shared.activePlugins.filter { $0.manifest.allTriggers.contains(.action) }
         if !plugins.isEmpty {

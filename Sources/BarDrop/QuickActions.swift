@@ -7,6 +7,8 @@ struct QuickAction: Codable, Identifiable, Hashable {
         case airdrop, share, mail, messages, folder, app, trash
         /// Ein Plugin (`path` ist seine Kennung)
         case plugin
+        /// Ein Kurzbefehl aus der App Kurzbefehle (`path` ist sein Name)
+        case shortcut
         /// Nur noch zum Einlesen alter Einstellungen (1.28): Umwandeln steht im Kontextmenü
         case convert
     }
@@ -27,6 +29,7 @@ struct QuickAction: Codable, Identifiable, Hashable {
         case .trash: return L("Trash", "Papierkorb")
         case .convert: return L("Convert", "Umwandeln")
         case .plugin: return PluginManager.shared.plugin(path)?.manifest.title ?? L("Plugin", "Plugin")
+        case .shortcut: return path ?? L("Shortcut", "Kurzbefehl")
         case .folder, .app:
             guard let path else { return kind == .folder ? L("Folder", "Ordner") : "App" }
             let name = FileManager.default.displayName(atPath: path)
@@ -45,6 +48,7 @@ struct QuickAction: Codable, Identifiable, Hashable {
         case .convert: return L("Convert to another format", "In ein anderes Format umwandeln")
         case .plugin:
             return PluginManager.shared.plugin(path)?.manifest.description?.text ?? L("Run the plugin", "Plugin ausführen")
+        case .shortcut: return L("Run the shortcut “\(title)”", "Kurzbefehl „\(title)“ ausführen")
         case .folder: return L("Move to “\(title)”", "In „\(title)“ verschieben")
         case .app: return L("Open with \(title)", "Mit \(title) öffnen")
         }
@@ -62,6 +66,8 @@ struct QuickAction: Codable, Identifiable, Hashable {
             return Self.appIcon("com.apple.mail")
         case .messages:
             return Self.appIcon("com.apple.MobileSMS")
+        case .shortcut:
+            return Self.appIcon("com.apple.shortcuts")
         case .trash:
             // Das Papierkorb-Symbol des Systems, wie im Dock. Der Papierkorb-Ordner selbst
             // ist ohne Festplattenvollzugriff nicht lesbar und liefert nur ein Blatt.
@@ -83,6 +89,7 @@ struct QuickAction: Codable, Identifiable, Hashable {
         case .plugin: return PluginManager.shared.plugin(path)?.manifest.icon?.resolvedSymbol ?? PluginIconView.fallbackSymbol
         case .folder: return "folder.fill"
         case .app: return "app.fill"
+        case .shortcut: return "square.2.layers.3d.fill"
         }
     }
 

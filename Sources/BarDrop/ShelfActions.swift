@@ -583,6 +583,39 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             var seen = Set<URL>()
             let files = known.filter { keys.contains($0.url.standardizedFileURL) && seen.insert($0.url.standardizedFileURL).inserted }
             plugins.run(id, on: files)
+        case .shortcut:
+            guard let name = action.path else { return }
+            runShortcut(name, on: urls)
+        }
+    }
+
+    /// Kurzbefehl mit den Dateien ausführen; was er zurückgibt, kommt in die Ablage
+    private func runShortcut(_ name: String, on urls: [URL]) {
+        announce(L("Running “\(name)”", "„\(name)“ läuft"))
+        ShortcutRunner.run(name, inputs: urls) { [weak self] outcome in
+            guard let self else { return }
+            switch outcome {
+            case .failed:
+                NSSound.beep()
+                self.announce(L("Shortcut failed", "Kurzbefehl fehlgeschlagen"))
+            case .done(let results, let folder):
+                guard !results.isEmpty else {
+                    if let folder { try? FileManager.default.removeItem(at: folder) }
+                    self.announce(L("Done", "Fertig"))
+                    return
+                }
+                let pasteboard = NSPasteboard(name: NSPasteboard.Name("io.github.zzuuuiii.bardrop.shortcut"))
+                pasteboard.clearContents()
+                pasteboard.writeObjects(results as [NSURL])
+                self.store.ingest(from: pasteboard) { [weak self] added in
+                    if let folder {
+                        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 30) {
+                            try? FileManager.default.removeItem(at: folder)
+                        }
+                    }
+                    self?.announce(added.isEmpty ? L("Done", "Fertig") : L("Added to the shelf", "In der Ablage"))
+                }
+            }
         }
     }
 
