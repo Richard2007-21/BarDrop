@@ -79,7 +79,8 @@ struct ShelfRootView: View {
             .frame(width: m.width, height: m.height + 2 * m.fillet, alignment: edgeAlignment)
             .background {
                 if let tear {
-                    TearGoo(tear: tear, inset: m.fillet, reach: EdgeTear.reach)
+                    TearGoo(tear: tear, inset: m.fillet, reach: EdgeTear.reach,
+                            outline: settings.showOutline || ui.forcesOutline)
                         .frame(width: m.width + 2 * EdgeTear.reach, height: m.height + 2 * m.fillet)
                 }
             }

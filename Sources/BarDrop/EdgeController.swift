@@ -1207,11 +1207,12 @@ extension EdgeController {
                 updateTear(drag)
                 return
             }
+            // Mit spürbarem Widerstand: Die Ablage folgt nur zu einem Drittel, dann reißt sie
             let pull = max(0, away)
-            let gap = pull * 0.55
+            let gap = pull * 0.33
             var body = drag.bodyStart
             body.origin.x += drag.origin == .right ? -gap : gap
-            body.origin.y += (p.y - drag.start.y) * 0.25
+            body.origin.y += (p.y - drag.start.y) * 0.15
             drag.body = body
             setTear(gap: gap, attach: 1 - 0.8 * pow(pull / EdgeTear.tearDistance, 1.3), side: drag.origin)
             applyTearFrame(body)
@@ -1229,8 +1230,9 @@ extension EdgeController {
             if hypot(dx, dy) < 0.5 {
                 body.origin = target.origin
             } else {
-                body.origin.x += dx * 0.35
-                body.origin.y += dy * 0.35
+                // Nach dem Lösen schnappt sie zum Zeiger, danach folgt sie ihm direkt
+                body.origin.x += dx * 0.55
+                body.origin.y += dy * 0.55
             }
             drag.body = body
             guard let near = nearestDock(for: body) else {
@@ -1248,7 +1250,7 @@ extension EdgeController {
                 // Gleich nach dem Lösen: Die Verbindung zum alten Rand zieht sich schnell zurück
                 let screen = drag.originScreen.frame
                 let gap = drag.origin == .right ? screen.maxX - body.maxX : body.minX - screen.minX
-                let t = min(1, Date().timeIntervalSince(drag.detachStarted) / 0.22)
+                let t = min(1, Date().timeIntervalSince(drag.detachStarted) / 0.14)
                 let fade = CGFloat(1 - (1 - t) * (1 - t))
                 setTear(gap: gap, attach: drag.detachAttach * (1 - fade), side: drag.origin)
             }
@@ -1300,7 +1302,7 @@ extension EdgeController {
     }
 
     private func stepDock(_ drag: TearDrag) {
-        let duration: TimeInterval = 0.3
+        let duration: TimeInterval = 0.22
         let t = min(1, Date().timeIntervalSince(drag.dockStarted) / duration)
         let e = CGFloat(1 - pow(1 - t, 3))
         let from = drag.dockFrom, to = drag.dockTo

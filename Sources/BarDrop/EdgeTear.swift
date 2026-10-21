@@ -10,7 +10,7 @@ enum EdgeTear {
     /// Schatten und die Verbindung zum Rand
     static let reach: CGFloat = 140
     /// So weit (pt) muss man vom Rand weg ziehen, bis sich die Ablage löst
-    static let tearDistance: CGFloat = 90
+    static let tearDistance: CGFloat = 60
     /// Bis zu diesem Abstand zum Rand zieht er die Ablage wieder an
     static let attachZone: CGFloat = 70
     /// Eckenradius der schwebenden Ablage (wie die offene Ablage innen)
@@ -28,16 +28,32 @@ struct TearGoo: View {
     let inset: CGFloat
     /// Platz links und rechts der Ablage im Rahmen
     let reach: CGFloat
+    /// Feiner heller Rahmen wie am Rand (Einstellung „Rahmen“ bzw. in der Einführung)
+    var outline = false
 
     var body: some View {
+        ZStack {
+            if outline {
+                // Dieselbe Form, 1 pt größer und hell: Unter der schwarzen bleibt ein feiner Rand
+                goo(grow: 1, color: Color.white.opacity(0.2))
+            }
+            goo(grow: 0, color: .black)
+                .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func goo(grow: CGFloat, color: Color) -> some View {
         Canvas { context, size in
-            context.addFilter(.alphaThreshold(min: 0.5, color: .black))
+            context.addFilter(.alphaThreshold(min: 0.5, color: color))
             context.addFilter(.blur(radius: 7))
             context.drawLayer { layer in
                 let body = CGRect(x: reach, y: inset, width: max(0, size.width - 2 * reach),
                                   height: max(0, size.height - 2 * inset))
                 guard body.width > 0, body.height > 0 else { return }
-                layer.fill(Path(roundedRect: body, cornerRadius: EdgeTear.cornerRadius, style: .continuous),
+                layer.fill(Path(roundedRect: body.insetBy(dx: -grow, dy: -grow),
+                                cornerRadius: EdgeTear.cornerRadius + grow, style: .continuous),
                            with: .color(.black))
                 let a = max(0, min(1, tear.attach))
                 guard a > 0.01 else { return }
@@ -47,7 +63,7 @@ struct TearGoo: View {
                 // des Bildschirms)
                 let beyond: CGFloat = 30
                 // Verbindung: von der Mitte der Ablage bis über den Rand, je loser, desto dünner
-                let bridgeHeight = body.height * pow(a, 1.6)
+                let bridgeHeight = body.height * pow(a, 1.6) + 2 * grow
                 if bridgeHeight > 1 {
                     let from = right ? body.midX : edgeX - beyond
                     let to = right ? edgeX + beyond : body.midX
@@ -57,8 +73,8 @@ struct TearGoo: View {
                 }
                 // Ein Stück Rand, das sich herauswölbt: oben und unten etwas länger als die
                 // Ablage, so laufen die Übergänge weich aus wie sonst am Rand
-                let stubHeight = (body.height + 2 * inset) * (0.3 + 0.7 * a)
-                let stubWidth = 2 * (6 + 12 * a)
+                let stubHeight = (body.height + 2 * inset) * (0.3 + 0.7 * a) + 2 * grow
+                let stubWidth = 2 * (6 + 12 * a) + 2 * grow
                 layer.fill(Path(ellipseIn: CGRect(x: edgeX - stubWidth / 2, y: body.midY - stubHeight / 2,
                                                   width: stubWidth, height: stubHeight)),
                            with: .color(.black))
@@ -67,8 +83,5 @@ struct TearGoo: View {
                            with: .color(.black))
             }
         }
-        .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }
