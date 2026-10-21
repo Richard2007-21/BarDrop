@@ -22,9 +22,9 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     var actionID: QuickAction.ID?
     /// Eine andere Aktion wurde über diese gezogen: Die gezogene nimmt ihren Platz ein
     var onReorder: (QuickAction.ID) -> Void = { _ in }
-    /// In der Leiste gezogen: wie weit das Symbol von seinem Platz weg am Zeiger hängt
-    /// (SwiftUI-Richtung, nach unten positiv); nil: zurück an seinen Platz
-    var onMove: (CGSize?) -> Void = { _ in }
+    /// In der Leiste gezogen: wo der Zeiger steht, in SwiftUI-Koordinaten des Fensters
+    /// (`.global`); nil: zurück an seinen Platz
+    var onMove: (CGPoint?) -> Void = { _ in }
     /// Die Aktion hat sich aus der Leiste gelöst (ihr Platz bleibt leer, bis sie zurück ist)
     var onDraggingOut: (Bool) -> Void = { _ in }
     weak var ui: ShelfUIModel?
@@ -153,21 +153,17 @@ final class ActionDropNSView: NSView, NSDraggingSource {
             Self.reorderedAt = Date()
             view.onReorder(me)
             ShelfSnapshots.capture(window, "reorder", after: [0.05, 0.2, 0.5])
-            // Der Platz ist gewandert: das Symbol danach wieder genau unter den Zeiger
-            DispatchQueue.main.async { [weak self] in self?.followPointer() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.followPointer() }
             break
         }
     }
 
+    /// Den Zeiger melden, nicht den Abstand zum eigenen Platz: Den rechnet die Ansicht beim
+    /// Zeichnen selbst aus. Vorher kam nach einem Tausch der neue Platz ein Bild früher an
+    /// als der neue Abstand, und das Symbol sprang kurz um eine Stelle weiter.
     private func follow(_ pointInWindow: NSPoint) {
-        let p = convert(pointInWindow, from: nil)
-        onMove(CGSize(width: p.x - bounds.midX, height: -(p.y - bounds.midY)))
-    }
-
-    private func followPointer() {
-        guard mode == .inBar, let window else { return }
-        follow(window.convertPoint(fromScreen: NSEvent.mouseLocation))
+        guard let host = window?.contentView else { return }
+        let p = host.convert(pointInWindow, from: nil)
+        onMove(host.isFlipped ? p : CGPoint(x: p.x, y: host.bounds.height - p.y))
     }
 
     private func endInBar() {
@@ -316,7 +312,7 @@ struct ActionDropTarget: NSViewRepresentable {
     var onDraggingOut: (Bool) -> Void = { _ in }
     var actionID: QuickAction.ID? = nil
     var onReorder: (QuickAction.ID) -> Void = { _ in }
-    var onMove: (CGSize?) -> Void = { _ in }
+    var onMove: (CGPoint?) -> Void = { _ in }
 
     func makeNSView(context: Context) -> ActionDropNSView {
         let view = ActionDropNSView(frame: .zero)
@@ -462,7 +458,8 @@ struct QuickActionButton: View {
     /// Hat sich aus der Leiste gelöst: Ihr Platz bleibt leer, es gibt nur das Bild am Zeiger
     @State private var draggingOut = false
     /// Mit ⌘ in der Leiste gezogen: So weit hängt das Symbol am Zeiger von seinem Platz weg
-    @State private var moveOffset: CGSize?
+    /// Beim Ziehen mit ⌘: Zeiger in `.global`-Koordinaten (siehe ActionDropNSView.follow)
+    @State private var movePoint: CGPoint?
     /// Gerade angeklickt: kurz größer wie beim Draufziehen, ohne Fläche dahinter und ohne Impuls
     @State private var pressed = false
     @State private var pressedAt = Date.distantPast
@@ -522,10 +519,10 @@ struct QuickActionButton: View {
     var body: some View {
         // Produktbilder zeigen eine Aktion mit einer Datei darüber
         let highlighted = targeted || ui.previewTargetedAction == action.id
-        return VStack(spacing: 4) {
+        let label = VStack(spacing: 4) {
             // Ohne Namen größer, damit die Leiste nicht leer wirkt
             QuickActionIcon(action: action, size: iconSize)
-                .scaleEffect(highlighted || pressed || moveOffset != nil ? 1.1 : 1)
+                .scaleEffect(highlighted || pressed || movePoint != nil ? 1.1 : 1)
                 .opacity(draggingOut ? 0 : 1)
             if AppSettings.shared.showActionLabels {
                 // „Nur Ordner“: die übrigen Aktionen halten den Platz frei, damit alle
@@ -540,9 +537,20 @@ struct QuickActionButton: View {
                     .accessibilityHidden(!named)
             }
         }
-        // Beim Ziehen mit ⌘ hängt das Symbol samt Namen am Zeiger; die Fläche zum Ablegen
-        // (unten) bleibt an ihrem Platz, damit die Leiste weiß, wo die Aktion jetzt steht
-        .offset(moveOffset ?? .zero)
+        // Der Platz bleibt unsichtbar stehen und gibt die Größe vor; gezeichnet wird das Symbol
+        // darüber, beim Ziehen mit ⌘ samt Namen am Zeiger. Der Abstand zum Platz entsteht im
+        // selben Durchgang wie der Platz selbst: Nach einem Tausch steht es sofort richtig.
+        // Die Fläche zum Ablegen (unten) bleibt am Platz, damit die Leiste weiß, wo die Aktion steht
+        return label
+            .hidden()
+            .overlay {
+                GeometryReader { g in
+                    let slot = g.frame(in: .global)
+                    label
+                        .frame(width: g.size.width, height: g.size.height)
+                        .offset(movePoint.map { CGSize(width: $0.x - slot.midX, height: $0.y - slot.midY) } ?? .zero)
+                }
+            }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
         .background(
@@ -602,22 +610,22 @@ struct QuickActionButton: View {
                     }
                     Haptics.tap()
                 },
-                onMove: { offset in
-                    if offset == nil {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { moveOffset = nil }
+                onMove: { point in
+                    if point == nil {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { movePoint = nil }
                     } else {
                         // Genau am Zeiger, ohne Nachziehen
                         var transaction = Transaction()
                         transaction.disablesAnimations = true
-                        withTransaction(transaction) { moveOffset = offset }
+                        withTransaction(transaction) { movePoint = point }
                     }
                 }
             )
         } })
         // Das gezogene Symbol liegt über den anderen; sein Platz springt ohne Animation mit,
         // sonst liefe es beim Umordnen kurz dem Zeiger davon
-        .zIndex(moveOffset != nil ? 1 : 0)
-        .transaction { if moveOffset != nil { $0.animation = nil } }
+        .zIndex(movePoint != nil ? 1 : 0)
+        .transaction { if movePoint != nil { $0.animation = nil } }
         .help(action.help)
     }
 }

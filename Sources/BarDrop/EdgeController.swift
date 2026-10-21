@@ -103,42 +103,7 @@ final class EdgeController: NSObject {
     private var pointerInside = false
     /// Die Übersicht war im letzten Takt offen
     private var quickLookWasVisible = false
-    private var hostView: ShelfHostingView<ShelfRootView>?
 
-    /// Nach jedem Ereignis (Klick, Taste, Mausbewegung) lässt macOS alle Fenster ihre
-    /// ausstehenden Aktualisierungen erledigen (`updateWindows`), und SwiftUI hängt Teile
-    /// seiner Aktualisierung daran. Ein Bild aus dem Browser kommt aber ohne Ereignis an (die
-    /// Datei wird im Hintergrund fertig): Laut Protokoll hatte die Ablage es sofort, zeigte
-    /// es aber erst nach dem nächsten Klick. Darum hier selbst aktualisieren und ein leeres
-    /// Ereignis einreihen, das die Ereignisschleife einmal durchlaufen lässt wie ein Klick.
-    private static func nudgeEventLoop(_ window: NSWindow) {
-        window.update()
-        NSApp.updateWindows()
-        if let event = NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [],
-                                          timestamp: ProcessInfo.processInfo.systemUptime,
-                                          windowNumber: window.windowNumber, context: nil,
-                                          subtype: 0, data1: 0, data2: 0) {
-            NSApp.postEvent(event, atStart: false)
-        }
-    }
-
-    /// Alle Scrollbereiche unter `view` samt Inhalt neu auslegen und zeichnen lassen
-    private static func invalidateScrollViews(in view: NSView) {
-        if let scroll = view as? NSScrollView {
-            markAll(scroll)
-            scroll.layoutSubtreeIfNeeded()
-            scroll.displayIfNeeded()
-            return
-        }
-        view.subviews.forEach { invalidateScrollViews(in: $0) }
-    }
-
-    private static func markAll(_ view: NSView) {
-        view.needsLayout = true
-        view.needsDisplay = true
-        view.subviews.forEach(markAll)
-    }
-    private var shownEntryCount = 0
     /// Objekte, deren Vorschaubild schon geladen wird oder beim Start da waren
     private var knownFileIDs: Set<UUID>?
 
@@ -159,7 +124,6 @@ final class EdgeController: NSObject {
         panel.onEscape = { [weak self] in self?.close() }
 
         let host = ShelfHostingView(rootView: ShelfRootView(ui: ui, store: store, settings: settings, actions: actions))
-        hostView = host
         let dropHandler = ShelfDropHandler(store: store, ui: ui)
         dropHandler.actions = actions
         host.dropHandler = dropHandler
@@ -637,27 +601,6 @@ final class EdgeController: NSObject {
     private func refreshContent() {
         guard ui.level == .expanded else { return }
         redrawContent()
-        // Neuer Inhalt bei offener Ablage (etwa ein Bild aus dem Browser): Laut Protokoll
-        // zeichnete die Ablage ihn teils erst beim Schließen, obwohl er längst da war. Dann die
-        // Oberfläche ausdrücklich neu aufbauen lassen, wie es beim Schließen geschieht
-        let count = store.entries.reduce(0) { $0 + $1.files.count }
-        if count != shownEntryCount {
-            shownEntryCount = count
-            let redraw = { [weak self] in
-                guard let self, let host = self.hostView, self.ui.level == .expanded else { return }
-                host.rootView = host.rootView
-                // Laut Bildschirmaufnahme änderte sich der Kopf sofort („1 ausgewählt“), nur die
-                // Kacheln blieben alt: Sie liegen in einem Scrollbereich, einer eigenen
-                // AppKit-Ansicht, die sich nicht von selbst neu zeichnete. Ihn ganz neu
-                // auslegen und zeichnen lassen
-                Self.invalidateScrollViews(in: host)
-                host.layoutSubtreeIfNeeded()
-                self.panel.displayIfNeeded()
-                Self.nudgeEventLoop(self.panel)
-            }
-            DispatchQueue.main.async(execute: redraw)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: redraw)
-        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self, self.ui.level == .expanded else { return }
             if !self.panel.isKeyWindow, (NSEvent.pressedMouseButtons & 1) == 0,

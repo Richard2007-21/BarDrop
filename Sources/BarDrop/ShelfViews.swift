@@ -366,7 +366,10 @@ struct ShelfContent: View {
                     // Beim Öffnen genauso unscharf wie Kopf und Kacheln, aber nur die Symbole:
                     // Das Schwarz dahinter bleibt voll deckend (siehe barBackdrop)
                     .blur(radius: openBlur)
-                    .background { barBackdrop }
+                    // Nach unten weit über die Leiste hinaus (die Form schneidet es ab): Während
+                    // des Öffnens lag die Leiste laut Bildaufnahmen ein Stück über der Unterkante,
+                    // und darunter schien die nächste Kachelreihe durch
+                    .background { barBackdrop.padding(.bottom, -80) }
                     .background(
                         GeometryReader { g in
                             Color.clear.preference(key: BarHeightKey.self, value: g.size.height)
