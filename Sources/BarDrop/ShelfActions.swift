@@ -591,7 +591,8 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     /// Kurzbefehl mit den Dateien ausführen; was er zurückgibt, kommt in die Ablage
     private func runShortcut(_ name: String, on urls: [URL]) {
-        announce(L("Running “\(name)”", "„\(name)“ läuft"))
+        // Kurz, der Platz oben rechts ist klein; der Name steht schon an der Aktion
+        announce(L("Running shortcut", "Kurzbefehl läuft"))
         ShortcutRunner.run(name, inputs: urls) { [weak self] outcome in
             guard let self else { return }
             switch outcome {
@@ -613,7 +614,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                             try? FileManager.default.removeItem(at: folder)
                         }
                     }
-                    self?.announce(added.isEmpty ? L("Done", "Fertig") : L("Added to the shelf", "In der Ablage"))
+                    self?.announce(L("Done", "Fertig"))
                 }
             }
         }
