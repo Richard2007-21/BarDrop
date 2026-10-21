@@ -260,7 +260,12 @@ struct TearGoo: View, Animatable {
         let a = max(0, min(1, tear.attach))
         let right = tear.side == .right
         // Verbindung samt ihren weichen Übergängen (etwa so breit wie die Unschärfe)
-        let height = body.height * pow(a, 1.6) + 30
+        // Liegt die Ablage nah am Rand, verschmilzt ihre ganze Seite mit dem Bogen dort (nicht
+        // nur die Verbindung): dann über die volle Höhe aussparen, sonst lagen dort Linien
+        // mitten im Schwarz und der Rahmen wirkte heller
+        let bridge = body.height * pow(a, 1.6) + 30
+        let near = max(0, min(1, (tear.gap - 6) / 14))
+        let height = size.height * (1 - near) + bridge * near
         // Nur ein schmaler Streifen an der Seite zum Rand: Bis zur Mitte ausgespart fehlte
         // der Rahmen oben und unten auf halber Breite und wuchs beim Lösen von den Ecken
         // her nach (bei großer Ablage deutlich zu sehen), angedockt war er dann plötzlich da
