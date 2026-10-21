@@ -1461,7 +1461,21 @@ extension EdgeController {
         if drag.phase == .free { releaseTear(drag) }
     }
 
+    /// Losgelöst wird sie zu Glas, beim Andocken wieder schwarz, jeweils weich
+    private func setGlass(_ on: Bool, animated: Bool = true) {
+        let value: Double = on ? 1 : 0
+        guard ui.tearGlass != value else { return }
+        if animated {
+            withAnimation(.easeInOut(duration: on ? 0.4 : 0.3)) { ui.tearGlass = value }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { ui.tearGlass = value }
+        }
+    }
+
     private func detachTear(_ drag: TearDrag) {
+        setGlass(true)
         drag.phase = .free
         drag.detachStarted = Date()
         drag.detachAttach = ui.tear?.attach ?? 0
@@ -1513,6 +1527,7 @@ extension EdgeController {
     }
 
     private func dock(_ drag: TearDrag, side: ScreenEdge, screen: NSScreen) {
+        setGlass(false)
         drag.phase = .docking
         drag.dockSide = side
         drag.dockScreen = screen
@@ -1567,6 +1582,7 @@ extension EdgeController {
             }
             ui.tear = nil
             ui.grabbing = false
+            ui.tearGlass = 0
             // Der Rahmen am Rand läuft in die Rundungen zum Bildschirm hinein, die es eben
             // noch nicht gab: Er kommt weich hinzu statt kurz aufzublitzen
             ui.dockOutline = 0
@@ -1597,6 +1613,7 @@ extension EdgeController {
         withTransaction(transaction) {
             ui.tear = nil
             ui.grabbing = false
+            ui.tearGlass = 0
         }
         layoutPanel()
         Diagnostics.shared.record("tear", "ended")

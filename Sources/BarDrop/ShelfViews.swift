@@ -80,7 +80,7 @@ struct ShelfRootView: View {
             .background {
                 if let tear {
                     TearGoo(tear: tear, inset: m.fillet, reach: EdgeTear.reach,
-                            outline: settings.showOutline || ui.forcesOutline)
+                            outline: settings.showOutline || ui.forcesOutline, glass: ui.tearGlass)
                         .frame(width: m.width + 2 * EdgeTear.reach, height: m.height + 2 * m.fillet)
                 }
             }
@@ -311,8 +311,9 @@ struct ShelfContent: View {
                     // Oben derselbe weiche Übergang wie über der Aktionsleiste: Was unter den
                     // Kopf scrollt, läuft ins Schwarz aus statt hart abgeschnitten zu werden
                     .overlay(alignment: .top) {
+                        // Auf Glas (losgelöst) nur angedeutet, sonst läge ein dunkles Band darüber
                         topFade
-                            .opacity(scroll.scrolled ? 1 : 0)
+                            .opacity(scroll.scrolled ? 1 - 0.6 * ui.tearGlass : 0)
                             .animation(.easeOut(duration: 0.15), value: scroll.scrolled)
                     }
                     .coordinateSpace(name: "viewport")

@@ -86,6 +86,8 @@ final class ShelfUIModel: ObservableObject {
     @Published var grabbing = false
     /// Rahmen der Ablage am Rand: nach dem Andocken kurz ausgeblendet, dann weich eingeblendet
     @Published var dockOutline: Double = 1
+    /// Losgelöste Ablage aus Glas (0 schwarz, 1 Glas), weich übergeblendet
+    @Published var tearGlass: Double = 0
 
     /// Ordner oder App, die gerade über die Ablage gezogen wird und sich anheften ließe.
     /// Solange gesetzt, zeigt die Aktionsleiste einen freien Platz zum Anheften.

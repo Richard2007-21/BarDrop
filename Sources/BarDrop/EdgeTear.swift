@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Die Ablage an der Kopfzeile vom Rand ziehen: Erst dehnt sie sich wie ein Tropfen, der
 /// am Rand hängt, dann löst sie sich mit einem Ruck. An einem Rand (links oder rechts)
@@ -37,9 +38,49 @@ struct TearGoo: View {
     let reach: CGFloat
     /// Feiner heller Rahmen wie am Rand (Einstellung „Rahmen“ bzw. in der Einführung)
     var outline = false
+    /// Losgelöst aus Glas (0 schwarz wie am Rand, 1 Glas). Je näher sie einem Rand kommt,
+    /// desto schwärzer, damit sie beim Andocken nahtlos in die schwarze Ablage übergeht.
+    var glass: Double = 0
 
     var body: some View {
+        let black = max(1 - glass, Double(max(0, min(1, tear.attach))))
         ZStack {
+            if glass > 0.001 {
+                // Schatten nur außerhalb der Ablage: Unter dem Glas sähe man ihn sonst durch
+                bodyShape
+                    .fill(Color.black)
+                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+                    .mask {
+                        ZStack {
+                            Rectangle()
+                            bodyShape.blendMode(.destinationOut)
+                        }
+                        .compositingGroup()
+                    }
+                    .opacity(1 - black)
+                ShelfGlass(cornerRadius: EdgeTear.cornerRadius)
+                    .padding(.horizontal, reach)
+                    .padding(.vertical, inset)
+                    .opacity(glass)
+            }
+            solid.opacity(black)
+            if outline {
+                outlineStroke
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// Umriss der Ablage im Rahmen
+    private var bodyShape: TearBodyShape {
+        TearBodyShape(reach: reach, inset: inset)
+    }
+
+    /// Schwarze Ablage wie am Rand (angedockt, beim Dehnen, beim Andocken)
+    @ViewBuilder
+    private var solid: some View {
+        Group {
             if tear.attach > 0.01 {
                 // Mit dem Rand verbunden: verschmelzende Formen (aufwendig, nur dann)
                 goo(grow: 0, color: .black)
@@ -55,12 +96,7 @@ struct TearGoo: View {
                     .padding(.vertical, inset - (outline ? 1 : 0))
                     .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
             }
-            if outline {
-                outlineStroke
-            }
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     /// Feiner heller Rahmen, scharf gezeichnet (nicht aus der verschmolzenen Form: dort wurde er
@@ -130,5 +166,59 @@ struct TearGoo: View {
                            with: .color(.black))
             }
         }
+    }
+}
+
+/// Die losgelöste Ablage im größeren Fenster: abgerundetes Rechteck in der Mitte
+struct TearBodyShape: Shape {
+    let reach: CGFloat
+    let inset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let body = rect.insetBy(dx: reach, dy: inset)
+        guard body.width > 0, body.height > 0 else { return Path() }
+        return Path(roundedRect: body, cornerRadius: EdgeTear.cornerRadius, style: .continuous)
+    }
+}
+
+/// Glas hinter der losgelösten Ablage: ab macOS 26 Liquid Glass (mit der leichten Verzerrung
+/// an den Rändern), dunkel getönt, damit Schrift und Symbole gut lesbar bleiben. Davor eine
+/// dunkle Unschärfe des Hintergrunds.
+struct ShelfGlass: NSViewRepresentable {
+    var cornerRadius: CGFloat
+
+    func makeNSView(context: Context) -> NSView {
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.appearance = NSAppearance(named: .darkAqua)
+            glass.cornerRadius = cornerRadius
+            glass.tintColor = NSColor.black.withAlphaComponent(0.45)
+            return glass
+        }
+        let blur = NSVisualEffectView()
+        blur.appearance = NSAppearance(named: .darkAqua)
+        blur.material = .hudWindow
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        blur.maskImage = Self.mask(cornerRadius)
+        return blur
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        if #available(macOS 26.0, *), let glass = view as? NSGlassEffectView {
+            glass.cornerRadius = cornerRadius
+        }
+    }
+
+    private static func mask(_ radius: CGFloat) -> NSImage {
+        let side = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 }
