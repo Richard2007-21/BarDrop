@@ -62,6 +62,8 @@ struct TearGoo: View, Animatable {
     /// Losgelöst aus Glas (0 schwarz wie am Rand, 1 Glas). Je näher sie einem Rand kommt,
     /// desto schwärzer, damit sie beim Andocken nahtlos in die schwarze Ablage übergeht.
     var glass: Double = 0
+    /// Helles Erscheinungsbild: helles Glas statt dunklem
+    var light = false
     /// Die Ablage am Rand, wie sie angedockt aussieht (Überblendung über `tear.dock`)
     var docked: EdgeBlobShape? = nil
 
@@ -91,7 +93,7 @@ struct TearGoo: View, Animatable {
                 // Das Glas selbst liegt in einem Begleitfenster darunter (ShelfGlassWindow),
                 // hier nur die eigene dunkle Tönung darüber
                 bodyShape
-                    .fill(Color.black.opacity(EdgeTear.glassDarken(light: Self.systemIsLight)))
+                    .fill(light ? Color.white.opacity(0.35) : Color.black.opacity(EdgeTear.glassDarken(light: false)))
                     .opacity(glass)
             }
             // Überblendung zur angedockten Form: erst kommt sie dazu, dann geht die
@@ -157,11 +159,6 @@ struct TearGoo: View, Animatable {
             let far = UnitPoint(x: fromLeft ? 1 - reach / w : reach / w, y: 0.5)
             BeyondFrameShape().fill(LinearGradient(stops: stops, startPoint: near, endPoint: far))
         }
-    }
-
-    /// Helles Erscheinungsbild des Systems (die Ablage selbst zeichnet immer dunkel)
-    private static var systemIsLight: Bool {
-        NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
     }
 
     /// Nur die Kontur der angedockten Form, ohne Linie am Bildschirmrand (wie ihr Rahmen)

@@ -91,6 +91,8 @@ final class ShelfUIModel: ObservableObject {
     @Published var dockOutline: Double = 1
     /// Losgelöste Ablage aus Glas (0 schwarz, 1 Glas), weich übergeblendet
     @Published var tearGlass: Double = 0
+    /// Helles Erscheinungsbild des Systems (folgt Änderungen während der Nutzung)
+    @Published var systemLight = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
 
     /// Ordner oder App, die gerade über die Ablage gezogen wird und sich anheften ließe.
     /// Solange gesetzt, zeigt die Aktionsleiste einen freien Platz zum Anheften.

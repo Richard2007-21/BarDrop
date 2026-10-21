@@ -67,6 +67,8 @@ final class EdgeController: NSObject {
     var tearDrag: TearDrag?
     /// Begleitfenster mit dem Glas der losgelösten Ablage (erst bei Bedarf angelegt)
     var glassWindow: ShelfGlassWindow?
+    /// Beobachtet das helle oder dunkle Erscheinungsbild des Systems
+    private var appearanceObservation: NSKeyValueObservation?
     /// Letzte Prüfung, ob ein fremdes Fenster über der schwebenden Ablage liegt
     var coverCheck: (time: Date, point: NSPoint, covered: Bool) = (.distantPast, .zero, false)
     var tearTimer: Timer?
@@ -132,6 +134,15 @@ final class EdgeController: NSObject {
         actions.panel = panel
         panel.actions = actions
         panel.onEscape = { [weak self] in self?.close() }
+        // Hell oder dunkel umgestellt, während die Ablage schwebt: Glas und Schrift folgen sofort
+        appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] app, _ in
+            let light = app.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
+            DispatchQueue.main.async {
+                guard let self, self.ui.systemLight != light else { return }
+                self.ui.systemLight = light
+                self.syncGlassWindow()
+            }
+        }
         actions.isFloating = { [weak self] in self?.isFloating ?? false }
         actions.returnToEdge = { [weak self] in self?.returnFloatingToEdge(close: false) }
 

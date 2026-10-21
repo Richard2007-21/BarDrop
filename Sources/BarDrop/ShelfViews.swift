@@ -84,6 +84,7 @@ struct ShelfRootView: View {
                 if let tear {
                     TearGoo(tear: tear, inset: m.fillet, reach: EdgeTear.reach,
                             outline: settings.showOutline || ui.forcesOutline, glass: ui.tearGlass,
+                            light: ui.systemLight,
                             docked: EdgeBlobShape(edge: tear.side, cornerRadius: m.cornerRadius, fillet: m.fillet,
                                                   filletStretch: m.filletStretch, cornerStretch: m.cornerStretch))
                         .frame(width: m.width + 2 * EdgeTear.reach, height: m.height + 2 * m.fillet)
@@ -93,7 +94,9 @@ struct ShelfRootView: View {
             .offset(y: ui.level == .expanded ? 0 : ui.anchorOffset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .environment(\.colorScheme, .dark)
+        // Schwebend aus Glas im hellen Erscheinungsbild: helles Glas mit dunkler Schrift
+        // (wie die Fenster von macOS); sonst immer dunkel
+        .environment(\.colorScheme, tear != nil && settings.detachedGlass && ui.systemLight && ui.tearGlass > 0.5 ? .light : .dark)
     }
 
     /// Maske für den Rahmen am Rand: im Bereich der Bögen zum Bildschirmrand so stark wie
@@ -397,7 +400,7 @@ struct ShelfContent: View {
         .overlay(alignment: .top) {
             if !shelfDemo {
                 Capsule()
-                    .fill(Color.white.opacity(ui.grabbing ? 0.85 : 0.28))
+                    .fill(Color.primary.opacity(ui.grabbing ? 0.85 : 0.28))
                     .frame(width: ui.grabbing ? 46 : 36, height: 5)
                     .padding(.top, 9)
                     .opacity(ui.grabbing || ui.grabberHover ? 1 : 0)
@@ -460,7 +463,7 @@ struct ShelfContent: View {
                                 .truncationMode(.middle)
                         }
                     }
-                    .foregroundStyle(.white.opacity(0.92))
+                    .foregroundStyle(Color.primary.opacity(0.92))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -484,7 +487,7 @@ struct ShelfContent: View {
                             .hidden()
                         Text(title)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.92))
+                            .foregroundStyle(Color.primary.opacity(0.92))
                     }
                     .allowsHitTesting(false)
                 }
@@ -551,7 +554,7 @@ struct ShelfContent: View {
                     .minimumScaleFactor(11.0 / 13.0)
                     .truncationMode(.middle)
             }
-            .foregroundStyle(.white.opacity(0.92))
+            .foregroundStyle(Color.primary.opacity(0.92))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -578,7 +581,7 @@ struct ShelfContent: View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .monospacedDigit()
-            .foregroundStyle(.white.opacity(0.5))
+            .foregroundStyle(Color.primary.opacity(0.5))
             .lineLimit(1)
             .transaction { $0.animation = nil }   // Zahl ändert sich ohne Animation
             .allowsHitTesting(false)
@@ -697,13 +700,13 @@ struct ShelfContent: View {
         VStack(spacing: 10) {
             Image(systemName: "lock")
                 .font(.system(size: 28, weight: .light))
-                .foregroundStyle(.white.opacity(0.45))
+                .foregroundStyle(Color.primary.opacity(0.45))
             Text(L("No access to this folder", "Kein Zugriff auf diesen Ordner"))
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(Color.primary.opacity(0.6))
             Text(L("Allow BarDrop under Files and Folders.", "Erlaube BarDrop den Zugriff unter „Dateien und Ordner“."))
                 .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.45))
+                .foregroundStyle(Color.primary.opacity(0.45))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
             Button(L("Open Settings", "Einstellungen öffnen")) { FolderBrowser.openPrivacySettings() }
@@ -719,7 +722,7 @@ struct ShelfContent: View {
             Text(ui.isDropTargeted ? L("Drop here", "Hier ablegen") : L("Folder is empty", "Ordner ist leer"))
                 .font(.system(size: 14, weight: .semibold))
         }
-        .foregroundStyle(.white.opacity(ui.isDropTargeted ? 1 : 0.45))
+        .foregroundStyle(Color.primary.opacity(ui.isDropTargeted ? 1 : 0.45))
     }
 
     /// Ab so vielen Objekten (große Ordner wie Downloads, sehr volle Ablage) das sparsame
@@ -874,10 +877,10 @@ struct ShelfContent: View {
     private var bandOverlay: some View {
         if let band {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(Color.primary.opacity(0.08))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+                        .strokeBorder(Color.primary.opacity(0.35), lineWidth: 1)
                 )
                 .frame(width: band.width, height: band.height)
                 .offset(x: band.minX, y: band.minY)
@@ -923,15 +926,15 @@ struct ShelfContent: View {
             Text(L("Drop here", "Hier ablegen"))
                 .font(.system(size: 14, weight: .semibold))
         }
-        .foregroundStyle(.white.opacity(ui.isDropTargeted ? 1 : 0.45))
+        .foregroundStyle(Color.primary.opacity(ui.isDropTargeted ? 1 : 0.45))
     }
 
     private var dropHighlight: some View {
         RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .strokeBorder(Color.white.opacity(ui.isDropTargeted ? 0.28 : 0), lineWidth: 1.5)
+            .strokeBorder(Color.primary.opacity(ui.isDropTargeted ? 0.28 : 0), lineWidth: 1.5)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color.white.opacity(ui.isDropTargeted ? 0.05 : 0))
+                    .fill(Color.primary.opacity(ui.isDropTargeted ? 0.05 : 0))
             )
             .padding(8)
             .allowsHitTesting(false)
@@ -1059,14 +1062,14 @@ struct TileLabel<Preview: View>: View {
                 .padding((box - iconSize - 4) / 2)
                 .background(
                     RoundedRectangle(cornerRadius: TileMetrics.boxRadius(iconSize), style: .continuous)
-                        .fill(Color.white.opacity(isSelected || isDropTarget ? 0.14 : 0))
+                        .fill(Color.primary.opacity(isSelected || isDropTarget ? 0.14 : 0))
                 )
                 .reportsTileHitArea()
                 .scaleEffect(isDropTarget ? 1.06 : 1)
                 .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isDropTarget)
             Text(title)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.88))
+                .foregroundStyle(isSelected && isKey ? Color.white : Color.primary.opacity(isSelected ? 1 : 0.88))
                 .lineLimit(2)
                 .truncationMode(.middle)
                 .multilineTextAlignment(.center)

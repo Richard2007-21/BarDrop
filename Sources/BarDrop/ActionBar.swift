@@ -585,7 +585,7 @@ struct QuickActionButton: View {
                 let named = !AppSettings.shared.labelsOnlyFolders || action.kind == .folder
                 Text(action.title)
                     .font(.system(size: 10, weight: highlighted ? .semibold : .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(Color.primary.opacity(0.7))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .opacity(named ? 1 : 0)
@@ -610,7 +610,7 @@ struct QuickActionButton: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(highlighted ? 0.12 : 0))
+                .fill(Color.primary.opacity(highlighted ? 0.12 : 0))
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: highlighted)
         .animation(.spring(response: 0.22, dampingFraction: 0.7), value: pressed)
@@ -815,7 +815,7 @@ private struct PinSlot: View {
             if settings.showActionLabels {
                 Text(L("Pin", "Anheften"))
                     .font(.system(size: 10, weight: targeted ? .semibold : .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(Color.primary.opacity(0.7))
                     .lineLimit(1)
             }
         }
@@ -823,7 +823,7 @@ private struct PinSlot: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(targeted ? 0.12 : 0))
+                .fill(Color.primary.opacity(targeted ? 0.12 : 0))
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: targeted)
         .overlay(Group { if !shelfDemo {PinDropTarget(ui: ui, onTargeted: { targeted = $0 }) {
