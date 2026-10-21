@@ -1613,8 +1613,6 @@ extension EdgeController {
                     dock: CGFloat((t - 0.35) / 0.4))
         }
         applyTearFrame(body)
-        // Diagnose (nur mit Ordner „Bilder“): jedes Bild des Andockens festhalten
-        if ShelfSnapshots.isActive { ShelfSnapshots.capture(panel, "dock\(Int(t * 100))", after: [0]) }
         if t >= 1 { finishDock(drag) }
     }
 
@@ -1623,9 +1621,6 @@ extension EdgeController {
         let before = panel.frame
         defer {
             Diagnostics.shared.record("tear", "angedockt Fenster \(Int(before.minX)),\(before.minY) \(Int(before.width))x\(before.height) → \(Int(panel.frame.minX)),\(panel.frame.minY) \(Int(panel.frame.width))x\(panel.frame.height)")
-            if ShelfSnapshots.isActive {
-                ShelfSnapshots.capture(panel, "angedockt", after: [0, 0.017, 0.034, 0.05, 0.1, 0.3])
-            }
         }
         stopTearTimer()
         tearDrag = nil
