@@ -84,9 +84,12 @@ final class DragSourceNSView: NSView, NSDraggingSource {
         guard !files.isEmpty else { return }
 
         let point = convert(down.locationInWindow, from: nil)
-        let items = files.enumerated().map { index, file in
-            Self.draggingItem(for: file, centeredAt: point, offset: CGFloat(min(index, 4)) * 4)
-        }
+        // Ein Stapel wird als ein Stapel gezogen: ein Bild mit der Anzahl, nicht viele einzelne
+        let isStack = files.count > 1 && draggedIDs().count == 1
+        let items = isStack ? Self.stackDraggingItems(files, centeredAt: point)
+            : files.enumerated().map { index, file in
+                Self.draggingItem(for: file, centeredAt: point, offset: CGFloat(min(index, 4)) * 4)
+            }
         ui?.ownDragActive = true
         ui?.lastDropWasInternal = false
         ui?.draggedEntryIDs = draggedIDs()
@@ -127,6 +130,80 @@ final class DragSourceNSView: NSView, NSDraggingSource {
             return [iconComponent, labelComponent]
         }
         return item
+    }
+
+    /// Ein Stapel als ein gezogenes Bild: vorn das erste Objekt, dahinter versetzt die nächsten,
+    /// oben rechts ein roter Kreis mit der Anzahl, darunter der Name des ersten. Alle Dateien
+    /// werden mitgezogen; nur das erste Element trägt das Bild, die übrigen sind unsichtbar.
+    private static func stackDraggingItems(_ files: [ShelfFile], centeredAt point: NSPoint) -> [NSDraggingItem] {
+        let image = stackImage(files)
+        let label = labelImage(ShelfEntry.displayName(for: files[0].url))
+        let gap: CGFloat = 3
+        let width = max(image.size.width, label.size.width)
+        let height = image.size.height + gap + label.size.height
+        let frame = NSRect(x: point.x - width / 2, y: point.y - image.size.height / 2 - gap - label.size.height,
+                           width: width, height: height)
+        return files.enumerated().map { index, file in
+            let item = NSDraggingItem(pasteboardWriter: DragExport.writer(for: file))
+            item.draggingFrame = frame
+            if index == 0 {
+                item.imageComponentsProvider = {
+                    let icon = NSDraggingImageComponent(key: .icon)
+                    icon.contents = image
+                    icon.frame = NSRect(x: (width - image.size.width) / 2, y: label.size.height + gap,
+                                        width: image.size.width, height: image.size.height)
+                    let name = NSDraggingImageComponent(key: .label)
+                    name.contents = label
+                    name.frame = NSRect(x: (width - label.size.width) / 2, y: 0,
+                                        width: label.size.width, height: label.size.height)
+                    return [icon, name]
+                }
+            } else {
+                item.imageComponentsProvider = { [] }
+            }
+            return item
+        }
+    }
+
+    /// Bild eines Stapels: bis zu drei Vorschauen leicht versetzt übereinander, mit Anzahl
+    private static func stackImage(_ files: [ShelfFile]) -> NSImage {
+        let icons = files.prefix(3).map { dragIcon(for: $0.url) }
+        guard let front = icons.first else { return NSImage() }
+        let shift: CGFloat = 5
+        let layers = CGFloat(icons.count - 1)
+        let count = "\(files.count)"
+        let font = NSFont.systemFont(ofSize: 12, weight: .bold)
+        let text = NSAttributedString(string: count, attributes: [.font: font, .foregroundColor: NSColor.white])
+        let textSize = text.size()
+        let badge = NSSize(width: max(20, ceil(textSize.width) + 10), height: 20)
+        let overhang = badge.height / 2
+        let size = NSSize(width: front.size.width + shift * layers + overhang,
+                          height: front.size.height + shift * layers + overhang)
+        return NSImage(size: size, flipped: false) { _ in
+            let center = NSPoint(x: front.size.width / 2, y: front.size.height / 2)
+            // Von hinten nach vorn: die hinteren nach rechts oben versetzt
+            for (index, icon) in icons.enumerated().reversed() {
+                let offset = shift * CGFloat(index)
+                let rect = NSRect(x: center.x - icon.size.width / 2 + offset,
+                                  y: center.y - icon.size.height / 2 + offset,
+                                  width: icon.size.width, height: icon.size.height)
+                NSGraphicsContext.saveGraphicsState()
+                let shadow = NSShadow()
+                shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
+                shadow.shadowBlurRadius = 3
+                shadow.shadowOffset = NSSize(width: 0, height: -1)
+                shadow.set()
+                icon.draw(in: rect, from: .zero, operation: .sourceOver, fraction: index == 0 ? 1 : 0.9)
+                NSGraphicsContext.restoreGraphicsState()
+            }
+            // Anzahl oben rechts an der vorderen Vorschau, wie beim Ziehen mehrerer Dateien im Finder
+            let badgeRect = NSRect(x: min(front.size.width - badge.width / 2, size.width - badge.width),
+                                   y: front.size.height - overhang, width: badge.width, height: badge.height)
+            NSColor.systemRed.setFill()
+            NSBezierPath(roundedRect: badgeRect, xRadius: badge.height / 2, yRadius: badge.height / 2).fill()
+            text.draw(at: NSPoint(x: badgeRect.midX - textSize.width / 2, y: badgeRect.midY - textSize.height / 2))
+            return true
+        }
     }
 
     /// Vorschau im echten Seitenverhältnis, so groß wie in der Kachel (wie im Finder: das
