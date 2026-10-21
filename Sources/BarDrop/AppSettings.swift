@@ -529,7 +529,7 @@ final class AppSettings: ObservableObject {
             Key.copyAllFiles: false,
             Key.dragOutCopyOnly: false,
             Key.showOutline: true,
-            Key.detachedGlass: true,
+            Key.detachedGlass: false,
             Key.openDelay: OpenDelay.quick,
             Key.language: AppLanguage.system.rawValue,
             Key.reopenWhereLeft: false,
@@ -713,7 +713,7 @@ final class AppSettings: ObservableObject {
         showActionLabels = true
         labelsOnlyFolders = false
         showOutline = true
-        detachedGlass = true
+        detachedGlass = false
         removeAfterDragOut = true
         stackMultiple = true
         stackThreshold = 2
