@@ -488,6 +488,12 @@ final class EdgeController: NSObject {
     }
 
     /// Fläche der schwarzen Form (inklusive Rundungen) in Bildschirmkoordinaten.
+    /// Auf ganze Bildpunkte des Bildschirms gerundet (Retina: halbe Punkte)
+    private func pixelAligned(_ value: CGFloat, on screen: NSScreen) -> CGFloat {
+        let scale = max(1, screen.backingScaleFactor)
+        return (value * scale).rounded() / scale
+    }
+
     private func bodyRect(_ level: ShelfUIModel.Level, on screen: NSScreen) -> NSRect {
         let m = ShelfMetrics.for(level, settings: settings)
         let h = m.height + 2 * m.fillet
@@ -503,7 +509,9 @@ final class EdgeController: NSObject {
         let h = CGFloat(settings.shelfHeight) + 2 * ShelfMetrics.maxFillet + 2 * margin
         let x = settings.edge == .right ? screen.frame.maxX - w : screen.frame.minX
         let center = panelCenterY(on: screen)
-        let frame = NSRect(x: x, y: center - h / 2, width: w, height: h)
+        // Auf ganze Bildpunkte des Bildschirms, genau wie beim Ziehen (applyTearFrame): Nach
+        // dem Andocken sprang die Ablage sonst um einen Punkt
+        let frame = NSRect(x: x, y: pixelAligned(center - h / 2, on: screen), width: w, height: h)
         if panel.frame != frame { panel.setFrame(frame, display: true) }
 
         // Versatz der kleinen Stufen gegenüber der Fenstermitte (SwiftUI: y nach unten)
@@ -1220,7 +1228,9 @@ extension EdgeController {
     /// das Fenster nur verschoben, ohne neu zu zeichnen.
     private func applyTearFrame(_ body: NSRect) {
         let height = panel.frame.height
-        let frame = NSRect(x: (body.minX - EdgeTear.reach).rounded(), y: (body.midY - height / 2).rounded(),
+        let scale = panel.screen?.backingScaleFactor ?? 2
+        let frame = NSRect(x: ((body.minX - EdgeTear.reach) * scale).rounded() / scale,
+                           y: ((body.midY - height / 2) * scale).rounded() / scale,
                            width: body.width + 2 * EdgeTear.reach, height: height)
         if panel.frame.size == frame.size {
             if panel.frame.origin != frame.origin { panel.setFrameOrigin(frame.origin) }
