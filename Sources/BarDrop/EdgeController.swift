@@ -1570,6 +1570,16 @@ extension EdgeController {
         let loc = NSEvent.mouseLocation
         let mouseDown = (NSEvent.pressedMouseButtons & 1) == 1
         if !mouseDown { dragBaseline = dragPasteboard.changeCount }
+        // Wo die Ablage wirklich liegt, aus dem Fenster selbst: Hat macOS oder SwiftUI das
+        // Fenster verschoben oder in der Größe geändert, stimmten Griff und Klickfläche sonst
+        // nicht mehr mit der sichtbaren Ablage überein (Klicks gingen durch, kein Griff)
+        let frame = panel.frame
+        let actual = NSRect(x: frame.minX + EdgeTear.reach, y: frame.midY - drag.body.height / 2,
+                            width: max(0, frame.width - 2 * EdgeTear.reach), height: drag.body.height)
+        if actual.integral != drag.body.integral {
+            Diagnostics.shared.record("tear", "float Lage korrigiert \(Int(drag.body.minX)),\(Int(drag.body.minY)) \(Int(drag.body.width))x\(Int(drag.body.height)) → \(Int(actual.minX)),\(Int(actual.minY)) \(Int(actual.width))x\(Int(actual.height))")
+            drag.body = actual
+        }
         let body = drag.body
         ui.expandedBody = body
         let locked = ui.isLocked || actions.isQuickLookVisible
@@ -1579,6 +1589,9 @@ extension EdgeController {
         if accept != acceptsMouse {
             acceptsMouse = accept
             panel.ignoresMouseEvents = !accept
+        }
+        if inside != pointerInside {
+            Diagnostics.shared.record("tear", "float Zeiger \(inside ? "über" : "neben") der Ablage kopf=\(headerZone(body).contains(loc))")
         }
         if inside && !pointerInside && !mouseDown && !panel.isKeyWindow && !locked && NSApp.modalWindow == nil {
             takeFocus()

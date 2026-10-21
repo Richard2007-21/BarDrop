@@ -47,10 +47,12 @@ struct TearGoo: View {
             } else {
                 // Gelöst oder schwebend: ein einfaches abgerundetes Rechteck, das kostet beim
                 // Ziehen fast nichts
-                RoundedRectangle(cornerRadius: EdgeTear.cornerRadius, style: .continuous)
+                // Mit Rahmen 1 pt größer: Der Rahmen liegt dann ganz auf Schwarz, ohne
+                // durchscheinenden Spalt zwischen Rahmen und Fläche
+                RoundedRectangle(cornerRadius: EdgeTear.cornerRadius + (outline ? 1 : 0), style: .continuous)
                     .fill(Color.black)
-                    .padding(.horizontal, reach)
-                    .padding(.vertical, inset)
+                    .padding(.horizontal, reach - (outline ? 1 : 0))
+                    .padding(.vertical, inset - (outline ? 1 : 0))
                     .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
             }
             if outline {
