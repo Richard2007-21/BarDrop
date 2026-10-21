@@ -182,6 +182,8 @@ final class EdgeController: NSObject {
         // sichtbar macht es der Umzug im Takt; zur Sicherheit spätestens nach einer Sekunde.
         edgeObserver = settings.$edge.dropFirst().removeDuplicates().sink { [weak self] _ in
             guard let self, !self.dockingEdgeChange else { return }
+            // Schwebt oder hängt die Ablage gerade, zurück an den Rand; dann wie sonst
+            self.endTearImmediately()
             self.panel.alphaValue = 0
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 guard let self, self.panel.alphaValue == 0 else { return }
@@ -526,7 +528,6 @@ final class EdgeController: NSObject {
         guard new != old else { return }
         Diagnostics.shared.record("edge", "level \(old) → \(new) dragging=\(self.dragPasteboard.changeCount != self.dragBaseline) ownDrag=\(self.ui.ownDragActive) manual=\(self.logic.manualOpen) preview=\(self.previewUntil != nil ? String(describing: self.previewLevel) : "–") guide=\(self.guideActive ? String(describing: self.guideLevel) : "–") locked=\(self.ui.isLocked)")
         lastActivity = Date()
-        if new == .expanded { ShelfSnapshots.capture(panel, "open", after: [0.05, 0.12, 0.25, 0.6]) }
         let style = settings.animationStyle
         // Kleine Stufen haben ihre eigene, elastische Bewegung; die Ablage selbst die gewählte
         let animation: Animation
@@ -662,6 +663,7 @@ final class EdgeController: NSObject {
     /// Übung vorbei ist. Hinfahren, Hineinziehen und Öffnen funktionieren wie immer.
     func showGuide(_ level: ShelfUIModel.Level?) {
         Diagnostics.shared.record("edge", "guide \(level.map { String(describing: $0) } ?? "off")")
+        endTearImmediately()
         let on = level != nil
         if let level { guideLevel = level }
         guard on != guideActive else {
@@ -708,6 +710,12 @@ final class EdgeController: NSObject {
     }
 
     func toggle() {
+        // Schwebend: zurück an den Rand und zu; während des Ziehens nichts
+        if isFloating {
+            returnFloatingToEdge(close: true)
+            return
+        }
+        if tearDrag != nil { return }
         if ui.level == .expanded {
             close()
             return
@@ -722,6 +730,11 @@ final class EdgeController: NSObject {
     }
 
     func close() {
+        if isFloating {
+            returnFloatingToEdge(close: true)
+            return
+        }
+        if tearDrag != nil { return }
         logic.manualOpen = false
         setLevel(.hidden)
         wake()
@@ -739,8 +752,12 @@ final class EdgeController: NSObject {
         // Menüverfolgung und könnte sie stören (die Markierung springt dann verspätet).
         // Die Ablage bleibt dabei ohnehin offen.
         if ui.menuOpen { return }
-        // Während die Ablage gezogen wird, steuert das Ziehen (tearTick) alles
-        if tearDrag != nil { return }
+        // Während die Ablage gezogen wird, steuert das Ziehen (tearTick) alles; schwebt sie,
+        // gibt es keinen Rand, nur Maus und Fokus über ihr
+        if let drag = tearDrag {
+            if drag.phase == .floating { floatTick(drag) }
+            return
+        }
         let now = Date()
         let loc = NSEvent.mouseLocation
         let mouseDown = (NSEvent.pressedMouseButtons & 1) == 1
@@ -981,6 +998,11 @@ final class EdgeController: NSObject {
         // Nicht während einer Vorschau oder der Einführung, nicht bei gedrückter Taste und
         // nicht, solange Übersicht, Menü oder ein Dialog offen sind.
         let inside = ui.level == .expanded && expandedBody.contains(loc)
+        // Griff oben, solange der Zeiger in der Kopfzeile ist
+        let hover = inside && headerZone(expandedBody).contains(loc)
+        if ui.grabberHover != hover {
+            withAnimation(.easeOut(duration: 0.15)) { ui.grabberHover = hover }
+        }
         if inside && !pointerInside && !mouseDown && !panel.isKeyWindow && !locked
             && previewUntil == nil && NSApp.modalWindow == nil {
             takeFocus()
@@ -1004,42 +1026,58 @@ final class EdgeController: NSObject {
     }
 }
 
-// MARK: Vom Rand ziehen
+// MARK: Vom Rand ziehen und schweben
 
-/// Ein Zug an der Kopfzeile (siehe EdgeTear)
+/// Die Ablage vom Rand gezogen oder frei schwebend (siehe EdgeTear)
 final class TearDrag {
-    enum Phase { case pending, stretching, free, docking }
+    enum Phase {
+        /// Gedrückt auf dem Griff, noch nicht gezogen
+        case pending
+        /// Am Rand gedehnt, noch nicht gelöst
+        case stretching
+        /// Gelöst und gezogen
+        case free
+        /// Gleitet an einen Rand
+        case docking
+        /// Liegt frei auf dem Bildschirm
+        case floating
+    }
     var phase: Phase = .pending
+    /// Woraus das Drücken kam: vom Rand (dann dehnen) oder aus dem Schweben (gleich frei)
+    var pendingFromFloating = false
     /// Das Drücken selbst: Bleibt es ein Klick, wird es nachgereicht
-    let down: NSEvent
+    var down: NSEvent?
     /// Zeiger beim Drücken
-    let start: NSPoint
-    /// Rand und Bildschirm, an denen die Ablage beim Start saß
-    let origin: ScreenEdge
-    let originScreen: NSScreen
+    var start: NSPoint
+    /// Rand und Bildschirm, an die die Ablage zurückkehrt (esc, Kurzbefehl, loslassen ohne Rand)
+    var origin: ScreenEdge
+    var originScreen: NSScreen
     /// Ablage (schwarze Form samt Platz für die Übergänge) beim Start und jetzt
     var bodyStart: NSRect = .zero
     var body: NSRect = .zero
-    /// Zeiger relativ zur Ablage beim Start: So hängt sie nach dem Lösen am Zeiger
+    /// Zeiger relativ zur Ablage: So hängt sie am Zeiger
     var grab: NSPoint = .zero
-    /// Nach dem Lösen einmal weit genug vom Rand weg gewesen: erst dann zieht ein Rand an
+    /// Nach dem Lösen: Feder, die die Ablage zum Zeiger bringt, bis sie ihm direkt folgt
+    var velocity = CGVector.zero
+    var springDone = false
+    var detachStarted = Date()
+    var detachAttach: CGFloat = 0
+    /// Einmal weit genug vom Rand weg gewesen: erst dann zieht ein Rand an
     var leftZone = false
     /// Gerade in der Nähe eines Rands, der sie anzieht (für den Impuls beim Hineinkommen)
     var inZone = false
-    /// Andocken: von wo nach wo, an welchem Rand
+    /// Andocken: von wo nach wo, an welchem Rand, danach schließen (esc, Kurzbefehl)
     var dockFrom: NSRect = .zero
     var dockTo: NSRect = .zero
     var dockSide: ScreenEdge = .left
     var dockScreen: NSScreen?
     var dockAttach: CGFloat = 0
     var dockStarted = Date()
-    /// Lösen: Die Verbindung zum Rand zieht sich in diesem Moment zurück
-    var detachStarted = Date()
-    var detachAttach: CGFloat = 0
+    var closeAfterDock = false
     /// Nur für die Diagnose (Befehl „tear“): Zeiger vorgegeben statt der echten Maus
     var pointer: NSPoint?
 
-    init(down: NSEvent, start: NSPoint, origin: ScreenEdge, originScreen: NSScreen) {
+    init(down: NSEvent?, start: NSPoint, origin: ScreenEdge, originScreen: NSScreen) {
         self.down = down
         self.start = start
         self.origin = origin
@@ -1051,80 +1089,135 @@ extension EdgeController {
     /// Höhe des Platzes für die Übergänge über und unter der offenen Ablage
     private var expandedFillet: CGFloat { ShelfMetrics.for(.expanded, settings: settings).fillet }
 
-    /// Ereignisse der eigenen Fenster, bevor sie ankommen. Ein Drücken auf die freie Fläche
-    /// der Kopfzeile behält BarDrop zunächst für sich: Wird daraus ein Ziehen, löst sich die
-    /// Ablage vom Rand; bleibt es ein Klick, wird er unverändert nachgereicht.
+    /// Oberkante der schwarzen Form (ohne den Platz für die Übergänge)
+    private func bodyTop(_ body: NSRect) -> CGFloat { body.maxY - expandedFillet }
+
+    /// Kopfzeile: Fährt der Zeiger hinein, erscheint der Griff
+    func headerZone(_ body: NSRect) -> NSRect {
+        NSRect(x: body.minX, y: bodyTop(body) - EdgeTear.headerHeight, width: body.width, height: EdgeTear.headerHeight)
+    }
+
+    /// Nur in der Umgebung des Griffs lässt sich ziehen, nicht an den Ecken
+    private func grabZone(_ body: NSRect) -> NSRect {
+        NSRect(x: body.midX - EdgeTear.grabWidth / 2, y: bodyTop(body) - EdgeTear.grabHeight,
+               width: EdgeTear.grabWidth, height: EdgeTear.grabHeight)
+    }
+
+    /// Unter dem Zeiger liegt die freie Fläche der Ablage (kein Knopf)
+    private func hitsBackground(_ event: NSEvent) -> Bool {
+        guard let content = panel.contentView else { return false }
+        let local = content.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
+        return content.hitTest(local) is SelectionBackgroundNSView
+    }
+
+    /// Schwebt die Ablage gerade frei?
+    var isFloating: Bool { tearDrag?.phase == .floating }
+
+    /// Ereignisse der eigenen Fenster, bevor sie ankommen. Ein Drücken auf den Griff behält
+    /// BarDrop zunächst für sich: Wird daraus ein Ziehen, löst sich die Ablage vom Rand (oder
+    /// wandert, wenn sie schwebt); bleibt es ein Klick, wird er unverändert nachgereicht.
     /// nil: Das Ereignis ist verbraucht.
     func tearEvent(_ event: NSEvent) -> NSEvent? {
         switch event.type {
         case .leftMouseDown:
-            // Ein liegengebliebener Zug (Loslassen nicht gesehen) zählt nicht mehr
-            if let drag = tearDrag, drag.phase == .pending { tearDrag = nil }
-            guard tearDrag == nil, event.window === panel, let screen,
-                  canTear(at: NSEvent.mouseLocation, event: event) else { return event }
-            tearDrag = TearDrag(down: event, start: NSEvent.mouseLocation, origin: settings.edge, originScreen: screen)
+            // Ein liegengebliebenes Drücken (Loslassen nicht gesehen) zählt nicht mehr
+            if let drag = tearDrag, drag.phase == .pending {
+                if drag.pendingFromFloating { drag.phase = .floating } else { tearDrag = nil }
+            }
+            let p = NSEvent.mouseLocation
+            if let drag = tearDrag {
+                guard drag.phase == .floating, event.window === panel, grabZone(drag.body).contains(p),
+                      !ui.isLocked, !ui.ownDragActive, !actions.isQuickLookVisible,
+                      hitsBackground(event) else { return event }
+                drag.phase = .pending
+                drag.pendingFromFloating = true
+                drag.down = event
+                drag.start = p
+                drag.grab = NSPoint(x: p.x - drag.body.minX, y: p.y - drag.body.minY)
+                return nil
+            }
+            guard event.window === panel, let screen, canTear(at: p, event: event) else { return event }
+            tearDrag = TearDrag(down: event, start: p, origin: settings.edge, originScreen: screen)
             return nil
         case .leftMouseDragged:
             guard let drag = tearDrag else { return event }
-            if drag.phase == .pending {
+            switch drag.phase {
+            case .pending:
                 let p = NSEvent.mouseLocation
                 guard hypot(p.x - drag.start.x, p.y - drag.start.y) >= 4 else { return nil }
-                beginTear(drag)
+                if drag.pendingFromFloating { beginMoveFloating(drag) } else { beginTear(drag) }
+                updateTear(drag, fromTimer: false)
+                return nil
+            case .stretching, .free:
+                updateTear(drag, fromTimer: false)
+                return nil
+            case .docking, .floating:
+                return event
             }
-            if drag.phase == .stretching || drag.phase == .free { updateTear(drag) }
-            return nil
         case .leftMouseUp:
             guard let drag = tearDrag else { return event }
-            if drag.phase == .pending {
+            switch drag.phase {
+            case .pending:
                 // Nur geklickt: Drücken und Loslassen wie sonst ausliefern
-                tearDrag = nil
-                let down = drag.down
-                DispatchQueue.main.async { [weak self] in
-                    self?.panel.sendEvent(down)
-                    self?.panel.sendEvent(event)
+                if drag.pendingFromFloating { drag.phase = .floating } else { tearDrag = nil }
+                if let down = drag.down {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.panel.sendEvent(down)
+                        self?.panel.sendEvent(event)
+                    }
                 }
+                drag.down = nil
                 return nil
+            case .stretching, .free:
+                releaseTear(drag)
+                return nil
+            case .docking, .floating:
+                return event
             }
-            releaseTear(drag)
-            return nil
         default:
             return event
         }
     }
 
-    /// Nur auf der freien Fläche der Kopfzeile der offenen Ablage (nicht auf Knöpfen), und
-    /// nicht, solange etwas anderes läuft (Übersicht, Menü, Ziehen, Einführung, Vorschau)
+    /// Nur am Griff der offenen Ablage am Rand, und nicht, solange etwas anderes läuft
+    /// (Übersicht, Menü, Ziehen, Einführung, Vorschau)
     private func canTear(at point: NSPoint, event: NSEvent) -> Bool {
         guard ui.level == .expanded, ui.tear == nil, !ui.isLocked, !ui.ownDragActive,
               !actions.isQuickLookVisible, !IntroGate.active, !guideActive, previewUntil == nil,
               NSApp.modalWindow == nil else { return false }
-        let body = ui.expandedBody
-        let fillet = expandedFillet
-        let header = NSRect(x: body.minX, y: body.maxY - fillet - EdgeTear.headerHeight,
-                            width: body.width, height: EdgeTear.headerHeight)
-        guard header.contains(point), let content = panel.contentView else { return false }
-        let local = content.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
-        return content.hitTest(local) is SelectionBackgroundNSView
+        return grabZone(ui.expandedBody).contains(point) && hitsBackground(event)
     }
 
     /// Fenster für die gezogene Ablage: so breit, dass links und rechts Platz für Schatten und
-    /// Verbindung ist, die Ablage in der Mitte genau an `body`
+    /// Verbindung ist, die Ablage in der Mitte genau an `body`. Bleibt die Größe gleich, wird
+    /// das Fenster nur verschoben, ohne neu zu zeichnen.
     private func applyTearFrame(_ body: NSRect) {
         let height = panel.frame.height
         let frame = NSRect(x: (body.minX - EdgeTear.reach).rounded(), y: (body.midY - height / 2).rounded(),
                            width: body.width + 2 * EdgeTear.reach, height: height)
-        if panel.frame != frame { panel.setFrame(frame, display: true) }
+        if panel.frame.size == frame.size {
+            if panel.frame.origin != frame.origin { panel.setFrameOrigin(frame.origin) }
+        } else {
+            panel.setFrame(frame, display: true)
+        }
+        ui.expandedBody = body
     }
 
     private func setTear(gap: CGFloat, attach: CGFloat? = nil, side: ScreenEdge) {
         guard var tear = ui.tear else { return }
-        tear.gap = max(0, gap)
-        if let attach { tear.attach = max(0, min(1, attach)) }
+        // Auf halbe Punkte gerundet: Kleinste Änderungen zeichnen sonst unnötig neu
+        tear.gap = (max(0, gap) * 2).rounded() / 2
+        if let attach { tear.attach = (max(0, min(1, attach)) * 100).rounded() / 100 }
         tear.side = side
         guard tear != ui.tear else { return }
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { ui.tear = tear }
+    }
+
+    private func setGrabbing(_ on: Bool) {
+        guard ui.grabbing != on else { return }
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { ui.grabbing = on }
     }
 
     private func beginTear(_ drag: TearDrag) {
@@ -1133,6 +1226,7 @@ extension EdgeController {
         drag.bodyStart = drag.body
         drag.grab = NSPoint(x: drag.start.x - drag.body.minX, y: drag.start.y - drag.body.minY)
         Diagnostics.shared.record("tear", "start edge=\(drag.origin)")
+        setGrabbing(true)
         // Fenster und Ansicht in einem Zug umstellen: Die Ablage bleibt genau, wo sie war
         panel.disableScreenUpdatesUntilFlush()
         var transaction = Transaction()
@@ -1144,6 +1238,17 @@ extension EdgeController {
         startTearTimer()
     }
 
+    /// Aus dem Schweben heraus gegriffen: sie folgt gleich dem Zeiger
+    private func beginMoveFloating(_ drag: TearDrag) {
+        drag.phase = .free
+        drag.springDone = true
+        drag.leftZone = true
+        drag.inZone = false
+        drag.velocity = .zero
+        setGrabbing(true)
+        startTearTimer()
+    }
+
     private func startTearTimer() {
         tearTimer?.invalidate()
         let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.tearTick() }
@@ -1151,10 +1256,14 @@ extension EdgeController {
         tearTimer = timer
     }
 
+    private func stopTearTimer() {
+        tearTimer?.invalidate()
+        tearTimer = nil
+    }
+
     private func tearTick() {
         guard let drag = tearDrag else {
-            tearTimer?.invalidate()
-            tearTimer = nil
+            stopTearTimer()
             return
         }
         switch drag.phase {
@@ -1163,12 +1272,12 @@ extension EdgeController {
             if drag.pointer == nil, (NSEvent.pressedMouseButtons & 1) == 0 {
                 releaseTear(drag)
             } else {
-                updateTear(drag)
+                updateTear(drag, fromTimer: true)
             }
         case .docking:
             stepDock(drag)
-        case .pending:
-            break
+        case .pending, .floating:
+            stopTearTimer()
         }
     }
 
@@ -1198,28 +1307,27 @@ extension EdgeController {
         return (best.0, max(0, best.1), screen)
     }
 
-    private func updateTear(_ drag: TearDrag) {
+    private func updateTear(_ drag: TearDrag, fromTimer: Bool) {
         let p = drag.pointer ?? NSEvent.mouseLocation
         switch drag.phase {
         case .stretching:
-            // Erst dehnt sich die Ablage am Rand, wie ein Tropfen, der noch hängt
+            // Erst dehnt sich die Ablage am Rand wie ein Tropfen, der noch hängt: anfangs
+            // folgt sie gut, je weiter, desto zäher, dann reißt sie
             let away = drag.origin == .right ? drag.start.x - p.x : p.x - drag.start.x
             if away >= EdgeTear.tearDistance {
                 detachTear(drag)
-                updateTear(drag)
+                updateTear(drag, fromTimer: fromTimer)
                 return
             }
-            // Mit spürbarem Widerstand: Die Ablage folgt nur zu einem Viertel, dann reißt sie
             let pull = max(0, away)
-            let gap = pull * 0.25
+            let gap = EdgeTear.stretchMax * (1 - exp(-pull / EdgeTear.stretchSoftness))
             var body = drag.bodyStart
             body.origin.x += drag.origin == .right ? -gap : gap
-            body.origin.y += (p.y - drag.start.y) * 0.15
+            body.origin.y += (p.y - drag.start.y) * 0.12
             drag.body = body
-            setTear(gap: gap, attach: 1 - 0.8 * pow(pull / EdgeTear.tearDistance, 1.3), side: drag.origin)
+            setTear(gap: gap, attach: 1 - 0.8 * pow(pull / EdgeTear.tearDistance, 1.4), side: drag.origin)
             applyTearFrame(body)
         case .free:
-            // Gelöst: Die Ablage holt den Zeiger mit einer kurzen, weichen Bewegung ein
             var target = NSRect(x: p.x - drag.grab.x, y: p.y - drag.grab.y,
                                 width: drag.body.width, height: drag.body.height)
             if let screen = tearScreen(at: p) {
@@ -1228,14 +1336,24 @@ extension EdgeController {
                 target.origin.y = min(max(target.minY, visible.minY), visible.maxY - target.height)
             }
             var body = drag.body
-            let dx = target.minX - body.minX, dy = target.minY - body.minY
-            if hypot(dx, dy) < 0.5 || Date().timeIntervalSince(drag.detachStarted) > 0.12 {
-                // Folgt dem Zeiger direkt, ohne nachzuziehen
+            if drag.springDone {
+                // Folgt dem Zeiger direkt, bei jeder Bewegung sofort
                 body.origin = target.origin
-            } else {
-                // Gleich nach dem Lösen schnappt sie zum Zeiger
-                body.origin.x += dx * 0.55
-                body.origin.y += dy * 0.55
+            } else if fromTimer {
+                // Gleich nach dem Lösen schnellt sie mit einer Feder zum Zeiger (leicht
+                // gedämpft, kaum Überschwingen), danach folgt sie ihm direkt
+                let dt: CGFloat = 1.0 / 60
+                let omega: CGFloat = 26, zeta: CGFloat = 0.82
+                let dx = target.minX - body.minX, dy = target.minY - body.minY
+                drag.velocity.dx += (omega * omega * dx - 2 * zeta * omega * drag.velocity.dx) * dt
+                drag.velocity.dy += (omega * omega * dy - 2 * zeta * omega * drag.velocity.dy) * dt
+                body.origin.x += drag.velocity.dx * dt
+                body.origin.y += drag.velocity.dy * dt
+                if hypot(target.minX - body.minX, target.minY - body.minY) < 0.5,
+                   hypot(drag.velocity.dx, drag.velocity.dy) < 30 {
+                    body.origin = target.origin
+                    drag.springDone = true
+                }
             }
             drag.body = body
             guard let near = nearestDock(for: body) else {
@@ -1271,12 +1389,15 @@ extension EdgeController {
         drag.phase = .free
         drag.detachStarted = Date()
         drag.detachAttach = ui.tear?.attach ?? 0
+        drag.velocity = .zero
+        drag.springDone = false
         // Spürbar wie ein Einrasten, wenn sich die Ablage vom Rand löst
         Haptics.tap()
         Diagnostics.shared.record("tear", "detach")
     }
 
     private func releaseTear(_ drag: TearDrag) {
+        setGrabbing(false)
         switch drag.phase {
         case .stretching:
             dock(drag, side: drag.origin, screen: drag.originScreen)
@@ -1284,12 +1405,32 @@ extension EdgeController {
             if drag.leftZone, let near = nearestDock(for: drag.body), near.distance < EdgeTear.attachZone {
                 dock(drag, side: near.side, screen: near.screen)
             } else {
-                // Schritt 1: frei liegen lassen gibt es noch nicht, zurück an den Rand
-                dock(drag, side: drag.origin, screen: Self.fresh(drag.originScreen) ?? drag.originScreen)
+                float(drag)
             }
         default:
             break
         }
+    }
+
+    /// Losgelassen fern der Ränder: Sie bleibt dort liegen, über allen Fenstern, bis man
+    /// sie an einen Rand zieht, esc oder den Kurzbefehl drückt
+    private func float(_ drag: TearDrag) {
+        stopTearTimer()
+        drag.phase = .floating
+        drag.inZone = false
+        setTear(gap: 0, attach: 0, side: ui.tear?.side ?? drag.origin)
+        applyTearFrame(drag.body)
+        logic.outsideSince = nil
+        lastActivity = Date()
+        Diagnostics.shared.record("tear", "float")
+        wake()
+    }
+
+    /// Schwebend: zurück an ihren Rand (esc, Kurzbefehl), danach zu
+    func returnFloatingToEdge(close: Bool) {
+        guard let drag = tearDrag, drag.phase == .floating else { return }
+        drag.closeAfterDock = close
+        dock(drag, side: settings.edge, screen: Self.fresh(drag.originScreen) ?? drag.originScreen)
     }
 
     private func dock(_ drag: TearDrag, side: ScreenEdge, screen: NSScreen) {
@@ -1305,7 +1446,8 @@ extension EdgeController {
                              y: centerY - drag.body.height / 2,
                              width: drag.body.width, height: drag.body.height)
         drag.dockStarted = Date()
-        Diagnostics.shared.record("tear", "dock \(side) sameEdge=\(side == drag.origin)")
+        Diagnostics.shared.record("tear", "dock \(side) sameEdge=\(side == drag.origin) close=\(drag.closeAfterDock)")
+        startTearTimer()
     }
 
     private func stepDock(_ drag: TearDrag) {
@@ -1326,8 +1468,7 @@ extension EdgeController {
 
     /// Angedockt: zurück zur gewohnten Ablage am Rand, in einem Zug mit dem Fenster
     private func finishDock(_ drag: TearDrag) {
-        tearTimer?.invalidate()
-        tearTimer = nil
+        stopTearTimer()
         tearDrag = nil
         if let s = drag.dockScreen { screen = s }
         panel.disableScreenUpdatesUntilFlush()
@@ -1341,6 +1482,7 @@ extension EdgeController {
                 settings.edge = drag.dockSide
             }
             ui.tear = nil
+            ui.grabbing = false
         }
         layoutPanel()
         panel.contentView?.layoutSubtreeIfNeeded()
@@ -1348,25 +1490,63 @@ extension EdgeController {
         if let screen { ui.expandedBody = bodyRect(.expanded, on: screen) }
         logic.outsideSince = nil
         lastActivity = Date()
+        if drag.closeAfterDock { close() }
         wake()
+    }
+
+    /// Sofort zurück an den Rand, ohne Bewegung (Rand in den Einstellungen geändert,
+    /// Einführung startet). Die Ablage bleibt dabei offen; was danach geschieht, regelt der Aufrufer.
+    func endTearImmediately() {
+        guard tearDrag != nil else { return }
+        stopTearTimer()
+        tearDrag = nil
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            ui.tear = nil
+            ui.grabbing = false
+        }
+        layoutPanel()
+        Diagnostics.shared.record("tear", "ended")
+    }
+
+    /// Schwebend: statt Rand und Takt nur Maus und Fokus über der Ablage
+    func floatTick(_ drag: TearDrag) {
+        let loc = NSEvent.mouseLocation
+        let mouseDown = (NSEvent.pressedMouseButtons & 1) == 1
+        if !mouseDown { dragBaseline = dragPasteboard.changeCount }
+        let body = drag.body
+        ui.expandedBody = body
+        let locked = ui.isLocked || actions.isQuickLookVisible
+        let inside = body.contains(loc)
+        // Klicks neben der Ablage gehen durch an die Fenster darunter
+        let accept = inside || locked
+        if accept != acceptsMouse {
+            acceptsMouse = accept
+            panel.ignoresMouseEvents = !accept
+        }
+        if inside && !pointerInside && !mouseDown && !panel.isKeyWindow && !locked && NSApp.modalWindow == nil {
+            takeFocus()
+        }
+        pointerInside = inside
+        let hover = inside && headerZone(body).contains(loc)
+        if ui.grabberHover != hover {
+            withAnimation(.easeOut(duration: 0.15)) { ui.grabberHover = hover }
+        }
     }
 }
 
 // MARK: Diagnose: Ziehen ohne Maus
 
 extension EdgeController {
-    /// Befehl „tear“ (nur Diagnose): Die offene Ablage wird wie mit der Maus an der Kopfzeile
+    /// Befehl „tear“ (nur Diagnose): Die offene Ablage wird wie mit der Maus am Griff
     /// gezogen, entlang `points` (Abstand vom Startpunkt in pt, je 1/60 s), dann losgelassen.
     /// Dazu Bilder des Fensters, um Form und Lage prüfen zu können.
     func simulateTear(path points: [NSPoint], shots: Set<Int>) {
-        guard tearDrag == nil, ui.level == .expanded, let screen,
-              let down = NSEvent.mouseEvent(with: .leftMouseDown, location: .zero, modifierFlags: [],
-                                            timestamp: ProcessInfo.processInfo.systemUptime,
-                                            windowNumber: panel.windowNumber, context: nil,
-                                            eventNumber: 0, clickCount: 1, pressure: 1) else { return }
+        guard tearDrag == nil, ui.level == .expanded, let screen else { return }
         let body = ui.expandedBody
-        let start = NSPoint(x: body.midX, y: body.maxY - expandedFillet - EdgeTear.headerHeight / 2)
-        let drag = TearDrag(down: down, start: start, origin: settings.edge, originScreen: screen)
+        let start = NSPoint(x: body.midX, y: body.maxY - expandedFillet - 8)
+        let drag = TearDrag(down: nil, start: start, origin: settings.edge, originScreen: screen)
         drag.pointer = start
         tearDrag = drag
         for (index, offset) in points.enumerated() {
@@ -1374,11 +1554,11 @@ extension EdgeController {
                 guard let self, self.tearDrag === drag else { return }
                 drag.pointer = NSPoint(x: start.x + offset.x, y: start.y + offset.y)
                 if drag.phase == .pending { self.beginTear(drag) }
-                if drag.phase == .stretching || drag.phase == .free { self.updateTear(drag) }
+                if drag.phase == .stretching || drag.phase == .free { self.updateTear(drag, fromTimer: false) }
                 if shots.contains(index) { ShelfSnapshots.capture(self.panel, "tear\(index)", after: [0]) }
                 if index == points.count - 1 {
                     self.releaseTear(drag)
-                    ShelfSnapshots.capture(self.panel, "dock", after: [0.1, 0.2, 0.5])
+                    ShelfSnapshots.capture(self.panel, "release", after: [0.1, 0.3, 0.6])
                 }
             }
         }

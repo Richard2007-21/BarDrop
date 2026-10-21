@@ -45,27 +45,31 @@ enum ShelfSnapshots {
         return unsafeBitCast(symbol, to: CreateImage.self)
     }()
 
+    /// Aufnehmen und Speichern im Hintergrund: Auf dem Hauptthread kostete jedes Bild
+    /// Zeit, und Animationen ruckelten, solange die Bilder eingeschaltet waren
+    private static let queue = DispatchQueue(label: "BarDrop.Snapshots", qos: .utility)
+
     private static func save(_ window: NSWindow, _ name: String) {
         guard window.isVisible, let createImage else { return }
-        // kCGWindowListOptionIncludingWindow = 8, kCGWindowImageBoundsIgnoreFraming = 1
-        guard let image = createImage(.null, 8, UInt32(window.windowNumber), 1)?.takeRetainedValue() else {
-            Diagnostics.shared.record("shot", "\(name) nicht möglich")
-            return
-        }
-        write(image, name)
-    }
-
-    private static func write(_ image: CGImage, _ name: String) {
-        let rep = NSBitmapImageRep(cgImage: image)
-        guard let data = rep.representation(using: .png, properties: [:]) else { return }
+        let number = UInt32(window.windowNumber)
         counter += 1
+        let index = counter
         let stamp = ISO8601DateFormatter.string(from: Date(), timeZone: .current,
                                                 formatOptions: [.withTime, .withColonSeparatorInTime])
-        let file = directory.appendingPathComponent(String(format: "%@ %03d %@.png", stamp, counter % 1000, name)
-            .replacingOccurrences(of: ":", with: "-"))
-        try? data.write(to: file)
-        Diagnostics.shared.record("shot", file.lastPathComponent)
-        prune()
+        queue.async {
+            // kCGWindowListOptionIncludingWindow = 8, kCGWindowImageBoundsIgnoreFraming = 1
+            guard let image = createImage(.null, 8, number, 1)?.takeRetainedValue() else {
+                DispatchQueue.main.async { Diagnostics.shared.record("shot", "\(name) nicht möglich") }
+                return
+            }
+            let rep = NSBitmapImageRep(cgImage: image)
+            guard let data = rep.representation(using: .png, properties: [:]) else { return }
+            let file = directory.appendingPathComponent(String(format: "%@ %03d %@.png", stamp, index % 1000, name)
+                .replacingOccurrences(of: ":", with: "-"))
+            try? data.write(to: file)
+            prune()
+            DispatchQueue.main.async { Diagnostics.shared.record("shot", file.lastPathComponent) }
+        }
     }
 
     /// Zustand der Scrollbereiche im Fenster ins Protokoll (Größe des Inhalts, ob etwas

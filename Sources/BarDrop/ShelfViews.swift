@@ -190,14 +190,6 @@ struct ShelfContent: View {
     private var openBlur: CGFloat {
         sharpened || ui.ownDragActive ? 0 : settings.animationStyle.blur
     }
-    /// Deckendes Schwarz hinter der Aktionsleiste. Die Kacheln enden seit dem Umbau über der
-    /// Leiste (siehe body), es ist also nur noch eine Absicherung. Eine AppKit-Ansicht statt
-    /// einer SwiftUI-Farbe, weil eine SwiftUI-Fläche teils unter dem Scrollbereich landete.
-    private var barBackdrop: some View {
-        OpaqueBlack()
-            .allowsHitTesting(false)
-    }
-
     /// Übergang unter dem Kopf: weiche S-Kurve ins Schwarz
     private var topFade: some View {
         let stops: [Gradient.Stop] = Self.fadeCurve.reversed().map { point in
@@ -352,10 +344,25 @@ struct ShelfContent: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 8)
                     .padding(.top, 2)
-                    // Beim Öffnen genauso unscharf wie Kopf und Kacheln, aber nur die Symbole:
-                    // Das Schwarz dahinter bleibt voll deckend (siehe barBackdrop)
+                    // Beim Öffnen genauso unscharf wie Kopf und Kacheln. Ohne eigenes Schwarz
+                    // dahinter: Die Kacheln enden über der Leiste, und eine deckende Fläche
+                    // (eigene AppKit-Ansicht) lag über dem hellen Rahmen und verdeckte ihn an
+                    // den unteren Ecken
                     .blur(radius: openBlur)
-                    .background { barBackdrop }
+            }
+        }
+        // Griff oben in der Mitte: nur zu sehen, solange der Zeiger in der Kopfzeile ist oder
+        // gezogen wird. Grau wie die übrigen Grautöne, beim Ziehen hell und etwas länger.
+        // Gezogen wird über EdgeController (Fläche um den Griff), er selbst fängt nichts ab
+        .overlay(alignment: .top) {
+            if !shelfDemo {
+                Capsule()
+                    .fill(Color.white.opacity(ui.grabbing ? 0.85 : 0.28))
+                    .frame(width: ui.grabbing ? 46 : 36, height: 5)
+                    .padding(.top, 6)
+                    .opacity(ui.grabbing || ui.grabberHover ? 1 : 0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
         .background(Group { if !shelfDemo {
@@ -429,10 +436,17 @@ struct ShelfContent: View {
                 }
             } else {
                 if let title {
-                    Text(title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.92))
-                        .allowsHitTesting(false)
+                    // Eingerückt wie der Name eines geöffneten Ordners hinter dem Zurück-Pfeil:
+                    // Beim Wechsel steht der Titel an derselben Stelle
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                            .hidden()
+                        Text(title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.92))
+                    }
+                    .allowsHitTesting(false)
                 }
                 Spacer(minLength: 8)
                 let count = store.entries.reduce(0) { $0 + $1.files.count }
@@ -1123,24 +1137,6 @@ extension EnvironmentValues {
         get { self[ShelfDemoKey.self] }
         set { self[ShelfDemoKey.self] = newValue }
     }
-}
-
-/// Deckendes Schwarz als eigene AppKit-Ansicht (siehe `barBackdrop`)
-private struct OpaqueBlack: NSViewRepresentable {
-    final class BlackView: NSView {
-        override init(frame: NSRect) {
-            super.init(frame: frame)
-            wantsLayer = true
-            layer?.backgroundColor = NSColor.black.cgColor
-        }
-        required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
-        override var isOpaque: Bool { true }
-        // Klicks gehen an die Leiste darüber bzw. fallen durch, wie bei der Farbe vorher
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-    }
-
-    func makeNSView(context: Context) -> BlackView { BlackView(frame: .zero) }
-    func updateNSView(_ view: BlackView, context: Context) {}
 }
 
 /// Unschärfe beim Öffnen, aber nur solange sie wirkt. Auch mit Stärke 0 legt `.blur` eine

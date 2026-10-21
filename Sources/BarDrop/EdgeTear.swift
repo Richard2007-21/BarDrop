@@ -13,6 +13,13 @@ enum EdgeTear {
     static let tearDistance: CGFloat = 60
     /// Bis zu diesem Abstand zum Rand zieht er die Ablage wieder an
     static let attachZone: CGFloat = 70
+    /// Dehnen bis zum Lösen: höchstens so weit (pt) folgt die Ablage, und so schnell wird es
+    /// zäh (anfangs folgt sie gut, kurz vor dem Reißen kaum noch)
+    static let stretchMax: CGFloat = 22
+    static let stretchSoftness: CGFloat = 30
+    /// Griff oben in der Mitte und die Fläche um ihn herum, an der man ziehen kann
+    static let grabWidth: CGFloat = 120
+    static let grabHeight: CGFloat = 26
     /// Eckenradius der schwebenden Ablage (wie die offene Ablage innen)
     static let cornerRadius: CGFloat = 28
     /// Höhe der Kopfzeile (Abstand oben, Zeile, Abstand unten, siehe ShelfContent)
@@ -33,17 +40,49 @@ struct TearGoo: View {
 
     var body: some View {
         ZStack {
-            goo(grow: 0, color: .black)
-                .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
-            if outline {
-                // Dieselbe Form, 1 pt größer und hell, darüber noch einmal die schwarze: So
-                // bleibt rundum ein feiner Rand. Über dem Schatten, sonst verschwand er unten.
-                goo(grow: 1, color: Color.white.opacity(0.2))
+            if tear.attach > 0.01 {
+                // Mit dem Rand verbunden: verschmelzende Formen (aufwendig, nur dann)
                 goo(grow: 0, color: .black)
+                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+            } else {
+                // Gelöst oder schwebend: ein einfaches abgerundetes Rechteck, das kostet beim
+                // Ziehen fast nichts
+                RoundedRectangle(cornerRadius: EdgeTear.cornerRadius, style: .continuous)
+                    .fill(Color.black)
+                    .padding(.horizontal, reach)
+                    .padding(.vertical, inset)
+                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+            }
+            if outline {
+                outlineStroke
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// Feiner heller Rahmen, scharf gezeichnet (nicht aus der verschmolzenen Form: dort wurde er
+    /// an den Ecken zu dünn). Wo die Verbindung zum Rand ansetzt, ausgespart, wie am Rand selbst.
+    private var outlineStroke: some View {
+        Canvas { context, size in
+            let body = CGRect(x: reach, y: inset, width: max(0, size.width - 2 * reach),
+                              height: max(0, size.height - 2 * inset))
+            guard body.width > 0, body.height > 0 else { return }
+            let a = max(0, min(1, tear.attach))
+            if a > 0.01 {
+                let right = tear.side == .right
+                // Verbindung samt ihren weichen Übergängen (etwa so breit wie die Unschärfe)
+                let height = body.height * pow(a, 1.6) + 30
+                let zone = CGRect(x: right ? body.midX : 0, y: body.midY - height / 2,
+                                  width: right ? size.width - body.midX : body.midX, height: height)
+                var mask = Path(CGRect(origin: .zero, size: size))
+                mask.addRect(zone)
+                context.clip(to: mask, style: FillStyle(eoFill: true))
+            }
+            let path = Path(roundedRect: body.insetBy(dx: -0.5, dy: -0.5),
+                            cornerRadius: EdgeTear.cornerRadius + 0.5, style: .continuous)
+            context.stroke(path, with: .color(.white.opacity(0.2)), lineWidth: 1)
+        }
     }
 
     private func goo(grow: CGFloat, color: Color) -> some View {

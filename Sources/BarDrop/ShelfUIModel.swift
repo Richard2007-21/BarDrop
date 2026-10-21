@@ -80,6 +80,10 @@ final class ShelfUIModel: ObservableObject {
         var side: ScreenEdge
     }
     @Published var tear: Tear?
+    /// Der Zeiger ist in der Kopfzeile: Der Griff oben erscheint
+    @Published var grabberHover = false
+    /// Die Ablage wird gerade am Griff gezogen: Er ist hell und etwas länger
+    @Published var grabbing = false
 
     /// Ordner oder App, die gerade über die Ablage gezogen wird und sich anheften ließe.
     /// Solange gesetzt, zeigt die Aktionsleiste einen freien Platz zum Anheften.
