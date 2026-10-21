@@ -44,6 +44,12 @@ final class ShelfPanel: NSPanel {
         if event.type == .leftMouseDown, let ui = actions?.ui, ui.level == .hint {
             ui.expandRequested = true
         }
+        if event.type == .rightMouseDown, Diagnostics.shared.isEnabled {
+            // Rechtsklick ging gleich nach dem Öffnen teils ins Leere: festhalten, wohin er geht
+            let hit = contentView?.hitTest(contentView?.superview?.convert(event.locationInWindow, from: nil)
+                                           ?? event.locationInWindow)
+            Diagnostics.shared.record("menu", "right level=\(actions?.ui.level ?? .hidden) hit=\(hit.map { String(describing: type(of: $0)) } ?? "–") key=\(isKeyWindow) disabled=\(ShelfMenu.disabled) locked=\(actions?.ui.isLocked ?? false)")
+        }
         super.sendEvent(event)
     }
     /// Nur während die Übersicht offen ist, wird die Ablage Hauptfenster: Dort sucht die

@@ -753,16 +753,25 @@ final class EdgeController: NSObject {
             logic.outsideSince = nil
             logic.manualOpen = false
             previewUntil = nil
-            // Erst umziehen, wenn die Ablage am alten Rand wirklich weg ist
+            // Unsichtbar umziehen: Das Fenster sprang sonst an den neuen Rand, während es noch
+            // den alten Inhalt zeigte, und für einen Augenblick stand die Ablage mitten auf
+            // dem Bildschirm. Erst wenn sie am neuen Rand neu gezeichnet ist, wieder zeigen.
+            panel.alphaValue = 0
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
                 guard let self else { return }
                 if let s = self.screen, !self.allowedScreens().contains(where: { Self.same($0, s) }) {
                     self.screen = self.screenUnderMouse() ?? self.allowedScreens().first
                 }
                 self.layoutPanel()
-                self.previewLevel = .peek
-                self.previewUntil = Date().addingTimeInterval(1.2)
-                self.wake()
+                self.panel.contentView?.layoutSubtreeIfNeeded()
+                self.panel.displayIfNeeded()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+                    guard let self else { return }
+                    self.panel.alphaValue = 1
+                    self.previewLevel = .peek
+                    self.previewUntil = Date().addingTimeInterval(1.2)
+                    self.wake()
+                }
             }
         } else if layoutDirty, settings.layoutSignature != lastLayoutSignature {
             lastLayoutSignature = settings.layoutSignature
