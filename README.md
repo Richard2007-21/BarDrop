@@ -75,6 +75,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * Exclude apps in which the edge shouldn’t open the shelf, for example games, and optionally stay closed in full screen
 * Files flung quickly at the edge are still caught
 * Thin light outline so it stays visible on dark backgrounds
+* Pull it off the edge by its handle: it floats above all windows, optionally as dark glass, and docks again at either edge
 * On all displays, or only the built-in or external ones
 * Uses practically no energy while idle
 
@@ -83,13 +84,14 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * New screenshots can land in the shelf automatically
 * Convert with a right-click: images, PDF pages, text documents, audio and video, using only what macOS includes
 * Newest first, stacks, selection like in the Finder; double-click a folder to see its contents right in the shelf
+* Unzip ZIP archives right in the shelf
 * Files from the Finder as the original or as a copy of their own
 * Removed something by accident, or moved it to the Trash? `⌘Z` brings it back
 * Moved or renamed files stay in the shelf, iCloud files are downloaded when needed, files from disconnected drives stay grayed out
 * Contents survive a restart and can be cleaned up automatically after 1 to 24 hours; optionally reopen where you left off
 
 **Action bar**
-* AirDrop, Mail, Messages, Share, Trash, any folder or app
+* AirDrop, Mail, Messages, Share, Trash, any folder or app, and your shortcuts (files they return land in the shelf)
 * Drag items onto it
 * Click a folder to see its contents right in the shelf, like a stack: select, drag out, Quick Look and move to the Trash like in the Finder, open subfolders, and drop files there to put them in the folder; `esc` goes back
 * Folders and the Trash work like in the Finder: on the same disk a folder moves, on another disk it copies (`⌥` always copies, `⌘` always moves)

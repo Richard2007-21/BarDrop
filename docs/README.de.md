@@ -75,6 +75,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Apps ausnehmen, in denen der Rand die Ablage nicht öffnen soll, zum Beispiel Spiele, und auf Wunsch im Vollbild geschlossen bleiben
 * Auch schnell an den Rand geworfene Dateien werden sicher aufgenommen
 * Feiner heller Rahmen, damit sie auch auf dunklem Hintergrund zu sehen ist
+* Am Griff vom Rand ziehen: Sie schwebt über allen Fenstern, auf Wunsch als dunkles Glas, und dockt an beiden Rändern wieder an
 * Auf allen Bildschirmen oder nur auf dem integrierten bzw. den externen
 * Verbraucht im Ruhezustand praktisch keine Energie
 
@@ -83,13 +84,14 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Neue Bildschirmfotos landen auf Wunsch automatisch in der Ablage
 * Umwandeln per Rechtsklick: Bilder, PDF-Seiten, Textdokumente, Audio und Video, nur mit dem, was macOS mitbringt
 * Neueste zuerst, Stapel, Auswahl wie im Finder; ein Doppelklick auf einen Ordner zeigt seinen Inhalt direkt in der Ablage
+* ZIP-Archive direkt in der Ablage entpacken
 * Dateien aus dem Finder als Original oder als eigene Kopie
 * Versehentlich entfernt oder in den Papierkorb gelegt? `⌘Z` holt es zurück
 * Verschobene oder umbenannte Dateien bleiben in der Ablage, Dateien aus iCloud werden bei Bedarf geladen, Dateien von getrennten Laufwerken bleiben ausgegraut erhalten
 * Inhalt bleibt nach einem Neustart erhalten, auf Wunsch nach 1 bis 24 Stunden automatisch aufgeräumt; auf Wunsch öffnet die Ablage an der letzten Stelle
 
 **Aktionsleiste**
-* AirDrop, Mail, Nachrichten, Teilen, Papierkorb, beliebige Ordner und Apps
+* AirDrop, Mail, Nachrichten, Teilen, Papierkorb, beliebige Ordner und Apps sowie deine Kurzbefehle (zurückgegebene Dateien landen in der Ablage)
 * Objekte darauf ziehen
 * Klick auf einen Ordner zeigt seinen Inhalt direkt in der Ablage, wie einen Stapel: auswählen, herausziehen, Übersicht und Papierkorb wie im Finder, Unterordner öffnen und Dateien hineinziehen, um sie in den Ordner zu legen; `esc` geht zurück
 * Ordner und Papierkorb wie im Finder: auf derselben Platte verschiebt ein Ordner, auf einer anderen kopiert er (`⌥` kopiert immer, `⌘` verschiebt immer)

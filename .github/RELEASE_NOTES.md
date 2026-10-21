@@ -1,55 +1,35 @@
-* **New:** Folders open right in the shelf, like a stack: click a folder in the action bar, or double-click a folder in the shelf (or press `↩`). Select, drag out, Quick Look, copy and move to the Trash work like in the Finder, a double-click opens subfolders, and files you drop there go into the folder. The header shows the folder’s name, `esc` goes back one level, and `⌘Z` puts files moved to the Trash back into the folder
-* **New:** “Open shelf” has a new option “Instantly” that opens the shelf the moment the pointer reaches the edge, without the strip first. Every option shows a word and its wait, such as “Quick (0.3 s)”, which stays the standard
-* **Changed:** Clicking an action no longer runs it on the selected items; drag items onto it instead. Clicking an app opens it, clicking a folder shows its contents, and the action grows briefly
-* **Changed:** Settings are tidier. “Position along the edge” is Fixed or Follows pointer; with Follows pointer a slider sets how much of the edge reacts (standard: two thirds in the middle). General fits on one card, “Open where you left off” is under Opening, exceptions are together, and new screenshots are under Storage
-* **Changed:** “After use” offers Keep in the shelf (new standard), Remove after dragging out and Always remove. If you had chosen “Remove after actions”, your items now stay in the shelf
-* **Changed:** The shelf’s title is always BarDrop, and the newest items always come first. “Never” is gone from “While dragging files”, the strip’s edge curve is fixed, and “Group into a stack” offers 2, 3, 5 or 10 items. The size sliders are called “Item size” and “Action size”; actions can be a little bigger (up to 54 pt)
-* **Changed:** Shorter notes at the top right of the shelf, such as “Removed”, “Copied” or “3 selected”. While plugins run, it says “Plugin running”
-* **Changed:** Right-click menus no longer show icons, also for plugins
-* **Fixed:** Quick Look with `space` works reliably, even when pressed quickly several times: the shelf keeps the focus, so `space` no longer reaches the window behind, and Quick Look no longer shows “No Items Selected”. The arrow keys go through the items. A click in another app closes Quick Look and the shelf, and after closing Quick Look the shelf closes as usual when the pointer is elsewhere
-* **Fixed:** Settings no longer jump to the front by themselves after a right-click in the shelf, Quick Look, sharing, Mail, Messages or questions from the shelf, and they are active again after closing Control Center or Notification Center
-* **Fixed:** Scrolling fast with momentum no longer skips items and jumps to the end
-* **Fixed:** While the shelf opens, items no longer shine through the action bar
-* **Fixed:** Moving the pointer quickly along the edge opens the shelf: the strip follows the pointer while it is visible
-* **Fixed:** Without “Open where you left off”, an open stack or folder closes only once the shelf is out of sight
-* Opening a folder starts at the top and looks the same whether it is pinned or in the shelf. Clicking a pinned folder that is already open keeps it open; from a subfolder it goes back to its top level
-* Settings: cards and pop-up lists are a little see-through, switches slide reliably to the new choice, the keys in the shortcut list show centered symbols, and the BETA label is a calm gray, centered next to “Plugins”
-* Introduction: the screen dims more gently, choosing left or right works with one click, a single quiet arrow points to the edge, and the trackpad gives a light tap when the photo reaches the shelf
-* Texts in English and German say the same thing everywhere; English uses American spelling
-* Plugins: the placeholder shows a preview of the file the plugin works on. It starts out see-through, becomes solid with the progress, and shows the result as soon as a finished file is there. Hovering shows Pause or Resume and × to cancel; placeholders can be selected like other items, and `⌫` cancels them
-* Plugins: consent, permissions and programs are asked in one short window instead of up to four in a row. Importing shows a short list; the script is under “View Script”
-* **Fixed:** Plugins: Cancel takes effect at once, even for a plugin stuck in an endless loop; programs that ignore the request to quit are ended after 3 seconds. Turning off or removing a plugin cancels its jobs
-* Plugins: permissions now cover all files of a plugin, so after this update plugins ask for their permissions once more. Permission to download a program is tied to its address, plugins with the same program name no longer overwrite each other, and a changed consent text asks again
-* Plugins: packages may be at most 20 MB unpacked, `*.example.com` in `links.hosts` works, and a plugin without a known trigger is rejected instead of never showing up
-* Plugins: `const run = …` and `let run = …` work like `function run`; new `bardrop.pluginDirectory`; `createLink` only accepts web addresses; `bardrop.notify` takes at most 40 characters
-* Plugins: each run has its own internet session, and automatic runs use the current code after an edit
-* `check_plugin.py` checks scripts the way BarDrop loads them, checks link patterns by macOS rules, and no longer packs hidden folders such as `.git`
+* **New: Pull the shelf off the edge.** Grab the handle at the top of the open shelf and pull: it stretches like a drop, comes loose with a light tap on the trackpad and floats above all windows. Let go near the left or right edge and it docks there; the edge in Settings follows along. `esc`, the keyboard shortcut or “Back to the Edge” in the right-click menu return it
+* **New: Shortcuts as actions.** Add Action → Shortcut puts any of your shortcuts into the action bar. Drop files on it to run the shortcut with them; files it returns land in the shelf
+* **New: Unzip right in the shelf.** Right-click a ZIP archive and choose Unzip, or double-click it. Several items become a stack next to the archive, a single item lands on its own
+* **New:** “Translucent when floating” (Settings → Style) turns a floating shelf into dark glass, a little lighter in light mode. Off by default: the floating shelf is deep black like at the edge
+* **New:** Dragging a stack out shows one image with the number of items instead of many single ones
+* **New:** A floating shelf gives a light tap on the trackpad when files can be dropped on it
+* **Changed: Items react like in the Finder.** Only the picture and the name of an item respond to clicks; a click next to them clears the selection or starts a selection rectangle. Rows sit a little closer together
+* **Changed:** The introduction is new and calmer: drop, pointer, take out, actions and keyboard shortcut, step by step. “Open at login” comes at the end and is on by default
+* **Changed:** Hold `⌘` and drag an action to move it, also into the other row. An action dragged out with `⌘` leaves its place empty and slides back in one move if you put it back
+* **Fixed: Everything appears right away.** Images from the web, the first item in an empty shelf and opened folders show up at once instead of only after a click or reopening. Opening a folder no longer freezes the shelf while macOS asks for permission
+* **Fixed:** A right-click works the first time, also right after the shelf opens or when BarDrop isn’t in front
+* **Fixed:** Settings no longer jump to the front by themselves after Control Center, and a floating shelf leaves Control Center open
+* **Fixed:** Switching between left and right no longer flashes the shelf in the middle of the screen
+* **Fixed:** A selection rectangle over many items keeps the upper items selected while you keep dragging
+* New screenshots also arrive after you change where macOS saves them
+* Settings: clearer texts and settings that no longer did anything removed
 
 <!-- de -->
 
-* **Neu:** Ordner öffnen sich direkt in der Ablage, wie ein Stapel: Klick auf einen Ordner in der Aktionsleiste oder Doppelklick auf einen Ordner in der Ablage (oder `↩`). Auswählen, Herausziehen, Übersicht, Kopieren und In den Papierkorb legen funktionieren wie im Finder, ein Doppelklick öffnet Unterordner, und abgelegte Dateien landen im Ordner. Oben steht der Name des Ordners, `esc` geht eine Ebene zurück, und `⌘Z` legt Dateien aus dem Papierkorb zurück in den Ordner
-* **Neu:** „Ablage öffnen“ hat die neue Wahl „Sofort“: Die Ablage öffnet, sobald der Zeiger den Rand erreicht, ohne Streifen vorher. Jede Wahl nennt einen Begriff und die Wartezeit, etwa „Schnell (0,3 s)“, das weiter der Standard ist
-* **Geändert:** Ein Klick auf eine Aktion wendet sie nicht mehr auf die Auswahl an; dafür Objekte auf sie ziehen. Ein Klick auf eine App öffnet sie, auf einen Ordner zeigt er seinen Inhalt, und die Aktion wird kurz größer
-* **Geändert:** Die Einstellungen sind aufgeräumter. „Position am Rand“ ist Fest oder Am Zeiger; bei Am Zeiger legt ein Regler fest, wie viel vom Rand reagiert (Standard: zwei Drittel in der Mitte). Allgemein passt auf eine Karte, „An letzter Stelle öffnen“ steht unter Öffnen, Ausnahmen stehen zusammen, und neue Bildschirmfotos stehen unter Speichern
-* **Geändert:** „Nach dem Verwenden“ bietet In der Ablage behalten (neuer Standard), Nach dem Herausziehen entfernen und Immer entfernen. Wer „Nach Aktionen entfernen“ gewählt hatte, behält die Objekte jetzt in der Ablage
-* **Geändert:** Oben in der Ablage steht immer BarDrop, und die neuesten Objekte stehen immer vorn. „Nie“ ist aus „Beim Ziehen von Dateien“ entfernt, die Rundung des Streifens ist fest, und „Stapel bilden“ bietet 2, 3, 5 oder 10 Objekte. Die Größenregler heißen „Größe der Objekte“ und „Größe der Aktionen“; Aktionen können etwas größer sein (bis 54 pt)
-* **Geändert:** Kürzere Hinweise oben rechts in der Ablage, etwa „Entfernt“, „Kopiert“ oder „3 ausgewählt“. Solange Plugins arbeiten, steht dort „Plugin läuft“
-* **Geändert:** Rechtsklick-Menüs zeigen keine Symbole mehr vor ihren Einträgen, auch bei Plugins
-* **Behoben:** Die Übersicht mit der Leertaste funktioniert zuverlässig, auch schnell hintereinander gedrückt: Die Ablage behält den Fokus, die Leertaste landet nicht mehr im Fenster dahinter, und die Übersicht zeigt nicht mehr „Keine Objekte ausgewählt“. Die Pfeiltasten gehen durch die Objekte. Ein Klick in eine andere App schließt Übersicht und Ablage, und nach dem Schließen der Übersicht schließt die Ablage wie sonst, wenn der Zeiger woanders ist
-* **Behoben:** Die Einstellungen springen nicht mehr von selbst nach vorn, nach einem Rechtsklick in die Ablage, der Übersicht, Teilen, Mail, Nachrichten oder Rückfragen aus der Ablage, und sie sind nach dem Schließen von Kontrollzentrum oder Mitteilungszentrale wieder aktiv
-* **Behoben:** Schnelles Scrollen mit Schwung überspringt keine Objekte mehr und springt nicht ans Ende
-* **Behoben:** Beim Öffnen der Ablage scheinen Objekte nicht mehr durch die Aktionsleiste
-* **Behoben:** Fährt der Zeiger schnell am Rand entlang, öffnet sich die Ablage: Der Streifen folgt dem Zeiger, solange er zu sehen ist
-* **Behoben:** Ohne „An letzter Stelle öffnen“ schließt ein offener Stapel oder Ordner erst, wenn die Ablage nicht mehr zu sehen ist
-* Ein Ordner öffnet sich oben und sieht gleich aus, ob er angeheftet ist oder in der Ablage liegt. Ein Klick auf einen angehefteten Ordner, der schon offen ist, lässt ihn offen; aus einem Unterordner geht es zurück zur obersten Ebene
-* Einstellungen: Karten und Auswahllisten sind etwas durchscheinend, Umschalter gleiten zuverlässig zur neuen Wahl, die Tasten in der Liste der Kurzbefehle zeigen mittige Symbole, und der BETA-Hinweis ist ruhig grau und mittig neben „Plugins“
-* Einführung: Der Bildschirm dunkelt sanfter ab, links oder rechts wählen klappt mit einem Klick, ein einzelner ruhiger Pfeil zeigt zum Rand, und das Trackpad gibt einen leichten Impuls, wenn das Foto die Ablage erreicht
-* Texte sagen auf Englisch und Deutsch überall dasselbe; Englisch in amerikanischer Schreibung
-* Plugins: Der Platzhalter zeigt eine Vorschau der Datei, an der das Plugin arbeitet. Er ist erst durchsichtig, wird mit dem Fortschritt deckend und zeigt das Ergebnis, sobald eine fertige Datei da ist. Beim Darüberfahren erscheinen Anhalten bzw. Fortsetzen und × zum Abbrechen; Platzhalter lassen sich wie andere Objekte auswählen, und `⌫` bricht sie ab
-* Plugins: Zustimmung, Rechte und Programme werden in einem kurzen Fenster erfragt statt in bis zu vier nacheinander. Beim Importieren erscheint eine kurze Liste; das Skript steht unter „Skript ansehen“
-* **Behoben:** Plugins: Abbrechen wirkt sofort, auch bei einem Plugin in einer Endlosschleife; Programme, die nicht beenden wollen, werden nach 3 Sekunden beendet. Ausschalten oder Entfernen eines Plugins bricht seine Läufe ab
-* Plugins: Rechte gelten jetzt für alle Dateien eines Plugins, deshalb fragen Plugins nach diesem Update einmal neu. Die Erlaubnis, ein Programm zu laden, gilt für seine Adresse, Plugins mit gleichem Programmnamen überschreiben sich nicht mehr gegenseitig, und ein geänderter Zustimmungstext fragt neu
-* Plugins: Pakete dürfen entpackt höchstens 20 MB groß sein, `*.example.com` in `links.hosts` funktioniert, und ein Plugin ohne bekannten Auslöser wird abgelehnt, statt nie zu erscheinen
-* Plugins: `const run = …` und `let run = …` funktionieren wie `function run`; neu ist `bardrop.pluginDirectory`; `createLink` nimmt nur Webadressen; `bardrop.notify` nimmt höchstens 40 Zeichen
-* Plugins: Jeder Lauf hat eine eigene Internetsitzung, und automatische Läufe nutzen nach einer Änderung den aktuellen Code
-* `check_plugin.py` prüft Skripte so, wie BarDrop sie lädt, prüft Link-Muster nach den Regeln von macOS und packt keine versteckten Ordner wie `.git` mehr mit
+* **Neu: Die Ablage vom Rand ziehen.** Den Griff oben an der offenen Ablage fassen und ziehen: Sie dehnt sich wie ein Tropfen, löst sich mit einem leichten Impuls am Trackpad und schwebt über allen Fenstern. Nahe am linken oder rechten Rand losgelassen, dockt sie dort an; der Rand in den Einstellungen stellt sich mit um. `esc`, der Kurzbefehl oder „Zurück an den Rand“ im Rechtsklickmenü bringen sie zurück
+* **Neu: Kurzbefehle als Aktionen.** Aktion hinzufügen → Kurzbefehl legt jeden deiner Kurzbefehle in die Aktionsleiste. Dateien darauf ziehen führt ihn mit ihnen aus; Dateien, die er zurückgibt, landen in der Ablage
+* **Neu: Direkt in der Ablage entpacken.** Rechtsklick auf ein ZIP-Archiv und Entpacken, oder Doppelklick. Mehrere Objekte werden ein Stapel neben dem Archiv, ein einzelnes landet für sich
+* **Neu:** „Schwebend durchsichtig“ (Einstellungen → Stil) macht eine schwebende Ablage zu dunklem Glas, im hellen Modus etwas heller. Standardmäßig aus: Die schwebende Ablage ist tiefschwarz wie am Rand
+* **Neu:** Ein herausgezogener Stapel zeigt ein Bild mit der Anzahl statt vieler einzelner
+* **Neu:** Eine schwebende Ablage gibt einen leichten Impuls am Trackpad, sobald man Dateien auf ihr ablegen kann
+* **Geändert: Objekte reagieren wie im Finder.** Nur Bild und Name eines Objekts reagieren auf Klicks; ein Klick daneben hebt die Auswahl auf oder beginnt einen Auswahlrahmen. Die Reihen stehen etwas dichter
+* **Geändert:** Die Einführung ist neu und ruhiger: Ablegen, Zeiger, Herausziehen, Aktionen und Kurzbefehl, Schritt für Schritt. „Beim Anmelden öffnen“ kommt am Ende und ist standardmäßig an
+* **Geändert:** Mit gedrückter `⌘`-Taste eine Aktion an eine andere Stelle ziehen, auch in die andere Reihe. Eine mit `⌘` herausgezogene Aktion lässt ihren Platz frei und gleitet in einem Zug zurück, wenn man sie wieder ablegt
+* **Behoben: Alles erscheint sofort.** Bilder aus dem Web, das erste Objekt in einer leeren Ablage und geöffnete Ordner erscheinen gleich, nicht erst nach einem Klick oder erneutem Öffnen. Das Öffnen eines Ordners friert die Ablage nicht mehr ein, während macOS nach der Erlaubnis fragt
+* **Behoben:** Ein Rechtsklick wirkt beim ersten Mal, auch gleich nach dem Öffnen der Ablage oder wenn BarDrop nicht vorn ist
+* **Behoben:** Die Einstellungen springen nach dem Kontrollzentrum nicht mehr von selbst nach vorn, und eine schwebende Ablage lässt das Kontrollzentrum offen
+* **Behoben:** Beim Wechsel zwischen links und rechts blitzt die Ablage nicht mehr in der Mitte des Bildschirms auf
+* **Behoben:** Ein Auswahlrahmen über viele Objekte behält beim Weiterziehen auch die oberen in der Auswahl
+* Neue Bildschirmfotos kommen auch an, nachdem man den Speicherort in macOS geändert hat
+* Einstellungen: klarere Texte, und Einstellungen ohne Wirkung sind entfernt

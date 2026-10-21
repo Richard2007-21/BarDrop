@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.31.0-beta.7
+* **New: Pull the shelf off the edge.** Grab the handle at the top of the open shelf and pull: it stretches like a drop, comes loose with a light tap on the trackpad and floats above all windows. Let go near the left or right edge and it docks there; the edge in Settings follows along. `esc`, the keyboard shortcut or “Back to the Edge” in the right-click menu return it
+* **New: Shortcuts as actions.** Add Action → Shortcut puts any of your shortcuts into the action bar. Drop files on it to run the shortcut with them; files it returns land in the shelf
+* **New: Unzip right in the shelf.** Right-click a ZIP archive and choose Unzip, or double-click it. Several items become a stack next to the archive, a single item lands on its own
+* **New:** “Translucent when floating” (Settings → Style) turns a floating shelf into dark glass, a little lighter in light mode. Off by default: the floating shelf is deep black like at the edge
+* **New:** Dragging a stack out shows one image with the number of items instead of many single ones
+* **New:** A floating shelf gives a light tap on the trackpad when files can be dropped on it
+* **Changed: Items react like in the Finder.** Only the picture and the name of an item respond to clicks; a click next to them clears the selection or starts a selection rectangle. Rows sit a little closer together
+* **Changed:** The introduction is new and calmer: drop, pointer, take out, actions and keyboard shortcut, step by step. “Open at login” comes at the end and is on by default
+* **Changed:** Hold `⌘` and drag an action to move it, also into the other row. An action dragged out with `⌘` leaves its place empty and slides back in one move if you put it back
+* **Fixed: Everything appears right away.** Images from the web, the first item in an empty shelf and opened folders show up at once instead of only after a click or reopening. Opening a folder no longer freezes the shelf while macOS asks for permission
+* **Fixed:** A right-click works the first time, also right after the shelf opens or when BarDrop isn’t in front
+* **Fixed:** Settings no longer jump to the front by themselves after Control Center, and a floating shelf leaves Control Center open
+* **Fixed:** Switching between left and right no longer flashes the shelf in the middle of the screen
+* **Fixed:** A selection rectangle over many items keeps the upper items selected while you keep dragging
+* New screenshots also arrive after you change where macOS saves them
+* Settings: clearer texts and settings that no longer did anything removed
+
 ## 1.31.0-beta.6
 * **New:** Folders open right in the shelf, like a stack: click a folder in the action bar, or double-click a folder in the shelf (or press `↩`). Select, drag out, Quick Look, copy and move to the Trash work like in the Finder, a double-click opens subfolders, and files you drop there go into the folder. The header shows the folder’s name, `esc` goes back one level, and `⌘Z` puts files moved to the Trash back into the folder
 * **New:** “Open shelf” has a new option “Instantly” that opens the shelf the moment the pointer reaches the edge, without the strip first. Every option shows a word and its wait, such as “Quick (0.3 s)”, which stays the standard
