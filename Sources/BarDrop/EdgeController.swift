@@ -1265,9 +1265,12 @@ extension EdgeController {
         // neu zeichnen
         if let old = ui.tear, tear.attach <= 0.01, old.attach <= 0.01 { tear.gap = old.gap }
         guard tear != ui.tear else { return }
+        let linked = { (t: ShelfUIModel.Tear?) in (t?.attach ?? 0) > 0.01 }
+        let relink = linked(tear) != linked(ui.tear)
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { ui.tear = tear }
+        if relink, glassWindow != nil { syncGlassWindow() }
     }
 
     private func setGrabbing(_ on: Bool) {
@@ -1388,6 +1391,12 @@ extension EdgeController {
             // Auf den ersten Punkten geht die Form der angedockten Ablage in die verschmelzende über
             setTear(gap: gap, attach: 1 - 0.8 * pow(pull / EdgeTear.tearDistance, 1.4), side: drag.origin,
                     dock: 1 - pull / 14)
+            // Hell und durchsichtig: Schon beim Dehnen wird die Ablage hell, das Schwarz (der
+            // Bildschirmrand) bleibt an der Verbindung zurück. Dunkel bleibt sie dabei schwarz.
+            if ui.systemLight && settings.detachedGlass {
+                let t = max(0, min(1, (pull - 8) / (EdgeTear.tearDistance - 8)))
+                setGlassAmount(Double(t * t * (3 - 2 * t)) * 0.85)
+            }
             applyTearFrame(body)
         case .free:
             var target = NSRect(x: p.x - drag.grab.x, y: p.y - drag.grab.y,
@@ -1510,8 +1519,15 @@ extension EdgeController {
         glassWindow = window
         let m = ShelfMetrics.for(.expanded, settings: settings)
         let size = panel.frame.size
-        let body = NSRect(x: ((size.width - m.width) / 2).rounded(), y: ((size.height - m.height) / 2).rounded(),
+        var body = NSRect(x: ((size.width - m.width) / 2).rounded(), y: ((size.height - m.height) / 2).rounded(),
                           width: m.width, height: m.height)
+        // Mit dem Rand verbunden: Die helle Kante des Glases auf der Randseite lag als dünne
+        // Linie zwischen Ablage und Verbindung. Dort ein Stück schmaler, unter dem Dunkel
+        if let tear = ui.tear, tear.attach > 0.01 {
+            let cut: CGFloat = 6
+            body.size.width -= cut
+            if tear.side == .left { body.origin.x += cut }
+        }
         window.follow(panel, body: body)
         window.show(CGFloat(ui.tearGlass), duration: duration)
     }

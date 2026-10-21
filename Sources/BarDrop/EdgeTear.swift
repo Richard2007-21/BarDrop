@@ -93,7 +93,7 @@ struct TearGoo: View, Animatable {
                 // Das Glas selbst liegt in einem Begleitfenster darunter (ShelfGlassWindow),
                 // hier nur die eigene dunkle Tönung darüber
                 bodyShape
-                    .fill(light ? Color.white.opacity(0.31) : Color.black.opacity(EdgeTear.glassDarken(light: false)))
+                    .fill(light ? Color.white.opacity(0.6) : Color.black.opacity(EdgeTear.glassDarken(light: false)))
                     .opacity(glass)
             }
             // Überblendung zur angedockten Form: erst kommt sie dazu, dann geht die
