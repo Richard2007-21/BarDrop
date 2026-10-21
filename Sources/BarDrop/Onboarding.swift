@@ -1191,6 +1191,8 @@ private struct HoverPage: View {
                     .font(.system(size: 44, weight: .regular))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
+                    // Die Linien zeigen, woher der Zeiger kommt: am rechten Rand gespiegelt
+                    .scaleEffect(x: settings.edge == .right ? -1 : 1)
             }
         }
     }
