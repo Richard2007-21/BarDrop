@@ -1024,6 +1024,8 @@ final class TearDrag {
     var grab: NSPoint = .zero
     /// Nach dem Lösen einmal weit genug vom Rand weg gewesen: erst dann zieht ein Rand an
     var leftZone = false
+    /// Gerade in der Nähe eines Rands, der sie anzieht (für den Impuls beim Hineinkommen)
+    var inZone = false
     /// Andocken: von wo nach wo, an welchem Rand
     var dockFrom: NSRect = .zero
     var dockTo: NSRect = .zero
@@ -1244,7 +1246,11 @@ extension EdgeController {
             if drag.leftZone {
                 // Nah an einem Rand: Er wölbt sich ihr entgegen, mit derselben Bewegung wie
                 // beim Lösen, nur rückwärts
-                let attach = near.distance < EdgeTear.attachZone ? 1 - near.distance / EdgeTear.attachZone : 0
+                let inZone = near.distance < EdgeTear.attachZone
+                // Dezenter Impuls, wenn der Rand sie zu fassen bekommt (nicht beim Verlassen)
+                if inZone && !drag.inZone { Haptics.tap() }
+                drag.inZone = inZone
+                let attach = inZone ? 1 - near.distance / EdgeTear.attachZone : 0
                 setTear(gap: near.distance, attach: attach * 0.85, side: near.side)
             } else {
                 // Gleich nach dem Lösen: Die Verbindung zum alten Rand zieht sich schnell zurück
