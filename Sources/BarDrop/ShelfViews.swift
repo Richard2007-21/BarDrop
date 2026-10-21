@@ -141,11 +141,6 @@ private struct ScrollOffsetKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
-private struct BarHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
 struct ShelfContent: View {
     @ObservedObject var ui: ShelfUIModel
     /// Vorführung in der Einführung: ohne Klick-, Zieh- und Drop-Flächen
@@ -171,8 +166,6 @@ struct ShelfContent: View {
     @State private var band: CGRect?
     @State private var selectionBeforeBand: Set<UUID> = []
     @State private var jobsBeforeBand: Set<UUID> = []
-    /// Höhe der Aktionsleiste: so viel Platz bleibt unter den Kacheln frei
-    @State private var barHeight: CGFloat = 0
     /// Platzhalter erst nach einem Augenblick zeigen: Dateien aus dem Finder sind sofort
     /// da, für sie soll nichts aufblitzen
     @State private var showPending = false
@@ -268,9 +261,12 @@ struct ShelfContent: View {
                 .padding(.bottom, 4)
                 .blur(radius: openBlur)
 
-            // Die Kacheln laufen unter der Aktionsleiste weiter, statt über ihr abgeschnitten
-            // zu werden; hinter der Leiste liegt ein weicher Verlauf ins Schwarz
-            ZStack(alignment: .bottom) {
+            // Kacheln und Aktionsleiste untereinander, nicht übereinander: Laut Bildaufnahmen
+            // (alle 40 ms) lag beim Öffnen die nächste Kachelreihe sichtbar unter den Symbolen,
+            // obwohl die Leiste deckendes Schwarz hatte. Der Scrollbereich ist eine eigene
+            // AppKit-Ansicht, die sich nicht zuverlässig überdecken lässt. So endet er an der
+            // Oberkante der Leiste und schneidet die Kacheln dort selbst ab.
+            VStack(spacing: 0) {
                 GeometryReader { geo in
                     ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
@@ -284,13 +280,9 @@ struct ShelfContent: View {
                             }
                         }
                         // Unschärfe beim Öffnen auf dem Inhalt im Scrollbereich, nicht auf dem
-                        // Scrollbereich selbst: Der ist eine AppKit-Ansicht, eine Unschärfe darauf
-                        // legte ihn auf eine eigene Ebene über die Aktionsleiste, deren Schwarz
-                        // dann zeitweise fehlte. So bleibt die Leiste obenauf und deckt ab.
-                        // Nur solange sie wirkt (siehe OpenBlur)
+                        // Scrollbereich selbst (das legte ihn auf eine eigene Ebene). Nur solange
+                        // sie wirkt (siehe OpenBlur)
                         .modifier(OpenBlur(radius: openBlur))
-                        // Platz unter der letzten Reihe: Sie lässt sich ganz über die Leiste scrollen
-                        .padding(.bottom, barHeight)
                         .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
                         // Unsichtbarer Anker ganz oben (Stapel oder Ordner öffnen: oben beginnen)
                         .overlay(alignment: .top) {
@@ -310,9 +302,7 @@ struct ShelfContent: View {
                                 ui: ui,
                                 onBandChanged: updateBand,
                                 onClick: { actions.clearCurrentSelection() },
-                                menu: { actions.backgroundMenu() },
-                                // Der Rahmen endet über der Aktionsleiste und ihrem Übergang
-                                bottomInset: barHeight
+                                menu: { actions.backgroundMenu() }
                             )
                         } })
                         .overlay(alignment: .topLeading) { bandOverlay }
@@ -366,17 +356,8 @@ struct ShelfContent: View {
                     // Beim Öffnen genauso unscharf wie Kopf und Kacheln, aber nur die Symbole:
                     // Das Schwarz dahinter bleibt voll deckend (siehe barBackdrop)
                     .blur(radius: openBlur)
-                    // Nach unten weit über die Leiste hinaus (die Form schneidet es ab): Während
-                    // des Öffnens lag die Leiste laut Bildaufnahmen ein Stück über der Unterkante,
-                    // und darunter schien die nächste Kachelreihe durch
-                    .background { barBackdrop.padding(.bottom, -80) }
-                    .background(
-                        GeometryReader { g in
-                            Color.clear.preference(key: BarHeightKey.self, value: g.size.height)
-                        }
-                    )
+                    .background { barBackdrop }
             }
-            .onPreferenceChange(BarHeightKey.self) { barHeight = $0 }
         }
         .background(Group { if !shelfDemo {
             // Leere Stellen außerhalb des Rasters (Kopfbereich, Ränder): Klick und Rechtsklick
@@ -564,7 +545,7 @@ struct ShelfContent: View {
             // Mittig in der Fläche zwischen Kopf und Aktionsleiste
             emptyState
                 .frame(maxWidth: .infinity)
-                .frame(height: max(0, viewportHeight - barHeight))
+                .frame(height: max(0, viewportHeight))
                 .allowsHitTesting(false)
                 .transition(Self.tileTransition)
         } else if store.entries.count > Self.lazyThreshold {
@@ -646,13 +627,13 @@ struct ShelfContent: View {
             // Keine Erlaubnis: sagen, was fehlt, statt still die Ablage zu zeigen
             deniedFolder
                 .frame(maxWidth: .infinity)
-                .frame(height: max(0, viewportHeight - barHeight))
+                .frame(height: max(0, viewportHeight))
         } else if folderOpen && stack.files.isEmpty {
             // Leerer Ordner: mittig, wie die leere Ablage; erst nach dem Lesen
             emptyFolder
                 .opacity(folder.isLoading ? 0 : 1)
                 .frame(maxWidth: .infinity)
-                .frame(height: max(0, viewportHeight - barHeight))
+                .frame(height: max(0, viewportHeight))
                 .allowsHitTesting(false)
         } else {
             stackTiles(stack)
@@ -810,7 +791,7 @@ struct ShelfContent: View {
         // Außerhalb der weichen Übergänge oben und über der Leiste (die Kachel hat selbst
         // 6 pt Rand oben und unten)
         let top = Self.headerFade - 6
-        let bottom = viewport - barHeight - 4
+        let bottom = viewport - 4
         let span = viewport - tileHeight
         guard span > 0, bottom - top >= tileHeight else {
             proxy.scrollTo(id, anchor: .top)
