@@ -134,7 +134,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         announce(L("Unzipping", "Entpacken"))
         for url in urls {
             let anchor = store.entries.flatMap(\.files).first { $0.url == url }?.id
-            DispatchQueue.global(qos: .userInitiated).async {
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 let result = Self.extract(url)
                 DispatchQueue.main.async { [weak self] in
                     self?.placeUnzipped(result?.items, nextTo: anchor)
