@@ -135,7 +135,7 @@ final class EdgeController: NSObject {
         panel.actions = actions
         panel.onEscape = { [weak self] in self?.close() }
         // Hell oder dunkel umgestellt, während die Ablage schwebt: Glas und Schrift folgen sofort
-        appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] app, _ in
+        appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.initial, .new]) { [weak self] app, _ in
             let light = app.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
             DispatchQueue.main.async {
                 guard let self, self.ui.systemLight != light else { return }
