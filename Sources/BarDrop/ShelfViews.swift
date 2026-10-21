@@ -297,7 +297,16 @@ struct ShelfContent: View {
                             )
                         } })
                         .overlay(alignment: .topLeading) { bandOverlay }
-                        .onPreferenceChange(TileFramesKey.self) { frameStore.frames = $0 }
+                        // Während eines Auswahlrahmens die Lage aller schon gesehenen Kacheln
+                        // behalten: Bei vielen Objekten zeichnet das Raster nur die sichtbaren, und
+                        // beim Weiterziehen nach unten fielen die oberen sonst aus der Auswahl
+                        .onPreferenceChange(TileFramesKey.self) { frames in
+                            if ui.bandActive {
+                                frameStore.frames.merge(frames) { _, new in new }
+                            } else {
+                                frameStore.frames = frames
+                            }
+                        }
                     }
                     // Oben derselbe weiche Übergang wie über der Aktionsleiste: Was unter den
                     // Kopf scrollt, läuft ins Schwarz aus statt hart abgeschnitten zu werden
