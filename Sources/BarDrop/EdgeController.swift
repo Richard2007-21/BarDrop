@@ -104,6 +104,23 @@ final class EdgeController: NSObject {
     /// Die Übersicht war im letzten Takt offen
     private var quickLookWasVisible = false
     private var hostView: ShelfHostingView<ShelfRootView>?
+
+    /// Alle Scrollbereiche unter `view` samt Inhalt neu auslegen und zeichnen lassen
+    private static func invalidateScrollViews(in view: NSView) {
+        if let scroll = view as? NSScrollView {
+            markAll(scroll)
+            scroll.layoutSubtreeIfNeeded()
+            scroll.displayIfNeeded()
+            return
+        }
+        view.subviews.forEach { invalidateScrollViews(in: $0) }
+    }
+
+    private static func markAll(_ view: NSView) {
+        view.needsLayout = true
+        view.needsDisplay = true
+        view.subviews.forEach(markAll)
+    }
     private var shownEntryCount = 0
     /// Objekte, deren Vorschaubild schon geladen wird oder beim Start da waren
     private var knownFileIDs: Set<UUID>?
@@ -608,12 +625,19 @@ final class EdgeController: NSObject {
         let count = store.entries.reduce(0) { $0 + $1.files.count }
         if count != shownEntryCount {
             shownEntryCount = count
-            DispatchQueue.main.async { [weak self] in
+            let redraw = { [weak self] in
                 guard let self, let host = self.hostView, self.ui.level == .expanded else { return }
                 host.rootView = host.rootView
+                // Laut Bildschirmaufnahme änderte sich der Kopf sofort („1 ausgewählt“), nur die
+                // Kacheln blieben alt: Sie liegen in einem Scrollbereich, einer eigenen
+                // AppKit-Ansicht, die sich nicht von selbst neu zeichnete. Ihn ganz neu
+                // auslegen und zeichnen lassen
+                Self.invalidateScrollViews(in: host)
                 host.layoutSubtreeIfNeeded()
                 self.panel.displayIfNeeded()
             }
+            DispatchQueue.main.async(execute: redraw)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: redraw)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self, self.ui.level == .expanded else { return }

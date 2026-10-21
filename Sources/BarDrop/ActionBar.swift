@@ -124,9 +124,15 @@ final class ActionDropNSView: NSView, NSDraggingSource {
             return
         }
         follow(event.locationInWindow)
-        guard let me = actionID, Date().timeIntervalSince(Self.reorderedAt) > 0.2 else { return }
+        // Erst wenn die Leiste nach dem letzten Tausch wieder still steht (Feder etwa 0,3 s):
+        // Solange die Symbole noch gleiten, lag der Zeiger noch über der alten Aktion, und sie
+        // tauschten hin und her. Steht der Zeiger schon über dem eigenen Platz, nichts tun.
+        guard let me = actionID, Date().timeIntervalSince(Self.reorderedAt) > 0.35,
+              !bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
         for view in Self.all.allObjects where view !== self && view.window === window && view.actionID != nil {
-            guard view.bounds.contains(view.convert(event.locationInWindow, from: nil)) else { continue }
+            // Nur über der Mitte der anderen Aktion, nicht schon an ihrem Rand
+            let inner = view.bounds.insetBy(dx: view.bounds.width * 0.2, dy: 0)
+            guard inner.contains(view.convert(event.locationInWindow, from: nil)) else { continue }
             Self.reorderedAt = Date()
             view.onReorder(me)
             // Der Platz ist gewandert: das Symbol danach wieder genau unter den Zeiger
