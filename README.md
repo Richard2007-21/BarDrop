@@ -124,10 +124,10 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 | `⌫` | Remove selection from the shelf, the next item is selected; cancels selected plugins |
 | `⌘⌫` | Move selection to the Trash |
 | `⌘Z`, `⇧⌘Z` | Undo, redo |
-| `⌘↑` | Back from a stack |
+| `⌘↑` | Back from a stack or folder |
 | `⌘,` | Settings |
 | Arrow keys | Move selection, extend with `⇧` |
-| `esc` | Clear selection, leave stack, then close |
+| `esc` | Step back (Quick Look, folder, selection, stack), then close |
 
 ## Privacy
 

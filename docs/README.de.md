@@ -124,10 +124,10 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 | `⌫` | Auswahl aus der Ablage entfernen, danach ist das nächste Objekt ausgewählt; bricht ausgewählte Plugins ab |
 | `⌘⌫` | Auswahl in den Papierkorb legen |
 | `⌘Z`, `⇧⌘Z` | Widerrufen, wiederholen |
-| `⌘↑` | Zurück aus einem Stapel |
+| `⌘↑` | Zurück aus Stapel oder Ordner |
 | `⌘,` | Einstellungen |
 | Pfeiltasten | Auswahl bewegen, mit `⇧` erweitern |
-| `esc` | Auswahl aufheben, Stapel verlassen, dann schließen |
+| `esc` | Schritt zurück (Übersicht, Ordner, Auswahl, Stapel), dann schließen |
 
 ## Datenschutz
 

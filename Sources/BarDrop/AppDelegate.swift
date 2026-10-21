@@ -207,7 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let me = ProcessInfo.processInfo.processIdentifier
         for app in NSRunningApplication.runningApplications(withBundleIdentifier: id)
         where app.processIdentifier != me {
-            Log.edge.info("Andere BarDrop-Instanz wird beendet")
+            Log.app.info("Andere BarDrop-Instanz wird beendet")
             app.terminate()
         }
     }

@@ -106,6 +106,7 @@ final class ShelfUIModel: ObservableObject {
     struct Notice: Equatable {
         var id = UUID()
         var text: String
+        /// Lässt sich mit ⌘Z widerrufen: dann bleibt der Hinweis etwas länger stehen
         var canUndo = false
     }
     @Published var notice: Notice?

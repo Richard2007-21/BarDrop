@@ -19,7 +19,9 @@ enum Thumbnails {
 
     /// Liegt das scharfe Vorschaubild schon vor (nicht nur das schnelle)?
     static func isSharp(_ url: URL, size: CGFloat) -> Bool {
-        sharp.contains(key(url, size: size))
+        // Nur, solange das Bild noch im Zwischenspeicher liegt (er kann es verdrängt haben)
+        let k = key(url, size: size)
+        return sharp.contains(k) && cache.object(forKey: k as NSString) != nil
     }
 
     private static func key(_ url: URL, size: CGFloat) -> String {
@@ -185,6 +187,8 @@ enum Thumbnails {
         for url in urls {
             let k = key(url, size: size)
             guard !prefetched.contains(k), cache.object(forKey: k as NSString) == nil else { continue }
+            // Nicht endlos wachsen lassen: Wer erneut auftaucht, wird eben noch einmal geladen
+            if prefetched.count > 5000 { prefetched.removeAll() }
             prefetched.insert(k)
             func attempt(_ left: Int) {
                 load(url, size: size) { image in
@@ -314,6 +318,8 @@ struct ThumbnailView: View {
     }
 
     private func reveal() {
+        // Nicht endlos wachsen lassen: Danach wartet eine Kachel nur einmal mehr kurz
+        if Thumbnails.shownOnce.count > 5000 { Thumbnails.shownOnce.removeAll() }
         Thumbnails.shownOnce.insert(url.path)
         guard !ready else { return }
         Diagnostics.shared.record("tile", "reveal \(Diagnostics.anon(url)) preview=\(isPreview) exists=\(FileManager.default.fileExists(atPath: url.path))")

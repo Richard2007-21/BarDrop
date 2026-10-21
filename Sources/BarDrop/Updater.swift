@@ -122,7 +122,7 @@ final class Updater: ObservableObject {
               let asset = assets.first(where: { ($0["name"] as? String) == "BarDrop.dmg" }),
               let link = asset["browser_download_url"] as? String,
               let dmg = URL(string: link) else {
-            Log.edge.error("Update-Suche fehlgeschlagen: \(error?.localizedDescription ?? "keine Antwort", privacy: .public)")
+            Log.update.error("Update-Suche fehlgeschlagen: \(error?.localizedDescription ?? "keine Antwort", privacy: .public)")
             Diagnostics.shared.failure("update", "Update-Suche fehlgeschlagen", error)
             // Eine Suche ohne Zutun meldet nichts: kein Fehlerhinweis in den Einstellungen
             state = interactive ? .failed(L("Couldn’t reach GitHub.", "Keine Verbindung zu GitHub.")) : .idle
@@ -317,7 +317,7 @@ final class Updater: ObservableObject {
             throw UpdateError(L("BarDrop couldn’t be replaced.", "BarDrop ließ sich nicht ersetzen."))
         }
         _ = Self.run("/usr/bin/xattr", ["-dr", "com.apple.quarantine", target.path])
-        Log.edge.info("Update auf \(release.version, privacy: .public) installiert, Neustart")
+        Log.update.info("Update auf \(release.version, privacy: .public) installiert, Neustart")
         DispatchQueue.main.async { Self.relaunch(target) }
     }
 
@@ -338,7 +338,7 @@ final class Updater: ObservableObject {
         NSWorkspace.shared.openApplication(at: app, configuration: config) { _, error in
             if let error {
                 // Rückfall: kleines Skript wartet auf das Ende und öffnet dann die App
-                Log.edge.error("Neustart über Startdienste fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+                Log.update.error("Neustart über Startdienste fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
                 Diagnostics.shared.failure("update", "Neustart über Startdienste fehlgeschlagen", error)
                 let script = """
                 while kill -0 "$1" 2>/dev/null; do sleep 0.2; done
@@ -399,7 +399,7 @@ final class Updater: ObservableObject {
     }
 
     private func fail(_ message: String, _ release: Release) {
-        Log.edge.error("Update fehlgeschlagen: \(message, privacy: .public)")
+        Log.update.error("Update fehlgeschlagen: \(message, privacy: .public)")
         Diagnostics.shared.failure("update", "Update fehlgeschlagen: \(message)")
         DispatchQueue.main.async {
             self.state = .failed(message)

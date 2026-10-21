@@ -833,7 +833,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             ShelfActions.copyPaths(self?.originals(urls) ?? urls)
             self?.announceCopy(urls.count, pathsOnly: true)
         })
-        menu.addItem(ClosureMenuItem(L("Share", "Teilen"), symbol: "square.and.arrow.up") { [weak self, weak anchor] in
+        menu.addItem(ClosureMenuItem(L("Share", "Teilen")) { [weak self, weak anchor] in
             guard let anchor else { return }
             // erst nach dem Schließen des Menüs zeigen, damit der Picker an der Kachel sitzt
             DispatchQueue.main.async { self?.share(urls, from: anchor) }
@@ -871,9 +871,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         let title = multiple ? L("Remove \(targets.count) Items from Shelf", "\(targets.count) Objekte aus der Ablage entfernen")
                              : L("Remove from Shelf", "Aus der Ablage entfernen")
         menu.addItem(ClosureMenuItem(title, key: "\u{8}", modifiers: []) { [weak self] in self?.remove(targets) })
-        menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
-            self?.moveToTrash(urls)
-        })
+        menu.addItem(moveToTrashItem(urls))
         addPluginItems(to: menu, files: targets.flatMap(\.files))
         return menu
     }
@@ -890,9 +888,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             menu.addItem(ClosureMenuItem(files.count > 1 ? L("Add \(files.count) Items to Shelf", "\(files.count) Objekte in die Ablage legen") : L("Add to Shelf", "In die Ablage legen")) { [weak self] in
                 self?.addToShelf(urls)
             })
-            menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
-                self?.moveToTrash(urls)
-            })
+            menu.addItem(moveToTrashItem(urls))
             addPluginItems(to: menu, files: files)
             return menu
         }
@@ -902,11 +898,26 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         menu.addItem(ClosureMenuItem(files.count > 1 ? L("Remove \(files.count) Items from Shelf", "\(files.count) Objekte aus der Ablage entfernen") : L("Remove from Shelf", "Aus der Ablage entfernen"), key: "\u{8}", modifiers: []) { [weak self] in
             self?.removeMembers(files)
         })
-        menu.addItem(ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
-            self?.moveToTrash(urls)
-        })
+        menu.addItem(moveToTrashItem(urls))
         addPluginItems(to: menu, files: files)
         return menu
+    }
+
+    /// „In den Papierkorb legen“ (⌘⌫), in allen Kontextmenüs gleich
+    private func moveToTrashItem(_ urls: [URL]) -> NSMenuItem {
+        ClosureMenuItem(L("Move to Trash", "In den Papierkorb legen"), key: "\u{8}") { [weak self] in
+            self?.moveToTrash(urls)
+        }
+    }
+
+    /// „Einstellungen“ und „BarDrop beenden“ am Ende der Menüs ohne Objekt
+    private func addAppItems(to menu: NSMenu) {
+        menu.addItem(ClosureMenuItem(L("Settings", "Einstellungen"), key: ",") { [weak self] in
+            self?.openSettings()
+        })
+        menu.addItem(ClosureMenuItem(L("Quit BarDrop", "BarDrop beenden"), key: "q") {
+            NSApp.terminate(nil)
+        })
     }
 
     /// Plugins, die zu den Dateien passen: unter den normalen Einträgen, nach einer
@@ -920,7 +931,6 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 // Erst nach dem Schließen des Menüs: Das Plugin kann eine Frage stellen
                 DispatchQueue.main.async { self?.plugins.run(plugin.id, on: files) }
             }
-            item.image = PluginMenuIcons.image(for: plugin)
             return item
         }
         menu.addItem(.separator())
@@ -930,7 +940,6 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             let submenu = NSMenu()
             items.forEach(submenu.addItem)
             let group = NSMenuItem(title: L("Plugins", "Plugins"), action: nil, keyEquivalent: "")
-            group.image = NSImage(systemSymbolName: "puzzlepiece.extension", accessibilityDescription: nil)
             group.submenu = submenu
             menu.addItem(group)
         }
@@ -953,11 +962,11 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         if !job.isStarted {
             // Wartet noch: nur abbrechen
         } else if job.paused {
-            menu.addItem(ClosureMenuItem(L("Resume", "Fortsetzen"), symbol: "play.fill") { [weak job] in job?.resume() })
+            menu.addItem(ClosureMenuItem(L("Resume", "Fortsetzen")) { [weak job] in job?.resume() })
         } else {
-            menu.addItem(ClosureMenuItem(L("Pause", "Anhalten"), symbol: "pause.fill") { [weak job] in job?.pause() })
+            menu.addItem(ClosureMenuItem(L("Pause", "Anhalten")) { [weak job] in job?.pause() })
         }
-        menu.addItem(ClosureMenuItem(L("Cancel", "Abbrechen"), symbol: "xmark") { [weak self, weak job] in
+        menu.addItem(ClosureMenuItem(L("Cancel", "Abbrechen")) { [weak self, weak job] in
             guard let job else { return }
             self?.plugins.cancel(job)
         })
@@ -1000,7 +1009,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 NSWorkspace.shared.open(url)
             })
         }
-        menu.addItem(ClosureMenuItem(L("Paste", "Einfügen"), key: "v") { [weak self] in
+        menu.addItem(ClosureMenuItem(L("Paste from Clipboard", "Aus der Zwischenablage einfügen"), key: "v") { [weak self] in
             self?.pasteIntoFolder()
         })
         if store.undoManager.canUndo {
@@ -1014,12 +1023,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             })
         }
         menu.addItem(.separator())
-        menu.addItem(ClosureMenuItem(L("Settings", "Einstellungen"), symbol: "gearshape", key: ",") { [weak self] in
-            self?.openSettings()
-        })
-        menu.addItem(ClosureMenuItem(L("Quit BarDrop", "BarDrop beenden"), key: "q") {
-            NSApp.terminate(nil)
-        })
+        addAppItems(to: menu)
         return menu
     }
 
@@ -1066,12 +1070,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             })
         }
         menu.addItem(.separator())
-        menu.addItem(ClosureMenuItem(L("Settings", "Einstellungen"), symbol: "gearshape", key: ",") { [weak self] in
-            self?.openSettings()
-        })
-        menu.addItem(ClosureMenuItem(L("Quit BarDrop", "BarDrop beenden"), key: "q") {
-            NSApp.terminate(nil)
-        })
+        addAppItems(to: menu)
         return menu
     }
 }

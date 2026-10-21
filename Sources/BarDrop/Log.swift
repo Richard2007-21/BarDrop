@@ -17,4 +17,8 @@ enum Log {
     static let store = Logger(subsystem: subsystem, category: "store")
     /// Erkennung am Rand, Bildschirme
     static let edge = Logger(subsystem: subsystem, category: "edge")
+    /// Updates suchen, laden und installieren
+    static let update = Logger(subsystem: subsystem, category: "update")
+    /// Start, Einführung, Anmelden beim Start, Kurzbefehl
+    static let app = Logger(subsystem: subsystem, category: "app")
 }

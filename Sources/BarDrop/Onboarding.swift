@@ -185,7 +185,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         let dock = Int(CGWindowLevelForKey(.dockWindow))
         // Nie über Menüs und nie so hoch, dass die Ablage nicht mehr darüber passt
         let level = min(dock + 1, NSWindow.Level.popUpMenu.rawValue - 3)
-        Log.edge.info("Einführung: Dock-Ebene \(dock, privacy: .public), Hintergrund \(level, privacy: .public), Menüleiste \(NSWindow.Level.statusBar.rawValue, privacy: .public)")
+        Log.app.info("Einführung: Dock-Ebene \(dock, privacy: .public), Hintergrund \(level, privacy: .public), Menüleiste \(NSWindow.Level.statusBar.rawValue, privacy: .public)")
         return NSWindow.Level(rawValue: level)
     }()
 
@@ -428,14 +428,14 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             do {
                 try SMAppService.mainApp.register()
             } catch {
-                Log.edge.error("Anmeldeobjekt nicht möglich: \(error.localizedDescription, privacy: .public)")
+                Log.app.error("Anmeldeobjekt nicht möglich: \(error.localizedDescription, privacy: .public)")
                 Diagnostics.shared.failure("login", "Anmeldeobjekt nicht möglich", error)
             }
         case .unregister:
             do {
                 try SMAppService.mainApp.unregister()
             } catch {
-                Log.edge.error("Anmeldeobjekt ließ sich nicht entfernen: \(error.localizedDescription, privacy: .public)")
+                Log.app.error("Anmeldeobjekt ließ sich nicht entfernen: \(error.localizedDescription, privacy: .public)")
                 Diagnostics.shared.failure("login", "Anmeldeobjekt ließ sich nicht entfernen", error)
             }
         case nil:
