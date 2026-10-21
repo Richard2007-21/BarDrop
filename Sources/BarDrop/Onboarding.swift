@@ -940,10 +940,9 @@ private struct PresentationPage<Hero: View, Practice: View>: View {
     }
 }
 
-/// Die Übung einer Seite als ruhige Karte: oben das, womit man übt, darunter die Aufgabe in
-/// einem kurzen Satz mit einem Kreis davor. Geschafft füllt sich der Kreis mit einem Haken,
-/// an Stelle der Aufgabe steht die Bestätigung. Die Erklärung steht oben auf der Seite, hier
-/// nur noch, was zu tun ist.
+/// Die Übung einer Seite, frei stehend wie bei Apple: das Objekt, mit dem man übt, darunter
+/// in einer Zeile, was zu tun ist. Ohne Rahmen, Karte oder Pfeile. Geschafft weicht das
+/// Objekt einem grünen Haken (wie in den Systemeinstellungen), darunter die Bestätigung.
 private struct TaskCard<Leading: View>: View {
     let done: Bool
     let instruction: String
@@ -953,45 +952,30 @@ private struct TaskCard<Leading: View>: View {
     static var size: CGSize { CGSize(width: 440, height: 150) }
 
     var body: some View {
-        VStack(spacing: 14) {
-            leading()
-                .frame(height: 92)
-            HStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.5)
-                        .opacity(done ? 0 : 1)
-                    Circle()
-                        .fill(Color.green)
-                        .overlay(
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.white)
-                        )
-                        .scaleEffect(done ? 1 : 0.4)
-                        .opacity(done ? 1 : 0)
+        VStack(spacing: 16) {
+            ZStack {
+                leading()
+                    .opacity(done ? 0 : 1)
+                    .scaleEffect(done ? 0.85 : 1)
+                if done {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 46, weight: .regular))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, Color.green)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
-                .frame(width: 16, height: 16)
-                Text(done && !confirmation.isEmpty ? confirmation : instruction)
-                    .font(.system(size: 13, weight: done ? .medium : .regular))
-                    .foregroundStyle(done ? Color.primary : Color.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .id(done)
-                    .transition(.opacity)
             }
-            .frame(maxWidth: 380)
+            .frame(height: 100)
+            Text(done && !confirmation.isEmpty ? confirmation : instruction)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 380)
+                .id(done)
+                .transition(.opacity)
         }
-        .padding(.vertical, 14)
         .frame(width: Self.size.width, height: Self.size.height)
-        .background(
-            RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
-                .fill(SettingsTheme.card)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: SettingsTheme.cardRadius, style: .continuous)
-                .strokeBorder(SettingsTheme.cardBorder, lineWidth: 1)
-        )
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: done)
     }
 }
@@ -1082,40 +1066,44 @@ private struct TakeOutPage: View {
             ShelfStage(scene: .takeOut)
         } practice: {
             TaskCard(done: model.stepDone,
-                     instruction: L("Drag the photo from the shelf onto the desktop.",
-                                    "Zieh das Foto aus der Ablage auf den Schreibtisch."),
+                     instruction: L("Drag the photo from the shelf onto the folder.",
+                                    "Zieh das Foto aus der Ablage auf den Ordner."),
                      confirmation: L("Arrived.", "Angekommen.")) {
-                DeskTarget(url: model.sampleURL, received: model.onDesk) { model.deskReceived() }
+                FolderTarget(received: model.onDesk) { model.deskReceived() }
             }
         }
     }
 }
 
-/// Kleiner Schreibtisch in der Übungskarte, im Stil der Vorführung oben: Dorthin zieht man
-/// das Foto aus der Ablage. Nimmt nur Objekte aus der Ablage an.
-private struct DeskTarget: View {
-    let url: URL?
+/// Ein Ordner wie im Finder als Ziel der Übung: Symbol und Name. Liegt das Foto darüber,
+/// wird er markiert wie im Finder. Nimmt nur Objekte aus der Ablage an.
+private struct FolderTarget: View {
     let received: Bool
     let onDrop: () -> Void
     @State private var targeted = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        ZStack {
-            DesktopBackground(edge: AppSettings.shared.edge)
-            if received, let url {
-                DesktopItem(image: NSImage(contentsOf: url) ?? Thumbnails.icon(url),
-                            name: url.lastPathComponent, highlighted: false, selectedName: false)
-                    .scaleEffect(0.62)
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
-            }
+        VStack(spacing: 4) {
+            Image(nsImage: NSWorkspace.shared.icon(for: .folder))
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 72, height: 72)
+                .padding(4)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.primary.opacity(targeted ? 0.14 : 0))
+                )
+            Text(L("Projects", "Projekte"))
+                .font(.system(size: 11, weight: .medium))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(targeted ? Color(nsColor: .selectedContentBackgroundColor) : .clear)
+                )
+                .foregroundStyle(targeted ? Color.white : Color.primary)
         }
-        .frame(width: 200, height: 92)
-        .clipShape(shape)
-        .overlay(shape.strokeBorder(targeted ? Color(nsColor: .controlAccentColor) : SettingsTheme.cardBorder,
-                                    lineWidth: targeted ? 2 : 1))
-        .scaleEffect(targeted ? 1.03 : 1)
-        .animation(.spring(response: 0.28, dampingFraction: 0.8), value: targeted)
+        .animation(.easeOut(duration: 0.12), value: targeted)
         .overlay(ReturnDropTarget(enabled: !received, targeted: $targeted, onDrop: onDrop))
         .help(L("Drag the photo here", "Foto hierher ziehen"))
     }
@@ -1150,7 +1138,7 @@ private struct RetrievePage: View {
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 60, height: 60)
+                    .frame(width: 72, height: 72)
             }
         }
     }
@@ -1199,14 +1187,10 @@ private struct HoverPage: View {
                      instruction: L("Move the pointer to the \(edgeWord(settings)) edge.",
                                     "Fahr mit dem Zeiger an den \(edgeWord(settings)) Rand."),
                      confirmation: L("That’s how it opens.", "So öffnet sie sich.")) {
-                HStack(spacing: 18) {
-                    if settings.edge == .left { EdgeGlow(edge: .left) }
-                    Image(systemName: "cursorarrow")
-                        .font(.system(size: 34, weight: .regular))
-                        .foregroundStyle(.primary)
-                        .frame(width: 60, height: 60)
-                    if settings.edge == .right { EdgeGlow(edge: .right) }
-                }
+                Image(systemName: "cursorarrow.motionlines")
+                    .font(.system(size: 44, weight: .regular))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -1368,42 +1352,10 @@ private struct FeaturesPage: View {
     }
 }
 
-/// Richtung Bildschirmrand: ein schmaler, sanft pulsierender Lichtstreifen in der
-/// Akzentfarbe, wie der Streifen der Ablage, und ein feiner Pfeil, der zu ihm hin gleitet.
-/// Steht auf der Seite der Karte, an deren Rand die Ablage sitzt.
-private struct EdgeGlow: View {
-    let edge: ScreenEdge
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: AnimationStyle.reduceMotion)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            let still = AnimationStyle.reduceMotion
-            let pulse = still ? 0.6 : 0.45 + 0.35 * (0.5 + 0.5 * sin(t * 2.4))
-            let phase = still ? 0.5 : (t / 1.8).truncatingRemainder(dividingBy: 1)
-            let eased = phase * phase * (3 - 2 * phase)
-            let fade = sin(.pi * phase)
-            let towards: CGFloat = edge == .right ? 1 : -1
-            let arrow = Image(systemName: edge == .right ? "chevron.right" : "chevron.left")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color(nsColor: .controlAccentColor).opacity(still ? 0.6 : 0.2 + 0.6 * fade))
-                .offset(x: towards * CGFloat(eased) * 8)
-                .frame(width: 22)
-            let strip = Capsule()
-                .fill(Color(nsColor: .controlAccentColor).opacity(pulse))
-                .frame(width: 4, height: 54)
-                .shadow(color: Color(nsColor: .controlAccentColor).opacity(pulse * 0.8), radius: 6)
-            HStack(spacing: 6) {
-                if edge == .left { strip; arrow } else { arrow; strip }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 /// Das Beispielbild wie eine Datei im Finder: Bild und Name, zum Herausziehen. Es atmet
 /// leicht (etwas größer und heller, dann wieder zurück), als Hinweis, dass man es anfassen
 /// kann. Unter dem Zeiger und nach dem ersten Greifen steht es still, ebenso mit
-/// „Bewegung reduzieren“. Daneben leuchtet der Rand, an den es soll.
+/// „Bewegung reduzieren“. Wohin es soll, zeigt die Vorführung oben.
 private struct SampleTile: View {
     let url: URL?
     let edge: ScreenEdge
@@ -1418,23 +1370,19 @@ private struct SampleTile: View {
     private var breathes: Bool { !AnimationStyle.reduceMotion && !hovering && !grabbed }
 
     var body: some View {
-        HStack(spacing: 18) {
-            if edge == .left { EdgeGlow(edge: .left) }
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !breathes)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !breathes)) { context in
                 // Etwa 2,5 Sekunden je Atemzug, sanft (Sinus)
                 let wave = breathes ? 0.5 + 0.5 * sin(context.date.timeIntervalSinceReferenceDate * 2 * .pi / 2.5) : 0
                 tile
                     .scaleEffect(1 + 0.03 * wave)
                     .opacity(1 - 0.15 * wave)
             }
-            if edge == .right { EdgeGlow(edge: .right) }
-        }
     }
 
     private var tile: some View {
         VStack(spacing: 4) {
             preview
-                .frame(width: 64, height: 64)
+                .frame(width: 72, height: 72)
                 .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
             Text(url?.lastPathComponent ?? "")
                 .font(.system(size: 11, weight: .medium))

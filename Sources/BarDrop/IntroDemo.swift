@@ -35,8 +35,6 @@ final class DemoShelf: ObservableObject {
     /// Symbol auf dem Schreibtisch ausgewählt bzw. Ordner als Ziel markiert
     @Published var iconSelected = false
     @Published var folderTargeted = false
-    /// Herausziehen: Das Bild liegt jetzt auf dem Schreibtisch
-    @Published var onDesk = false
     /// Gerade gedrückte Tasten
     @Published var keys: [(symbol: String, name: String)]?
 
@@ -161,7 +159,6 @@ final class DemoShelf: ObservableObject {
         dragging = false
         iconSelected = false
         folderTargeted = false
-        onDesk = false
         keys = nil
         switch scene {
         case .overview:
@@ -178,7 +175,6 @@ final class DemoShelf: ObservableObject {
         case .takeOut:
             fill(withSample: !settings.removeAfterDragOut)
             set(level: .expanded, animation: nil)
-            onDesk = true
             pointer = CGPoint(x: l.sample.x + 30, y: l.sample.y + 40)
         case .dragOut:
             fill(withSample: true)
@@ -251,7 +247,6 @@ final class DemoShelf: ObservableObject {
         dragging = false
         iconSelected = false
         folderTargeted = false
-        onDesk = false
         keys = nil
 
         switch scene {
@@ -295,9 +290,10 @@ final class DemoShelf: ObservableObject {
             after(2.0) { self.move(to: self.sampleTile, duration: 0.6) }
             after(2.8) { self.click(); self.dragging = true }
             after(2.9) { self.move(to: l.sample, duration: 0.9) }
+            after(3.6) { self.folderTargeted = true }
             after(3.9) {
                 withAnimation(.easeOut(duration: 0.15)) { self.dragging = false }
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { self.onDesk = true }
+                self.folderTargeted = false
                 // Wie eingestellt: Herausgezogenes verlässt die Ablage oder bleibt liegen
                 if self.settings.removeAfterDragOut {
                     let ids = Set(self.store.entries.filter { $0.files.contains { $0.url == self.sampleURL } }.map(\.id))
@@ -529,9 +525,12 @@ struct ShelfStage: View {
             DesktopBackground(edge: l.edge)
                 .frame(width: l.size.width, height: l.size.height)
 
-            if demo.scene == .drop || (demo.scene == .takeOut && demo.onDesk), let url = demo.sampleURL {
+            if demo.scene == .takeOut {
+                DesktopFolder(targeted: demo.folderTargeted)
+                    .position(x: l.sample.x, y: l.sample.y + 14)
+            }
+            if demo.scene == .drop, let url = demo.sampleURL {
                 DesktopIcon(url: url, selected: demo.iconSelected)
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
                     .position(x: l.sample.x, y: l.sample.y + 14)
             }
 
