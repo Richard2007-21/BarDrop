@@ -10,13 +10,13 @@ enum EdgeTear {
     /// Schatten und die Verbindung zum Rand
     static let reach: CGFloat = 140
     /// So weit (pt) muss man vom Rand weg ziehen, bis sich die Ablage löst
-    static let tearDistance: CGFloat = 60
+    static let tearDistance: CGFloat = 85
     /// Bis zu diesem Abstand zum Rand zieht er die Ablage wieder an
     static let attachZone: CGFloat = 70
     /// Dehnen bis zum Lösen: höchstens so weit (pt) folgt die Ablage, und so schnell wird es
     /// zäh (anfangs folgt sie gut, kurz vor dem Reißen kaum noch)
-    static let stretchMax: CGFloat = 22
-    static let stretchSoftness: CGFloat = 30
+    static let stretchMax: CGFloat = 18
+    static let stretchSoftness: CGFloat = 32
     /// Griff oben in der Mitte und die Fläche um ihn herum, an der man ziehen kann
     static let grabWidth: CGFloat = 120
     static let grabHeight: CGFloat = 26

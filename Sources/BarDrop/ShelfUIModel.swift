@@ -84,6 +84,8 @@ final class ShelfUIModel: ObservableObject {
     @Published var grabberHover = false
     /// Die Ablage wird gerade am Griff gezogen: Er ist hell und etwas länger
     @Published var grabbing = false
+    /// Rahmen der Ablage am Rand: nach dem Andocken kurz ausgeblendet, dann weich eingeblendet
+    @Published var dockOutline: Double = 1
 
     /// Ordner oder App, die gerade über die Ablage gezogen wird und sich anheften ließe.
     /// Solange gesetzt, zeigt die Aktionsleiste einen freien Platz zum Anheften.

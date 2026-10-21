@@ -1567,10 +1567,16 @@ extension EdgeController {
             }
             ui.tear = nil
             ui.grabbing = false
+            // Der Rahmen am Rand läuft in die Rundungen zum Bildschirm hinein, die es eben
+            // noch nicht gab: Er kommt weich hinzu statt kurz aufzublitzen
+            ui.dockOutline = 0
         }
         layoutPanel()
         panel.contentView?.layoutSubtreeIfNeeded()
         panel.displayIfNeeded()
+        DispatchQueue.main.async { [weak self] in
+            withAnimation(.easeOut(duration: 0.3)) { self?.ui.dockOutline = 1 }
+        }
         if let screen { ui.expandedBody = bodyRect(.expanded, on: screen) }
         logic.outsideSince = nil
         lastActivity = Date()
