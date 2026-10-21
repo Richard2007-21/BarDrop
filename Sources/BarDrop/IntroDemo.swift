@@ -557,6 +557,11 @@ struct ShelfStage: View {
                 .position(demo.pointer)
         }
         .frame(width: l.size.width, height: l.size.height, alignment: .topLeading)
+        // Rand gewechselt: Die Bühne wird neu aufgebaut statt umgestellt. Sonst kam der
+        // Wechsel teils erst zusammen mit der Öffnen-Animation an, und die Ablage glitt
+        // sichtbar quer durchs Bild zum anderen Rand (Bildschirmaufnahmen)
+        .id(l.edge)
+        .transition(.identity)
         .environment(\.shelfDemo, true)
         .allowsHitTesting(false)
         .scaleEffect(l.scale, anchor: .topLeading)
