@@ -293,6 +293,10 @@ struct ShelfContent: View {
                                     .transition(.opacity)
                             }
                         }
+                        // Wechsel zwischen leerer Ablage und Kacheln als neue Ansicht: Laut
+                        // Aufnahme stand oben schon „1 Objekt“, darunter blieb aber „Hier ablegen“
+                        // stehen, bis man die Ablage neu öffnete oder hineinklickte
+                        .id(store.entries.isEmpty && !showPending && !ui.showSampleTile)
                         // Unschärfe beim Öffnen auf dem Inhalt im Scrollbereich, nicht auf dem
                         // Scrollbereich selbst (das legte ihn auf eine eigene Ebene). Nur solange
                         // sie wirkt (siehe OpenBlur)
