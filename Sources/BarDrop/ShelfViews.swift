@@ -187,8 +187,20 @@ struct ShelfContent: View {
     /// Kacheln verschwinden einfach unter der Leiste. Füllt die Leiste selbst aus, statt die
     /// gemessene Höhe zu nutzen: Die ist beim Öffnen für ein paar Bilder noch 0, und die
     /// Kacheln darunter schienen durch.
+    ///
+    /// Beim Öffnen nie unscharf: Unschärfe machte die Ränder des Schwarz durchscheinend, und
+    /// die Kacheln dahinter waren durch die Leiste zu sehen. Damit die Kante in diesem Moment
+    /// trotzdem nicht hart wirkt, läuft das Schwarz nach oben weich aus, solange der Inhalt
+    /// noch unscharf ist; danach ist die Kante wieder klar.
     private var barBackdrop: some View {
-        Color.black.allowsHitTesting(false)
+        let soft = openBlur * 2
+        return Color.black
+            .overlay(alignment: .top) {
+                LinearGradient(colors: [.black.opacity(0), .black], startPoint: .top, endPoint: .bottom)
+                    .frame(height: soft)
+                    .offset(y: -soft)
+            }
+            .allowsHitTesting(false)
     }
 
     /// Übergang unter dem Kopf: dieselbe S-Kurve wie über der Leiste, gespiegelt
@@ -344,12 +356,10 @@ struct ShelfContent: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 8)
                     .padding(.top, 2)
-                    .background { barBackdrop }
-                    // Beim Öffnen genauso unscharf wie Kopf und Kacheln, samt Schwarz dahinter:
-                    // Scharf stand die Leiste kurz als harter schwarzer Streifen da, bevor die
-                    // Ablage richtig zu sehen war. Das Schwarz ist von Anfang an voll da und
-                    // deckt die Kacheln darunter ab
+                    // Beim Öffnen genauso unscharf wie Kopf und Kacheln, aber nur die Symbole:
+                    // Das Schwarz dahinter bleibt voll deckend (siehe barBackdrop)
                     .blur(radius: openBlur)
+                    .background { barBackdrop }
                     .background(
                         GeometryReader { g in
                             Color.clear.preference(key: BarHeightKey.self, value: g.size.height)
