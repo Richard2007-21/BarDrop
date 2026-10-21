@@ -138,32 +138,40 @@ final class ActionDropNSView: NSView, NSDraggingSource {
             return
         }
         follow(event.locationInWindow)
-        reorder(at: event.locationInWindow)
+        reorder(atScreen: screenPoint)
     }
 
     /// Steht der Zeiger über der Mitte einer anderen Aktion, rückt diese an ihren Platz.
     /// Auch nach dem Lösen, wenn der Zeiger zurück in die Ablage kommt: Sonst reagierten die
     /// anderen Aktionen nicht mehr, sobald man einmal kurz über den Rand hinaus war.
+    ///
+    /// In Bildschirmkoordinaten und über alle Aktionen der offenen Ablage, nicht nur über die
+    /// eigene Ansicht: Schließt sich die Ablage, während die Aktion draußen am Zeiger hängt,
+    /// und öffnet sich wieder, ist die Leiste neu aufgebaut und diese Ansicht nicht mehr darin.
     @discardableResult
-    private func reorder(at pointInWindow: NSPoint) -> Bool {
-        guard let window else { return false }
+    private func reorder(atScreen screenPoint: NSPoint) -> Bool {
         // Erst wenn die Leiste nach dem letzten Tausch wieder still steht (Feder etwa 0,3 s):
         // Solange die Symbole noch gleiten, lag der Zeiger noch über der alten Aktion, und sie
-        // tauschten hin und her. Steht der Zeiger schon über dem eigenen Platz, nichts tun.
-        guard let me = actionID, Date().timeIntervalSince(Self.reorderedAt) > 0.15,
-              !bounds.contains(convert(pointInWindow, from: nil)) else { return false }
-        let bar = Self.all.allObjects.filter { $0.window === window && $0.actionID != nil }
+        // tauschten hin und her.
+        guard let me = actionID, Date().timeIntervalSince(Self.reorderedAt) > 0.15 else { return false }
+        let bar = Self.all.allObjects.filter { $0.window is ShelfPanel && $0.window?.isVisible == true && $0.actionID != nil }
+        func local(_ view: ActionDropNSView) -> NSPoint {
+            guard let window = view.window else { return NSPoint(x: -1e6, y: -1e6) }
+            return view.convert(window.convertPoint(fromScreen: screenPoint), from: nil)
+        }
+        // Steht der Zeiger schon über dem eigenen Platz, nichts tun
+        if let own = bar.first(where: { $0.actionID == me }), own.bounds.contains(local(own)) { return false }
         // Erst wenn keine Aktion mehr gleitet: Mitten in der Feder lag der Zeiger noch über
         // der Aktion, mit der gerade getauscht wurde, und sie tauschten wieder zurück
         let now = Date()
         guard bar.allSatisfy({ now.timeIntervalSince($0.movedAt) > 0.08 }) else { return false }
-        for view in bar where view !== self {
+        for view in bar where view.actionID != me {
             // Nur über der Mitte der anderen Aktion, nicht schon an ihrem Rand
             let inner = view.bounds.insetBy(dx: view.bounds.width * 0.2, dy: 0)
-            guard inner.contains(view.convert(pointInWindow, from: nil)) else { continue }
+            guard inner.contains(local(view)) else { continue }
             Self.reorderedAt = Date()
             view.onReorder(me)
-            ShelfSnapshots.capture(window, "reorder", after: [0.05, 0.2, 0.5])
+            ShelfSnapshots.capture(view.window, "reorder", after: [0.05, 0.2, 0.5])
             return true
         }
         return false
@@ -224,8 +232,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         // Draußen verschwindet die Aktion beim Loslassen, drinnen gleitet sie zurück
         let inside = dragStartFrame.contains(screenPoint)
         // Zurück in der Ablage: wieder verschieben wie vor dem Lösen
-        if inside, mode == .detached, let window,
-           reorder(at: window.convertPoint(fromScreen: screenPoint)) {
+        if inside, mode == .detached, reorder(atScreen: screenPoint) {
             reorderedWhileDetached = true
         }
         // Zurückgleiten nur an den alten Platz, solange er noch stimmt; nach einem Tausch
@@ -476,7 +483,10 @@ struct QuickActionButton: View {
 
     @State private var targeted = false
     /// Hat sich aus der Leiste gelöst: Ihr Platz bleibt leer, es gibt nur das Bild am Zeiger
-    @State private var draggingOut = false
+    /// Die Aktion hängt draußen am Zeiger: Ihr Platz bleibt leer. Im gemeinsamen Zustand,
+    /// nicht in der Ansicht: Schloss sich die Ablage dabei und öffnete sich wieder, war die
+    /// Ansicht neu und zeigte das Symbol, obwohl es noch am Zeiger hing
+    private var draggingOut: Bool { ui.detachedAction == action.id }
     /// Mit ⌘ in der Leiste gezogen: So weit hängt das Symbol am Zeiger von seinem Platz weg
     /// Beim Ziehen mit ⌘: Zeiger in `.global`-Koordinaten (siehe ActionDropNSView.follow)
     @State private var movePoint: CGPoint?
@@ -618,9 +628,9 @@ struct QuickActionButton: View {
                     if value {
                         var transaction = Transaction()
                         transaction.disablesAnimations = true
-                        withTransaction(transaction) { draggingOut = true }
-                    } else {
-                        withAnimation(.easeOut(duration: 0.15)) { draggingOut = false }
+                        withTransaction(transaction) { ui.detachedAction = action.id }
+                    } else if ui.detachedAction == action.id {
+                        withAnimation(.easeOut(duration: 0.15)) { ui.detachedAction = nil }
                     }
                 },
                 actionID: action.id,

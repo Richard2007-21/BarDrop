@@ -113,6 +113,8 @@ final class ShelfUIModel: ObservableObject {
 
     /// Eine Aktion wird gerade mit ⌘ in der Leiste verschoben: Die Ablage bleibt offen
     var actionMoving = false
+    /// Diese Aktion hängt nach dem Herausziehen am Zeiger (ihr Platz in der Leiste bleibt leer)
+    @Published var detachedAction: UUID?
 
     var isLocked: Bool { menuOpen || sharingOpen || bandActive || actionMoving }
 }
