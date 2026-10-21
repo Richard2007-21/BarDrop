@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import UniformTypeIdentifiers
 
 /// Legt neue Bildschirmfotos automatisch in die Ablage (Einstellung „Neue Bildschirmfotos“).
 /// Zwei Wege, damit es auch klappt, wenn Spotlight den Ort nicht oder verspätet indiziert:
@@ -20,6 +21,8 @@ final class ScreenshotWatcher {
     private var folderDescriptor: Int32 = -1
     private var watchedFolder: URL?
     private var startedAt = Date()
+    /// Prüft regelmäßig, ob der Ort für Bildschirmfotos umgestellt wurde
+    private var folderCheck: Timer?
 
     init(store: ShelfStore, onAdded: @escaping () -> Void) {
         self.store = store
@@ -37,6 +40,11 @@ final class ScreenshotWatcher {
         guard query == nil else { return }
         startedAt = Date()
         watchFolder()
+        // Wird der Ort in der Bildschirmfoto-App umgestellt, solange BarDrop läuft, sonst
+        // bliebe der alte Ordner beobachtet und neue Bildschirmfotos kämen nie an
+        folderCheck = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.followFolderChange()
+        }
         let query = NSMetadataQuery()
         // Nur, was ab jetzt aufgenommen wird
         query.predicate = NSPredicate(format: "kMDItemIsScreenCapture == 1 AND kMDItemFSCreationDate >= %@",
@@ -54,6 +62,7 @@ final class ScreenshotWatcher {
                 // dann um: Spotlight meldet sie dann oft als geändert statt als neu
                 let added = note.userInfo?[NSMetadataQueryUpdateAddedItemsKey] as? [NSMetadataItem] ?? []
                 let changed = note.userInfo?[NSMetadataQueryUpdateChangedItemsKey] as? [NSMetadataItem] ?? []
+                Diagnostics.shared.record("screenshots", "Spotlight meldet neu=\(added.count) geändert=\(changed.count)")
                 self?.take(added + changed)
             }
         ]
@@ -71,6 +80,8 @@ final class ScreenshotWatcher {
     private func stop() {
         query?.stop()
         query = nil
+        folderCheck?.invalidate()
+        folderCheck = nil
         folderSource?.cancel()
         folderSource = nil
         watchedFolder = nil
@@ -123,6 +134,18 @@ final class ScreenshotWatcher {
         folderSource = source
         source.resume()
         Log.importing.info("Bildschirmfotos: beobachte Ordner")
+        Diagnostics.shared.record("screenshots", "beobachte Ordner \(Diagnostics.anon(folder))")
+    }
+
+    /// Ort der Bildschirmfotos umgestellt: den neuen Ordner beobachten
+    private func followFolderChange() {
+        let folder = Self.screenshotFolder()
+        guard folder.standardizedFileURL != watchedFolder?.standardizedFileURL else { return }
+        Diagnostics.shared.record("screenshots", "Ort umgestellt")
+        folderSource?.cancel()
+        folderSource = nil
+        watchedFolder = nil
+        watchFolder()
     }
 
     /// Etwas im Ordner hat sich geändert: kurz danach nachsehen (macOS setzt die Kennzeichnung
@@ -143,7 +166,10 @@ final class ScreenshotWatcher {
                   let values = try? url.resourceValues(forKeys: Set(keys)),
                   values.isRegularFile == true,
                   let created = values.creationDate, created >= startedAt.addingTimeInterval(-1) else { return false }
-            return Self.isScreenCapture(url)
+            return Self.isScreenCapture(url) || Self.namedLikeScreenshot(url)
+        }
+        if !fresh.isEmpty {
+            Diagnostics.shared.record("screenshots", "im Ordner neu=\(fresh.count) gekennzeichnet=\(fresh.filter(Self.isScreenCapture).count)")
         }
         add(fresh)
     }
@@ -152,6 +178,19 @@ final class ScreenshotWatcher {
     static func isScreenCapture(_ url: URL) -> Bool {
         let name = "com.apple.metadata:kMDItemIsScreenCapture"
         return getxattr(url.path, name, nil, 0, 0, 0) > 0
+    }
+
+    /// Ersatz, falls macOS die Kennzeichnung nicht (mehr) setzt: Bild oder Aufnahme, deren Name
+    /// wie ein Bildschirmfoto beginnt (eingestellter Name oder die üblichen von macOS)
+    static func namedLikeScreenshot(_ url: URL) -> Bool {
+        let name = url.lastPathComponent
+        var prefixes = ["Bildschirmfoto", "Bildschirmaufnahme", "Screenshot", "Screen Recording"]
+        if let custom = UserDefaults(suiteName: "com.apple.screencapture")?.string(forKey: "name"), !custom.isEmpty {
+            prefixes.append(custom)
+        }
+        guard prefixes.contains(where: { name.hasPrefix($0) }),
+              let type = UTType(filenameExtension: url.pathExtension.lowercased()) else { return false }
+        return type.conforms(to: .image) || type.conforms(to: .movie)
     }
 
     // MARK: Übernehmen
@@ -163,6 +202,7 @@ final class ScreenshotWatcher {
             return true
         }
         guard !urls.isEmpty, AppSettings.shared.addScreenshots else { return }
+        Diagnostics.shared.record("screenshots", "übernehme \(urls.count)")
         Log.importing.info("\(urls.count, privacy: .public) Bildschirmfoto(s) übernommen")
         // Derselbe Weg wie beim Ablegen aus dem Finder
         pasteboard.clearContents()

@@ -78,6 +78,9 @@ final class ShelfUIModel: ObservableObject {
         var attach: CGFloat = 1
         /// Rand, mit dem die Ablage gerade verbunden ist oder dem sie sich nähert
         var side: ScreenEdge
+        /// Überblendung zur angedockten Form (0 verschmelzende Form, 1 genau die Ablage am
+        /// Rand): am Ende des Andockens und am Anfang des Dehnens, damit die Form nicht springt
+        var dock: CGFloat = 0
     }
     @Published var tear: Tear?
     /// Der Zeiger ist in der Kopfzeile: Der Griff oben erscheint

@@ -83,7 +83,9 @@ struct ShelfRootView: View {
             .background {
                 if let tear {
                     TearGoo(tear: tear, inset: m.fillet, reach: EdgeTear.reach,
-                            outline: settings.showOutline || ui.forcesOutline, glass: ui.tearGlass)
+                            outline: settings.showOutline || ui.forcesOutline, glass: ui.tearGlass,
+                            docked: EdgeBlobShape(edge: tear.side, cornerRadius: m.cornerRadius, fillet: m.fillet,
+                                                  filletStretch: m.filletStretch, cornerStretch: m.cornerStretch))
                         .frame(width: m.width + 2 * EdgeTear.reach, height: m.height + 2 * m.fillet)
                 }
             }

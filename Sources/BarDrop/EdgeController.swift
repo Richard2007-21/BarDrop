@@ -1241,8 +1241,9 @@ extension EdgeController {
         ui.expandedBody = body
     }
 
-    private func setTear(gap: CGFloat, attach: CGFloat? = nil, side: ScreenEdge) {
+    private func setTear(gap: CGFloat, attach: CGFloat? = nil, side: ScreenEdge, dock: CGFloat? = nil) {
         guard var tear = ui.tear else { return }
+        if let dock { tear.dock = (max(0, min(1, dock)) * 50).rounded() / 50 }
         // Auf halbe Punkte gerundet: Kleinste Änderungen zeichnen sonst unnötig neu
         tear.gap = (max(0, gap) * 2).rounded() / 2
         if let attach { tear.attach = (max(0, min(1, attach)) * 100).rounded() / 100 }
@@ -1272,7 +1273,7 @@ extension EdgeController {
         panel.disableScreenUpdatesUntilFlush()
         var transaction = Transaction()
         transaction.disablesAnimations = true
-        withTransaction(transaction) { ui.tear = ShelfUIModel.Tear(gap: 0, attach: 1, side: drag.origin) }
+        withTransaction(transaction) { ui.tear = ShelfUIModel.Tear(gap: 0, attach: 1, side: drag.origin, dock: 1) }
         applyTearFrame(drag.body)
         panel.contentView?.layoutSubtreeIfNeeded()
         panel.displayIfNeeded()
@@ -1371,7 +1372,9 @@ extension EdgeController {
             body.origin.x += drag.origin == .right ? -gap : gap
             body.origin.y += (p.y - drag.start.y) * 0.12
             drag.body = body
-            setTear(gap: gap, attach: 1 - 0.8 * pow(pull / EdgeTear.tearDistance, 1.4), side: drag.origin)
+            // Auf den ersten Punkten geht die Form der angedockten Ablage in die verschmelzende über
+            setTear(gap: gap, attach: 1 - 0.8 * pow(pull / EdgeTear.tearDistance, 1.4), side: drag.origin,
+                    dock: 1 - pull / 14)
             // Schon beim Dehnen wird sie zu Glas, das Schwarz bleibt zum Rand hin hängen
             let t = max(0, min(1, (pull - 8) / (EdgeTear.tearDistance - 8)))
             setGlassAmount(Double(t * t * (3 - 2 * t)) * 0.85)
@@ -1606,7 +1609,9 @@ extension EdgeController {
             let gap = drag.dockSide == .right ? screen.frame.maxX - body.maxX : body.minX - screen.frame.minX
             // Der Rand greift etwas früher nach ihr, als sie ankommt
             let reach = min(1, e * 1.35)
-            setTear(gap: gap, attach: drag.dockAttach + (1 - drag.dockAttach) * reach, side: drag.dockSide)
+            // Zum Schluss in die Form der angedockten Ablage überblenden (sonst sprang sie am Ende)
+            setTear(gap: gap, attach: drag.dockAttach + (1 - drag.dockAttach) * reach, side: drag.dockSide,
+                    dock: CGFloat((t - 0.4) / 0.6))
         }
         applyTearFrame(body)
         if t >= 1 { finishDock(drag) }
@@ -1631,16 +1636,12 @@ extension EdgeController {
             ui.grabbing = false
             ui.tearGlass = 0
             removeGlassWindow()
-            // Der Rahmen am Rand läuft in die Rundungen zum Bildschirm hinein, die es eben
-            // noch nicht gab: Er kommt weich hinzu statt kurz aufzublitzen
-            ui.dockOutline = 0
+            // Rahmen samt Bögen zum Bildschirm sind schon da (Überblendung in TearGoo)
+            ui.dockOutline = 1
         }
         layoutPanel()
         panel.contentView?.layoutSubtreeIfNeeded()
         panel.displayIfNeeded()
-        DispatchQueue.main.async { [weak self] in
-            withAnimation(.easeOut(duration: 0.3)) { self?.ui.dockOutline = 1 }
-        }
         if let screen { ui.expandedBody = bodyRect(.expanded, on: screen) }
         logic.outsideSince = nil
         lastActivity = Date()

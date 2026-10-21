@@ -61,6 +61,8 @@ struct TearGoo: View, Animatable {
     /// Losgelöst aus Glas (0 schwarz wie am Rand, 1 Glas). Je näher sie einem Rand kommt,
     /// desto schwärzer, damit sie beim Andocken nahtlos in die schwarze Ablage übergeht.
     var glass: Double = 0
+    /// Die Ablage am Rand, wie sie angedockt aussieht (Überblendung über `tear.dock`)
+    var docked: EdgeBlobShape? = nil
 
     /// Der Übergang zu Glas wird Bild für Bild berechnet (sonst sprang der Verlauf sofort ans
     /// Ende, während das Glas erst einblendete: kurz war alles durchsichtig)
@@ -91,14 +93,35 @@ struct TearGoo: View, Animatable {
                     .fill(Color.black.opacity(EdgeTear.glassDarken))
                     .opacity(glass)
             }
+            // Überblendung zur angedockten Form: erst kommt sie dazu, dann geht die
+            // verschmelzende Form; so gibt es keinen Moment, in dem es durchscheint
+            let dockIn = Double(min(1, tear.dock * 2))
+            let gooOut = Double(max(0, tear.dock * 2 - 1))
             if glass < 0.999 || attach > 0.01 {
                 // Das Schwarz zieht sich zum Rand hin zurück, als bliebe es dort hängen (beim
                 // Andocken kommt es von dort wieder)
                 solid.mask { darkness(attach: attach) }
+                    .opacity(1 - gooOut)
+            }
+            if dockIn > 0.001, let docked {
+                docked
+                    .fill(Color.black)
+                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+                    .padding(.horizontal, reach)
+                    .opacity(dockIn)
             }
             if outline {
-                outlineStroke
-                if attach > 0.01 { gooRim }
+                Group {
+                    outlineStroke
+                    if attach > 0.01 { gooRim }
+                }
+                .opacity(1 - gooOut)
+                if dockIn > 0.001, let docked {
+                    Self.contour(docked)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        .padding(.horizontal, reach)
+                        .opacity(dockIn)
+                }
             }
         }
         .allowsHitTesting(false)
@@ -129,6 +152,13 @@ struct TearGoo: View, Animatable {
             let far = UnitPoint(x: fromLeft ? 1 - reach / w : reach / w, y: 0.5)
             BeyondFrameShape().fill(LinearGradient(stops: stops, startPoint: near, endPoint: far))
         }
+    }
+
+    /// Nur die Kontur der angedockten Form, ohne Linie am Bildschirmrand (wie ihr Rahmen)
+    private static func contour(_ shape: EdgeBlobShape) -> EdgeBlobShape {
+        var line = shape
+        line.closed = false
+        return line
     }
 
     /// Umriss der Ablage im Rahmen

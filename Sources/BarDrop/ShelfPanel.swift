@@ -195,6 +195,9 @@ final class ShelfDropHandler {
 
     private func setTargeted(_ value: Bool) {
         guard ui.isDropTargeted != value else { return }
+        // Losgelöst oder schwebend: dezenter Impuls, sobald etwas über der Ablage abgelegt
+        // werden kann (am Rand kündigt das schon das Aufgehen an)
+        if value && ui.tear != nil { Haptics.tap() }
         withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
             ui.isDropTargeted = value
         }
