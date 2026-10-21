@@ -405,17 +405,20 @@ enum ShelfMenu {
     static func popUp(_ menu: NSMenu, with event: NSEvent, for view: NSView) {
         guard !disabled else { return }
         withoutImages(menu)
-        activate()
-        view.window?.makeKey()
         openedWindow = false
         let active = AppActivation.isFrontmost
         Diagnostics.shared.record("menu", "popUp active=\(active)")
         if active {
+            view.window?.makeKey()
             NSMenu.popUpContextMenu(menu, with: event, for: view)
         } else {
-            // BarDrop ist (noch) nicht vorn: Ein Kontextmenü erschien dann teils gar nicht,
-            // und man musste erst in die Ablage klicken. So erscheint es trotzdem an der Stelle
+            // BarDrop ist nicht vorn: Erst aktivieren und dann das Menü zeigen ging nicht, die
+            // Aktivierung schloss es gleich wieder (Protokoll: Menü nach 15 ms zu, erst der
+            // zweite Rechtsklick ging). Also gleich ohne Aktivieren an der Stelle zeigen,
+            // aktiviert wird danach
             menu.popUp(positioning: nil, at: view.convert(event.locationInWindow, from: nil), in: view)
+            activate()
+            view.window?.makeKey()
         }
         // Nach dem Menü gab macOS den Fokus dem Hauptfenster von BarDrop, den Einstellungen,
         // und holte sie nach vorn (Diagnoseprotokoll: „key+ Einstellungen“ gleich danach,

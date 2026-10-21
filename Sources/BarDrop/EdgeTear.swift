@@ -75,8 +75,12 @@ struct TearGoo: View {
                 let right = tear.side == .right
                 // Verbindung samt ihren weichen Übergängen (etwa so breit wie die Unschärfe)
                 let height = body.height * pow(a, 1.6) + 30
-                let zone = CGRect(x: right ? body.midX : 0, y: body.midY - height / 2,
-                                  width: right ? size.width - body.midX : body.midX, height: height)
+                // Nur ein schmaler Streifen an der Seite zum Rand: Bis zur Mitte ausgespart fehlte
+                // der Rahmen oben und unten auf halber Breite und wuchs beim Lösen von den Ecken
+                // her nach (bei großer Ablage deutlich zu sehen), angedockt war er dann plötzlich da
+                let cut: CGFloat = 14
+                let zone = CGRect(x: right ? body.maxX - cut : 0, y: body.midY - height / 2,
+                                  width: right ? size.width - (body.maxX - cut) : body.minX + cut, height: height)
                 var mask = Path(CGRect(origin: .zero, size: size))
                 mask.addRect(zone)
                 context.clip(to: mask, style: FillStyle(eoFill: true))
