@@ -106,27 +106,49 @@ final class FolderBrowser: ObservableObject {
         isLoading = true
         accessDenied = false
         firstLoad = true
-        watch(url)
-        // Auf der eigenen Platte gleich lesen: Der Inhalt ist dann schon beim Überblenden
-        // da, wie bei einem Stapel. Netzlaufwerke und Ähnliches im Hintergrund.
-        if Self.isLocal(url) {
-            switch Self.read(url) {
-            case .success(let listed):
-                reloadWork?.cancel()
-                generation += 1
-                files = listed
-                isLoading = false
-                firstLoad = false
-                Diagnostics.shared.record("folder", "open items=\(listed.count) local=true")
-                return
-            case .failure(let error) where Self.isDenied(error):
-                denied(error)
-                return
-            case .failure:
-                break
+        stopWatching()
+        reloadWork?.cancel()
+        generation += 1
+        let current = generation
+        // Gelesen wird im Hintergrund: Fragt macOS erst nach der Erlaubnis (Downloads,
+        // Schreibtisch …), wartete sonst die ganze Ablage auf die Antwort und fror ein
+        // (Protokoll: 2,4 s ohne ein Bild). Auf der eigenen Platte kurz auf das Ergebnis
+        // warten, dann ist der Inhalt wie bei einem Stapel schon beim Überblenden da.
+        let box = FolderReadBox()
+        let finished = DispatchSemaphore(value: 0)
+        queue.async { [weak self] in
+            box.result = Self.read(url)
+            finished.signal()
+            DispatchQueue.main.async {
+                guard let self, !box.applied, let result = box.result else { return }
+                box.applied = true
+                self.applyFirstRead(result, of: url, generation: current)
             }
         }
-        reload(after: 0)
+        if Self.isLocal(url), finished.wait(timeout: .now() + 0.12) == .success, let result = box.result {
+            box.applied = true
+            applyFirstRead(result, of: url, generation: current)
+        }
+    }
+
+    /// Erstes Lesen eines gezeigten Ordners übernehmen
+    private func applyFirstRead(_ result: Result<[ShelfFile], Error>, of url: URL, generation current: Int) {
+        guard generation == current, folder == url else { return }
+        switch result {
+        case .success(let listed):
+            watch(url)
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { files = listed }
+            isLoading = false
+            firstLoad = false
+            Diagnostics.shared.record("folder", "open items=\(listed.count) local=\(Self.isLocal(url))")
+        case .failure(let error) where Self.isDenied(error):
+            denied(error)
+        case .failure(let error):
+            Diagnostics.shared.failure("folder", "Ordner nicht lesbar, geschlossen", error)
+            vanished()
+        }
     }
 
     private func denied(_ error: Error) {
@@ -273,4 +295,10 @@ final class FolderBrowser: ObservableObject {
     }
 
     deinit { watcher?.cancel() }
+}
+
+/// Ergebnis des ersten Lesens, zwischen Hintergrund und Hauptthread
+private final class FolderReadBox {
+    var result: Result<[ShelfFile], Error>?
+    var applied = false
 }
