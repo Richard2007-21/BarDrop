@@ -35,7 +35,11 @@ final class SettingsFocusReturn {
         observers.append(center.addObserver(forName: NSApplication.willResignActiveNotification, object: nil,
                                             queue: .main) { [weak self] _ in
             guard let self else { return }
-            self.settingsWereKey = self.settingsWindow()?.isKeyWindow == true
+            // Nur, wenn man wirklich in den Einstellungen war (BarDrop vorderste App). Gab die
+            // Ablage den Fokus ab, wurden die Einstellungen teils im Hintergrund Schlüsselfenster,
+            // ohne dass man dort war; nach dem Kontrollzentrum sprangen sie dann ungefragt nach vorn
+            self.settingsWereKey = self.settingsWindow()?.isKeyWindow == true && AppActivation.isFrontmost
+            Diagnostics.shared.record("focus", "resign active settingsKey=\(self.settingsWindow()?.isKeyWindow == true) frontmost=\(AppActivation.isFrontmost)")
         })
         observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
                                             queue: .main) { [weak self] _ in
@@ -80,6 +84,7 @@ final class SettingsFocusReturn {
         guard Date().timeIntervalSince(waiting.since) < Self.maximumWait,
               let window = settingsWindow(), window.isVisible else { return }
         // Das Menü ist zu und macOS hat eine andere App aktiviert: zurück zu den Einstellungen
+        Diagnostics.shared.record("focus", "Einstellungen zurückgeholt nach Menüleistendienst")
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
