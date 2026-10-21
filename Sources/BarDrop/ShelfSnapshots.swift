@@ -52,6 +52,23 @@ enum ShelfSnapshots {
             Diagnostics.shared.record("shot", "\(name) nicht möglich")
             return
         }
+        write(image, name)
+    }
+
+    /// Den ganzen Hauptbildschirm aufnehmen. Ohne Erlaubnis zur Bildschirmaufnahme zeigt
+    /// macOS darin nur BarDrops eigene Fenster (Ablage, Einführung), andere Apps nicht.
+    static func captureScreen(_ name: String) {
+        guard isActive, let createImage, let screen = NSScreen.screens.first else { return }
+        // kCGWindowListOptionOnScreenOnly = 1, alle Fenster; kCGWindowImageNominalResolution = 16
+        let rect = CGRect(origin: .zero, size: screen.frame.size)
+        guard let image = createImage(rect, 1, 0, 16)?.takeRetainedValue() else {
+            Diagnostics.shared.record("shot", "\(name) nicht möglich")
+            return
+        }
+        write(image, name)
+    }
+
+    private static func write(_ image: CGImage, _ name: String) {
         let rep = NSBitmapImageRep(cgImage: image)
         guard let data = rep.representation(using: .png, properties: [:]) else { return }
         counter += 1
@@ -101,9 +118,12 @@ enum ShelfSnapshots {
 /// Schritte, die sonst nur mit der Maus gehen, aus einer Textdatei ausführen, damit sich ein
 /// Fehler genau gleich wiederholen lässt. Liegt ~/Library/Logs/BarDrop/Befehl.txt vor, wird
 /// sie gelesen, gelöscht und Zeile für Zeile ausgeführt: open, close, add <Pfad>,
-/// folder <Pfad>, back, move <von> <nach>, shot <Name>, wait <Sekunden>. Nachgesehen wird
+/// folder <Pfad>, back, move <von> <nach>, shot <Name>, screen <Name>, edge left|right,
+/// intro, wait <Sekunden>. Nachgesehen wird
 /// nur, solange das Diagnoseprotokoll läuft.
 final class DiagnosticCommands {
+    /// Befehl „intro“: die Einführung öffnen (AppDelegate)
+    static let showIntro = Notification.Name("BarDropDiagnoseIntro")
     private let controller: EdgeController
     private var timer: Timer?
     private var observer: AnyCancellable?
@@ -171,6 +191,12 @@ final class DiagnosticCommands {
             ShelfSnapshots.capture(panel, "move", after: [0.05, 0.2, 0.5])
         case "shot":
             ShelfSnapshots.capture(panel, argument.isEmpty ? "shot" : argument, after: [0])
+        case "screen":
+            ShelfSnapshots.captureScreen(argument.isEmpty ? "screen" : argument)
+        case "edge":
+            if let edge = ScreenEdge(rawValue: argument) { controller.settings.edge = edge }
+        case "intro":
+            NotificationCenter.default.post(name: DiagnosticCommands.showIntro, object: nil)
         default:
             Diagnostics.shared.record("cmd", "unbekannt")
         }

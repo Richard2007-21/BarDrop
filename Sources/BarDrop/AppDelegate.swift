@@ -36,6 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controller = EdgeController(store: store, ui: ui, settings: settings)
         controller.actions.openSettings = { [weak self] in self?.showSettings() }
         diagnosticCommands = DiagnosticCommands(controller: controller)
+        NotificationCenter.default.addObserver(forName: DiagnosticCommands.showIntro, object: nil, queue: .main) { [weak self] _ in
+            self?.showOnboarding()
+        }
         controller.keepAppActive = { [weak self] in
             self?.settingsWindow?.isVisible == true || self?.onboarding?.isVisible == true
         }
