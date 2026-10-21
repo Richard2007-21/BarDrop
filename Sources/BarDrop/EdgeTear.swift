@@ -93,7 +93,7 @@ struct TearGoo: View, Animatable {
                 // Das Glas selbst liegt in einem Begleitfenster darunter (ShelfGlassWindow),
                 // hier nur die eigene dunkle Tönung darüber
                 bodyShape
-                    .fill(light ? Color.white.opacity(0.35) : Color.black.opacity(EdgeTear.glassDarken(light: false)))
+                    .fill(light ? Color.white.opacity(0.31) : Color.black.opacity(EdgeTear.glassDarken(light: false)))
                     .opacity(glass)
             }
             // Überblendung zur angedockten Form: erst kommt sie dazu, dann geht die
@@ -147,37 +147,43 @@ struct TearGoo: View, Animatable {
             let frame = CGRect(x: beyond, y: beyond, width: size.width - 2 * beyond, height: size.height - 2 * beyond)
             let body = frame.insetBy(dx: reach, dy: inset)
             guard body.width > 0, body.height > 0 else { return }
-            let all = Path(CGRect(origin: .zero, size: size))
-            // Schwarz breitet sich von der Mitte der Randseite aus wie eine Welle: erst in der
-            // Mitte, dann oben, unten und an der fernen Seite, zuletzt in den Ecken (beim
-            // Lösen umgekehrt). Gemessen in einer Ellipse, die genau bis zur fernen Seite und
-            // bis oben und unten reicht; die Ecken liegen bei √2.
-            let width = 0.45
-            let reachAll = 2.0.squareRoot() + width
-            let front = reachAll * (1 - glass) - width
-            let count = 16
-            let stops: [Gradient.Stop] = (0...count).map { i in
-                let d = Double(i) / Double(count) * reachAll
-                let t = max(0, min(1, (d - front) / width))
-                let sweep = 1 - t * t * (3 - 2 * t)
-                return Gradient.Stop(color: Color.black.opacity(sweep), location: Double(i) / Double(count))
+            // Schwarz kommt als weiche, leicht gewölbte Front von der Randseite: in der Mitte
+            // etwas voraus, oben und unten etwas später, die Ecken zuletzt (beim Lösen
+            // umgekehrt). Gezeichnet in waagrechten Streifen, je mit eigenem Verlauf, danach
+            // weichgezeichnet, damit keine Stufen zu sehen sind.
+            context.addFilter(.blur(radius: 8))
+            let fromEdge: (CGFloat) -> CGPoint = { x in
+                CGPoint(x: fromLeft ? body.minX + x : body.maxX - x, y: 0)
             }
-            var wave = context
-            let center = CGPoint(x: fromLeft ? body.minX : body.maxX, y: body.midY)
-            let rx = body.width, ry = body.height / 2
-            wave.translateBy(x: center.x, y: center.y)
-            wave.scaleBy(x: 1, y: ry / rx)
-            let big = CGRect(x: -10_000, y: -10_000, width: 20_000, height: 20_000)
-            wave.fill(Path(big), with: .radialGradient(Gradient(stops: stops), center: .zero,
-                                                       startRadius: 0, endRadius: rx * reachAll))
-            // Verbindung zum Rand: ein schmaler Bereich an der Randseite, so stark wie sie
-            guard attach > 0.001 else { return }
-            let bandWidth = body.width * 0.18
-            let start = CGPoint(x: fromLeft ? body.minX : body.maxX, y: body.midY)
-            let end = CGPoint(x: fromLeft ? body.minX + bandWidth : body.maxX - bandWidth, y: body.midY)
-            let band = Gradient(stops: [.init(color: .black.opacity(attach), location: 0),
-                                        .init(color: .black.opacity(0), location: 1)])
-            context.fill(all, with: .linearGradient(band, startPoint: start, endPoint: end))
+            let softness = 0.7                      // Breite des Übergangs (Anteil der Breite)
+            let bulge = 0.3                         // wie weit die Mitte vorausläuft
+            let travel = 1 + bulge + softness       // bis auch die Ecken ganz frei sind
+            let front = travel * (1 - glass) - softness
+            // Verbindung zum Rand: an der Randseite so dunkel wie die Verbindung, weich auslaufend
+            let link = min(1, attach * 1.4)
+            let rows = 28
+            let top = -beyond, bottom = size.height + beyond
+            for row in 0..<rows {
+                let y0 = top + (bottom - top) * CGFloat(row) / CGFloat(rows)
+                let y1 = top + (bottom - top) * CGFloat(row + 1) / CGFloat(rows)
+                let mid = (y0 + y1) / 2
+                let yn = max(-1.2, min(1.2, Double((mid - body.midY) / (body.height / 2))))
+                // In dieser Höhe liegt die Front um `lag` weiter zur Randseite
+                let lag = bulge * yn * yn
+                let stops: [Gradient.Stop] = (0...10).map { k in
+                    let x = Double(k) / 10 * 1.2
+                    let t = max(0, min(1, (x + lag - front) / softness))
+                    let wave = 1 - t * t * (3 - 2 * t)
+                    let b = max(0, min(1, x / 0.35))
+                    let band = link * (1 - b * b * (3 - 2 * b))
+                    return Gradient.Stop(color: Color.black.opacity(max(wave, band)), location: Double(k) / 10)
+                }
+                let start = fromEdge(0), end = fromEdge(body.width * 1.2)
+                context.fill(Path(CGRect(x: 0, y: y0, width: size.width, height: y1 - y0 + 0.5)),
+                             with: .linearGradient(Gradient(stops: stops),
+                                                   startPoint: CGPoint(x: start.x, y: mid),
+                                                   endPoint: CGPoint(x: end.x, y: mid)))
+            }
         }
         .padding(-beyond)
     }
