@@ -138,27 +138,48 @@ struct TearGoo: View, Animatable {
     /// Wie schwarz die Ablage wo ist: Das Schwarz weicht von der fernen Seite zum Rand hin
     /// zurück; solange sie mit dem Rand verbunden ist, bleibt es dort an der Verbindung
     private func darkness(attach: Double) -> some View {
-        // Übergangskante wandert mit dem Glas von der fernen Seite zum Rand
-        let width = 0.45
-        let edge = (1 + width) * (1 - glass) - width
-        let stops: [Gradient.Stop] = (0...12).map { i in
-            let x = Double(i) / 12
-            let t = max(0, min(1, (x - edge) / width))
-            let sweep = 1 - t * t * (3 - 2 * t)
-            // Verbindung: ein schmaler Bereich an der Seite zum Rand, so stark wie die Verbindung
-            let b = max(0, min(1, x / 0.18))
-            let band = attach * (1 - b * b * (3 - 2 * b))
-            return Gradient.Stop(color: Color.black.opacity(max(sweep, band)), location: x)
-        }
+        let glass = self.glass
         let fromLeft = tear.side == .left
-        // Verlauf über die Ablage selbst (links und rechts liegt im Fenster noch `reach`); die
-        // Fläche reicht über den Rahmen hinaus, damit der Schatten nicht abgeschnitten wird
-        return GeometryReader { geo in
-            let w = max(1, geo.size.width)
-            let near = UnitPoint(x: fromLeft ? reach / w : 1 - reach / w, y: 0.5)
-            let far = UnitPoint(x: fromLeft ? 1 - reach / w : reach / w, y: 0.5)
-            BeyondFrameShape().fill(LinearGradient(stops: stops, startPoint: near, endPoint: far))
+        let reach = self.reach, inset = self.inset
+        // Über den Rahmen hinaus zeichnen (Schatten), dafür die Fläche größer und verschoben
+        let beyond: CGFloat = 120
+        return Canvas { context, size in
+            let frame = CGRect(x: beyond, y: beyond, width: size.width - 2 * beyond, height: size.height - 2 * beyond)
+            let body = frame.insetBy(dx: reach, dy: inset)
+            guard body.width > 0, body.height > 0 else { return }
+            let all = Path(CGRect(origin: .zero, size: size))
+            // Schwarz breitet sich von der Mitte der Randseite aus wie eine Welle: erst in der
+            // Mitte, dann oben, unten und an der fernen Seite, zuletzt in den Ecken (beim
+            // Lösen umgekehrt). Gemessen in einer Ellipse, die genau bis zur fernen Seite und
+            // bis oben und unten reicht; die Ecken liegen bei √2.
+            let width = 0.45
+            let reachAll = 2.0.squareRoot() + width
+            let front = reachAll * (1 - glass) - width
+            let count = 16
+            let stops: [Gradient.Stop] = (0...count).map { i in
+                let d = Double(i) / Double(count) * reachAll
+                let t = max(0, min(1, (d - front) / width))
+                let sweep = 1 - t * t * (3 - 2 * t)
+                return Gradient.Stop(color: Color.black.opacity(sweep), location: Double(i) / Double(count))
+            }
+            var wave = context
+            let center = CGPoint(x: fromLeft ? body.minX : body.maxX, y: body.midY)
+            let rx = body.width, ry = body.height / 2
+            wave.translateBy(x: center.x, y: center.y)
+            wave.scaleBy(x: 1, y: ry / rx)
+            let big = CGRect(x: -10_000, y: -10_000, width: 20_000, height: 20_000)
+            wave.fill(Path(big), with: .radialGradient(Gradient(stops: stops), center: .zero,
+                                                       startRadius: 0, endRadius: rx * reachAll))
+            // Verbindung zum Rand: ein schmaler Bereich an der Randseite, so stark wie sie
+            guard attach > 0.001 else { return }
+            let bandWidth = body.width * 0.18
+            let start = CGPoint(x: fromLeft ? body.minX : body.maxX, y: body.midY)
+            let end = CGPoint(x: fromLeft ? body.minX + bandWidth : body.maxX - bandWidth, y: body.midY)
+            let band = Gradient(stops: [.init(color: .black.opacity(attach), location: 0),
+                                        .init(color: .black.opacity(0), location: 1)])
+            context.fill(all, with: .linearGradient(band, startPoint: start, endPoint: end))
         }
+        .padding(-beyond)
     }
 
     /// Nur die Kontur der angedockten Form, ohne Linie am Bildschirmrand (wie ihr Rahmen)
