@@ -80,6 +80,7 @@ struct TearGoo: View, Animatable {
             }
             if outline {
                 outlineStroke
+                if attach > 0.01 { gooRim }
             }
         }
         .allowsHitTesting(false)
@@ -148,17 +149,8 @@ struct TearGoo: View, Animatable {
             guard body.width > 0, body.height > 0 else { return }
             let a = max(0, min(1, tear.attach))
             if a > 0.01 {
-                let right = tear.side == .right
-                // Verbindung samt ihren weichen Übergängen (etwa so breit wie die Unschärfe)
-                let height = body.height * pow(a, 1.6) + 30
-                // Nur ein schmaler Streifen an der Seite zum Rand: Bis zur Mitte ausgespart fehlte
-                // der Rahmen oben und unten auf halber Breite und wuchs beim Lösen von den Ecken
-                // her nach (bei großer Ablage deutlich zu sehen), angedockt war er dann plötzlich da
-                let cut: CGFloat = 14
-                let zone = CGRect(x: right ? body.maxX - cut : 0, y: body.midY - height / 2,
-                                  width: right ? size.width - (body.maxX - cut) : body.minX + cut, height: height)
                 var mask = Path(CGRect(origin: .zero, size: size))
-                mask.addRect(zone)
+                mask.addRect(connectionZone(body: body, size: size))
                 context.clip(to: mask, style: FillStyle(eoFill: true))
             }
             let path = Path(roundedRect: body.insetBy(dx: -0.5, dy: -0.5),
@@ -172,40 +164,90 @@ struct TearGoo: View, Animatable {
             context.addFilter(.alphaThreshold(min: 0.5, color: color))
             context.addFilter(.blur(radius: 7))
             context.drawLayer { layer in
-                let body = CGRect(x: reach, y: inset, width: max(0, size.width - 2 * reach),
-                                  height: max(0, size.height - 2 * inset))
-                guard body.width > 0, body.height > 0 else { return }
-                layer.fill(Path(roundedRect: body.insetBy(dx: -grow, dy: -grow),
-                                cornerRadius: EdgeTear.cornerRadius + grow, style: .continuous),
-                           with: .color(.black))
-                let a = max(0, min(1, tear.attach))
-                guard a > 0.01 else { return }
-                let right = tear.side == .right
-                let edgeX = right ? body.maxX + tear.gap : body.minX - tear.gap
-                // Über den Rand hinaus, damit dort keine Rundung entsteht (liegt außerhalb
-                // des Bildschirms)
-                let beyond: CGFloat = 30
-                // Verbindung: von der Mitte der Ablage bis über den Rand, je loser, desto dünner
-                let bridgeHeight = body.height * pow(a, 1.6) + 2 * grow
-                if bridgeHeight > 1 {
-                    let from = right ? body.midX : edgeX - beyond
-                    let to = right ? edgeX + beyond : body.midX
-                    layer.fill(Path(CGRect(x: from, y: body.midY - bridgeHeight / 2,
-                                           width: to - from, height: bridgeHeight)),
-                               with: .color(.black))
-                }
-                // Ein Stück Rand, das sich herauswölbt: oben und unten etwas länger als die
-                // Ablage, so laufen die Übergänge weich aus wie sonst am Rand
-                let stubHeight = (body.height + 2 * inset) * (0.3 + 0.7 * a) + 2 * grow
-                let stubWidth = 2 * (6 + 12 * a) + 2 * grow
-                layer.fill(Path(ellipseIn: CGRect(x: edgeX - stubWidth / 2, y: body.midY - stubHeight / 2,
-                                                  width: stubWidth, height: stubHeight)),
-                           with: .color(.black))
-                layer.fill(Path(CGRect(x: right ? edgeX : edgeX - beyond, y: body.midY - stubHeight / 2,
-                                       width: beyond, height: stubHeight)),
-                           with: .color(.black))
+                drawGooShapes(layer, size: size, grow: grow)
             }
         }
+    }
+
+    /// Heller Rahmen um die Verbindung und den Bogen am Bildschirmrand (Einstellung „Rahmen“),
+    /// damit er beim Andocken nicht aus dem Nichts kommt: der Saum zwischen der etwas größeren
+    /// und der eigentlichen verschmolzenen Form. Nur dort, wo der scharfe Rahmen der Ablage
+    /// ausgespart ist.
+    private var gooRim: some View {
+        Canvas { context, size in
+            let body = CGRect(x: reach, y: inset, width: max(0, size.width - 2 * reach),
+                              height: max(0, size.height - 2 * inset))
+            guard body.width > 0, body.height > 0 else { return }
+            let right = tear.side == .right
+            var region = Path(CGRect(x: right ? body.maxX + 2 : 0, y: 0,
+                                     width: right ? max(0, size.width - body.maxX - 2) : max(0, body.minX - 2),
+                                     height: size.height))
+            region.addRect(connectionZone(body: body, size: size))
+            context.clip(to: region)
+            context.drawLayer { outer in
+                outer.addFilter(.blur(radius: 0.5))     // zuletzt: weiche Kante
+                outer.addFilter(.alphaThreshold(min: 0.5, color: .white.opacity(0.2)))
+                outer.addFilter(.blur(radius: 7))
+                outer.drawLayer { layer in drawGooShapes(layer, size: size, grow: 1.2) }
+            }
+            // Die eigentliche Form wieder herausnehmen, übrig bleibt der Saum
+            context.blendMode = .destinationOut
+            context.drawLayer { inner in
+                inner.addFilter(.alphaThreshold(min: 0.5, color: .black))
+                inner.addFilter(.blur(radius: 7))
+                inner.drawLayer { layer in drawGooShapes(layer, size: size, grow: 0) }
+            }
+        }
+    }
+
+    /// Bereich der Verbindung zum Rand: Dort ist der scharfe Rahmen ausgespart
+    private func connectionZone(body: CGRect, size: CGSize) -> CGRect {
+        let a = max(0, min(1, tear.attach))
+        let right = tear.side == .right
+        // Verbindung samt ihren weichen Übergängen (etwa so breit wie die Unschärfe)
+        let height = body.height * pow(a, 1.6) + 30
+        // Nur ein schmaler Streifen an der Seite zum Rand: Bis zur Mitte ausgespart fehlte
+        // der Rahmen oben und unten auf halber Breite und wuchs beim Lösen von den Ecken
+        // her nach (bei großer Ablage deutlich zu sehen), angedockt war er dann plötzlich da
+        let cut: CGFloat = 14
+        return CGRect(x: right ? body.maxX - cut : 0, y: body.midY - height / 2,
+                      width: right ? size.width - (body.maxX - cut) : body.minX + cut, height: height)
+    }
+
+    /// Die verschmelzenden Formen: Ablage, Verbindung und der Bogen am Bildschirmrand
+    private func drawGooShapes(_ layer: GraphicsContext, size: CGSize, grow: CGFloat) {
+        let body = CGRect(x: reach, y: inset, width: max(0, size.width - 2 * reach),
+                          height: max(0, size.height - 2 * inset))
+        guard body.width > 0, body.height > 0 else { return }
+        layer.fill(Path(roundedRect: body.insetBy(dx: -grow, dy: -grow),
+                        cornerRadius: EdgeTear.cornerRadius + grow, style: .continuous),
+                   with: .color(.black))
+        let a = max(0, min(1, tear.attach))
+        guard a > 0.01 else { return }
+        let right = tear.side == .right
+        let edgeX = right ? body.maxX + tear.gap : body.minX - tear.gap
+        // Über den Rand hinaus, damit dort keine Rundung entsteht (liegt außerhalb
+        // des Bildschirms)
+        let beyond: CGFloat = 30
+        // Verbindung: von der Mitte der Ablage bis über den Rand, je loser, desto dünner
+        let bridgeHeight = body.height * pow(a, 1.6) + 2 * grow
+        if bridgeHeight > 1 {
+            let from = right ? body.midX : edgeX - beyond
+            let to = right ? edgeX + beyond : body.midX
+            layer.fill(Path(CGRect(x: from, y: body.midY - bridgeHeight / 2,
+                                   width: to - from, height: bridgeHeight)),
+                       with: .color(.black))
+        }
+        // Ein Stück Rand, das sich herauswölbt: oben und unten etwas länger als die
+        // Ablage, so laufen die Übergänge weich aus wie sonst am Rand
+        let stubHeight = (body.height + 2 * inset) * (0.3 + 0.7 * a) + 2 * grow
+        let stubWidth = 2 * (6 + 12 * a) + 2 * grow
+        layer.fill(Path(ellipseIn: CGRect(x: edgeX - stubWidth / 2, y: body.midY - stubHeight / 2,
+                                          width: stubWidth, height: stubHeight)),
+                   with: .color(.black))
+        layer.fill(Path(CGRect(x: right ? edgeX : edgeX - beyond, y: body.midY - stubHeight / 2,
+                               width: beyond, height: stubHeight)),
+                   with: .color(.black))
     }
 }
 

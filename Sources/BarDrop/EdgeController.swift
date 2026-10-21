@@ -1168,10 +1168,11 @@ extension EdgeController {
                 updateTear(drag, fromTimer: false)
                 return nil
             case .free:
-                if drag.springDone, drag.pointer == nil, !drag.systemDragging {
-                    // Ab hier schiebt macOS das Fenster selbst mit dem Zeiger, ohne Nachziehen
-                    systemDrag(drag, with: event)
-                } else if !drag.systemDragging {
+                // BarDrop schiebt das Fenster selbst, mit jeder Bewegung. (Schob macOS es
+                // per performDrag, kam die Zeichnung immer erst danach: Der Rand, der sich der
+                // Ablage entgegenwölbt, wanderte dann kurz mit dem Fenster mit, statt fest am
+                // Bildschirmrand zu bleiben.)
+                if !drag.systemDragging {
                     updateTear(drag, fromTimer: false)
                 }
                 return nil
