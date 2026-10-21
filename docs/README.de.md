@@ -103,7 +103,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * BarDrop bringt selbst kein Plugin mit. So schreibst du eins: [PLUGINS.de.md](PLUGINS.de.md)
 
 **Einstellungen**
-* Kurze Einführung beim ersten Start: wo die Ablage ist, Ablegen, Aktionen, Kurzbefehl und Öffnen mit dem Zeiger
+* Kurze Einführung beim ersten Start: Ablegen, Öffnen mit dem Zeiger, wieder Herausziehen, Aktionen und Kurzbefehl
 * Startet standardmäßig beim Anmelden
 * Englisch oder Deutsch, standardmäßig wie die Sprache des Systems
 * Kein Symbol in der Menüleiste: Rechtsklick in die Ablage für Einstellungen und Beenden

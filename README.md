@@ -103,7 +103,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * BarDrop doesn’t come with any plugin. How to write one: [docs/PLUGINS.md](docs/PLUGINS.md)
 
 **Settings**
-* A short introduction on first launch: where the shelf is, dropping, actions, the shortcut and opening with the pointer
+* A short introduction on first launch: dropping, opening with the pointer, dragging back out, actions and the shortcut
 * Opens at login by default
 * English or German, following the system language by default
 * No menu bar icon: right-click the shelf for Settings and Quit

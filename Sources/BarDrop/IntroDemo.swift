@@ -18,7 +18,7 @@ import Combine
 /// Ablauf einer Szene: setzt nacheinander Zustände der Vorführablage, in einer Schleife.
 /// Mit „Bewegung reduzieren“ (und in Vorschaubildern) steht der aussagekräftigste Moment.
 final class DemoShelf: ObservableObject {
-    enum Scene { case overview, drop, dragOut, shortcut, hover }
+    enum Scene { case overview, drop, takeOut, dragOut, shortcut, hover }
 
     let scene: Scene
     let settings = AppSettings.shared
@@ -35,6 +35,8 @@ final class DemoShelf: ObservableObject {
     /// Symbol auf dem Schreibtisch ausgewählt bzw. Ordner als Ziel markiert
     @Published var iconSelected = false
     @Published var folderTargeted = false
+    /// Herausziehen: Das Bild liegt jetzt auf dem Schreibtisch
+    @Published var onDesk = false
     /// Gerade gedrückte Tasten
     @Published var keys: [(symbol: String, name: String)]?
 
@@ -159,6 +161,7 @@ final class DemoShelf: ObservableObject {
         dragging = false
         iconSelected = false
         folderTargeted = false
+        onDesk = false
         keys = nil
         switch scene {
         case .overview:
@@ -172,6 +175,11 @@ final class DemoShelf: ObservableObject {
             iconSelected = true
             dragging = true
             pointer = freeSlot
+        case .takeOut:
+            fill(withSample: !settings.removeAfterDragOut)
+            set(level: .expanded, animation: nil)
+            onDesk = true
+            pointer = CGPoint(x: l.sample.x + 30, y: l.sample.y + 40)
         case .dragOut:
             fill(withSample: true)
             set(level: .expanded, animation: nil)
@@ -243,6 +251,7 @@ final class DemoShelf: ObservableObject {
         dragging = false
         iconSelected = false
         folderTargeted = false
+        onDesk = false
         keys = nil
 
         switch scene {
@@ -271,6 +280,32 @@ final class DemoShelf: ObservableObject {
             }
             after(4.5) { self.move(to: l.away(l.full.width + 150, y: l.size.height * 0.62), duration: 0.6) }
             after(4.8) { self.set(level: .hidden, animation: style.close) }
+
+        case .takeOut:
+            // Zeiger an den Rand, Ablage öffnet sich, Foto heraus auf den Schreibtisch ziehen
+            period = 6.6
+            fill(withSample: true)
+            set(level: .hidden, animation: nil)
+            pointer = l.away(l.full.width + 250, y: l.size.height * 0.64)
+            after(0.4) { self.move(to: l.away(4, y: l.size.height * 0.5), duration: 0.8) }
+            let click = settings.openMode == .click
+            after(1.2) { self.set(level: click ? .hint : .peek, animation: style.peekIn) }
+            if click { after(1.6) { self.click() } }
+            after(click ? 1.75 : 1.6) { self.set(level: .expanded, animation: style.open) }
+            after(2.0) { self.move(to: self.sampleTile, duration: 0.6) }
+            after(2.8) { self.click(); self.dragging = true }
+            after(2.9) { self.move(to: l.sample, duration: 0.9) }
+            after(3.9) {
+                withAnimation(.easeOut(duration: 0.15)) { self.dragging = false }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { self.onDesk = true }
+                // Wie eingestellt: Herausgezogenes verlässt die Ablage oder bleibt liegen
+                if self.settings.removeAfterDragOut {
+                    let ids = Set(self.store.entries.filter { $0.files.contains { $0.url == self.sampleURL } }.map(\.id))
+                    self.store.discard(ids)
+                }
+            }
+            after(4.6) { self.move(to: CGPoint(x: l.sample.x + 40, y: l.sample.y + 70), duration: 0.5) }
+            after(5.0) { self.set(level: .hidden, animation: style.close) }
 
         case .dragOut:
             // Zeiger an den Rand, Ablage öffnet sich, Foto auf den Papierkorb der Leiste ziehen
@@ -494,8 +529,9 @@ struct ShelfStage: View {
             DesktopBackground(edge: l.edge)
                 .frame(width: l.size.width, height: l.size.height)
 
-            if demo.scene == .drop, let url = demo.sampleURL {
+            if demo.scene == .drop || (demo.scene == .takeOut && demo.onDesk), let url = demo.sampleURL {
                 DesktopIcon(url: url, selected: demo.iconSelected)
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
                     .position(x: l.sample.x, y: l.sample.y + 14)
             }
 
@@ -540,7 +576,7 @@ struct ShelfStage: View {
 
 /// Schreibtisch der Vorführungen: das Schiefergrau des App-Symbols, oben etwas heller, wie
 /// auf den Bildern im README. Immer gleich, damit die Einführung zu BarDrop passt.
-private struct DesktopBackground: View {
+struct DesktopBackground: View {
     let edge: ScreenEdge
 
     var body: some View {
@@ -576,7 +612,7 @@ private struct DesktopFolder: View {
     }
 }
 
-private struct DesktopItem: View {
+struct DesktopItem: View {
     let image: NSImage
     let name: String
     let highlighted: Bool
