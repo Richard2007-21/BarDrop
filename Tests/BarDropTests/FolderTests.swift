@@ -167,4 +167,34 @@ final class FolderTests: XCTestCase {
         }
         XCTAssertFalse(actions.isFolderOpen)
     }
+
+    // MARK: Ohne Erlaubnis
+
+    /// Darf BarDrop einen Ordner nicht lesen, bleibt er offen und meldet es, statt sich still
+    /// zu schließen (dann sah man statt des Ordners die Ablage)
+    func testUnreadableFolderStaysOpenAndSaysSo() throws {
+        let locked = base.appendingPathComponent("Gesperrt", isDirectory: true)
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
+        // Als Administrator (root) lässt sich alles lesen: dann gibt es nichts zu prüfen
+        try XCTSkipIf(FileManager.default.isReadableFile(atPath: locked.path), "Ordner trotz Sperre lesbar")
+
+        guard case .failure(let error) = FolderBrowser.read(locked) else { return XCTFail("Ordner war lesbar") }
+        XCTAssertTrue(FolderBrowser.isDenied(error), "\(error)")
+
+        let browser = FolderBrowser()
+        browser.open(locked)
+        XCTAssertTrue(browser.isOpen)
+        XCTAssertTrue(browser.accessDenied)
+        XCTAssertFalse(browser.isLoading)
+        XCTAssertTrue(browser.files.isEmpty)
+    }
+
+    /// Fehlt der Ordner ganz, ist das kein fehlendes Recht
+    func testMissingFolderIsNotDenied() {
+        let missing = base.appendingPathComponent("Gibt es nicht")
+        guard case .failure(let error) = FolderBrowser.read(missing) else { return XCTFail("Ordner war lesbar") }
+        XCTAssertFalse(FolderBrowser.isDenied(error), "\(error)")
+    }
 }
