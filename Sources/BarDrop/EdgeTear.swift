@@ -105,10 +105,9 @@ struct TearGoo: View, Animatable {
                     .opacity(1 - gooOut)
             }
             if dockIn > 0.001, let docked {
-                docked
+                DockedSpan(base: docked, reach: reach, gap: tear.gap, side: tear.side)
                     .fill(Color.black)
                     .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
-                    .padding(.horizontal, reach)
                     .opacity(dockIn)
             }
             if outline {
@@ -118,9 +117,8 @@ struct TearGoo: View, Animatable {
                 }
                 .opacity(1 - gooOut)
                 if dockIn > 0.001, let docked {
-                    Self.contour(docked)
+                    DockedSpan(base: Self.contour(docked), reach: reach, gap: tear.gap, side: tear.side)
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                        .padding(.horizontal, reach)
                         .opacity(dockIn)
                 }
             }
@@ -335,5 +333,20 @@ struct OutsideBodyShape: Shape {
         var path = Path(rect.insetBy(dx: -120, dy: -120))
         path.addPath(TearBodyShape(reach: reach, inset: inset, attach: attach, side: side).path(in: rect))
         return path
+    }
+}
+
+/// Die angedockte Form, vom Bildschirmrand bis zur fernen Seite der Ablage: Solange sie noch
+/// ein paar Punkte vom Rand entfernt ist, reichen die Bögen schon bis an den Rand
+struct DockedSpan: Shape {
+    let base: EdgeBlobShape
+    let reach: CGFloat
+    let gap: CGFloat
+    let side: ScreenEdge
+
+    func path(in rect: CGRect) -> Path {
+        let width = max(0, rect.width - 2 * reach) + max(0, gap)
+        let x = side == .left ? rect.minX + reach - max(0, gap) : rect.minX + reach
+        return base.path(in: CGRect(x: x, y: rect.minY, width: width, height: rect.height))
     }
 }

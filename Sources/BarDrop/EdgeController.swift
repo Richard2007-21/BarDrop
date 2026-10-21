@@ -1608,9 +1608,9 @@ extension EdgeController {
             let gap = drag.dockSide == .right ? screen.frame.maxX - body.maxX : body.minX - screen.frame.minX
             // Der Rand greift etwas früher nach ihr, als sie ankommt
             let reach = min(1, e * 1.35)
-            // Zum Schluss in die Form der angedockten Ablage überblenden (sonst sprang sie am Ende)
+            // Noch in der Bewegung in die Form der angedockten Ablage überblenden; das letzte Viertel ist schon sie, am Ende springt nichts mehr
             setTear(gap: gap, attach: drag.dockAttach + (1 - drag.dockAttach) * reach, side: drag.dockSide,
-                    dock: CGFloat((t - 0.4) / 0.6))
+                    dock: CGFloat((t - 0.35) / 0.4))
         }
         applyTearFrame(body)
         // Diagnose (nur mit Ordner „Bilder“): jedes Bild des Andockens festhalten
