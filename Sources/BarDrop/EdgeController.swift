@@ -540,6 +540,7 @@ final class EdgeController: NSObject {
         guard new != old else { return }
         Diagnostics.shared.record("edge", "level \(old) → \(new) dragging=\(self.dragPasteboard.changeCount != self.dragBaseline) ownDrag=\(self.ui.ownDragActive) manual=\(self.logic.manualOpen) preview=\(self.previewUntil != nil ? String(describing: self.previewLevel) : "–") guide=\(self.guideActive ? String(describing: self.guideLevel) : "–") locked=\(self.ui.isLocked)")
         lastActivity = Date()
+        if new == .expanded { ShelfSnapshots.capture(panel, "open", after: [0.05, 0.12, 0.25, 0.6]) }
         let style = settings.animationStyle
         // Kleine Stufen haben ihre eigene, elastische Bewegung; die Ablage selbst die gewählte
         let animation: Animation

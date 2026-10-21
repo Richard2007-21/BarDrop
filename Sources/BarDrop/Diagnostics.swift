@@ -162,6 +162,7 @@ final class Diagnostics {
 
     /// Protokoll löschen (beim Ausschalten)
     func clear() {
+        ShelfSnapshots.clear()
         queue.async { [logURL] in
             try? FileManager.default.removeItem(at: logURL)
             try? FileManager.default.removeItem(at: logURL.deletingLastPathComponent().appendingPathComponent("Diagnose-alt.log"))

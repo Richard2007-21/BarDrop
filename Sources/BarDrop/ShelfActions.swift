@@ -720,6 +720,7 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     /// Angehefteten Ordner wie einen Stapel öffnen
     func openFolder(_ url: URL) {
+        ShelfSnapshots.capture(panel, "folder", after: [0.1, 0.5, 1.5])
         folderSourceEntry = nil
         ui.selection = []
         ui.memberSelection = []

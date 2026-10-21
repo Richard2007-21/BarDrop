@@ -152,6 +152,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
             guard inner.contains(view.convert(event.locationInWindow, from: nil)) else { continue }
             Self.reorderedAt = Date()
             view.onReorder(me)
+            ShelfSnapshots.capture(window, "reorder", after: [0.05, 0.2, 0.5])
             // Der Platz ist gewandert: das Symbol danach wieder genau unter den Zeiger
             DispatchQueue.main.async { [weak self] in self?.followPointer() }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.followPointer() }
