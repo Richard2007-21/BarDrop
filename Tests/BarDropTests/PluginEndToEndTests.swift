@@ -14,7 +14,6 @@ final class PluginEndToEndTests: XCTestCase {
     private var actions: ShelfActions!
     private var runner: PluginRunner!
     private var savedEnabled = false
-    private var savedSort = SortOrder.newestFirst
     private var savedStack = true
 
     private static var fixtures: URL {
@@ -28,10 +27,8 @@ final class PluginEndToEndTests: XCTestCase {
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         let settings = AppSettings.shared
         savedEnabled = settings.pluginsEnabled
-        savedSort = settings.sortOrder
         savedStack = settings.stackMultiple
         settings.pluginsEnabled = true
-        settings.sortOrder = .newestFirst
         settings.stackMultiple = false
         manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0-beta.3")
         store = ShelfStore(baseDirectory: base.appendingPathComponent("shelf"))
@@ -46,7 +43,6 @@ final class PluginEndToEndTests: XCTestCase {
         runner.cancelAll()
         let settings = AppSettings.shared
         settings.pluginsEnabled = savedEnabled
-        settings.sortOrder = savedSort
         settings.stackMultiple = savedStack
         try? FileManager.default.removeItem(at: base)
         super.tearDown()
@@ -118,17 +114,6 @@ final class PluginEndToEndTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: result.url, encoding: .utf8), "HELLO WORLD")
         XCTAssertEqual(ui.selection, Set(store.entries.filter { $0.files.contains(result) }.map(\.id)))
         XCTAssertTrue(runner.jobs.isEmpty)
-    }
-
-    /// Ältere zuerst: das Ergebnis steht in der Anzeige ebenfalls direkt dahinter
-    func testOldestFirstKeepsResultBehindOriginal() throws {
-        AppSettings.shared.sortOrder = .oldestFirst
-        try install("upper-text")
-        drop([makeFile("a.txt", "a")])
-        waitUntil { self.names.contains("a UPPER.txt") }
-        drop([makeFile("b.txt", "b")])
-        waitUntil { self.names.contains("b UPPER.txt") }
-        XCTAssertEqual(names, ["a.txt", "a UPPER.txt", "b.txt", "b UPPER.txt"])
     }
 
     /// Ergebnisse lösen kein weiteres automatisches Plugin aus (keine Schleife)

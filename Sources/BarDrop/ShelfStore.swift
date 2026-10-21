@@ -886,7 +886,7 @@ final class ShelfStore: ObservableObject {
     /// Reihenfolge dahinter; in einem Stapel hinter die Datei im Stapel). Mit `replacing`
     /// wird das Original aus der Ablage genommen (widerrufbar). Liegt das Original nicht
     /// mehr in der Ablage, kommen sie nach vorn.
-    func insertResults(_ files: [ShelfFile], nextTo fileID: UUID, newestFirst: Bool, replacing: Bool) {
+    func insertResults(_ files: [ShelfFile], nextTo fileID: UUID, replacing: Bool) {
         guard !files.isEmpty else { return }
         guard let pos = position(of: fileID) else {
             insertWithoutAnimation { $0.insert(contentsOf: files.map { ShelfEntry(files: [$0]) }, at: 0) }
@@ -896,10 +896,8 @@ final class ShelfStore: ObservableObject {
         if updated[pos.entry].isStack {
             updated[pos.entry].files.insert(contentsOf: files, at: pos.file + 1)
         } else {
-            var newEntries = files.map { ShelfEntry(files: [$0]) }
-            // Gespeichert wird neueste zuerst: „dahinter“ in der Anzeige ist hier davor bzw. danach
-            if !newestFirst { newEntries.reverse() }
-            updated.insert(contentsOf: newEntries, at: newestFirst ? pos.entry + 1 : pos.entry)
+            // Gespeichert und gezeigt wird neueste zuerst: „dahinter“ ist der nächste Platz
+            updated.insert(contentsOf: files.map { ShelfEntry(files: [$0]) }, at: pos.entry + 1)
         }
         insertWithoutAnimation { $0 = updated }
         if replacing {

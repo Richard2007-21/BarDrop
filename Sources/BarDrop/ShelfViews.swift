@@ -29,19 +29,6 @@ extension AnyTransition {
                 .animation(.easeIn(duration: 0.12))
         )
     }
-
-    static func blurFade(_ radius: CGFloat) -> AnyTransition {
-        // „Bewegung reduzieren“: nur überblenden
-        if radius == 0 { return .opacity.animation(.easeOut(duration: 0.15)) }
-        return .asymmetric(
-            insertion: .modifier(active: BlurFade(radius: radius, opacity: 0, scale: 0.94),
-                                 identity: BlurFade(radius: 0, opacity: 1, scale: 1))
-                .animation(.easeOut(duration: 0.28).delay(0.07)),
-            removal: .modifier(active: BlurFade(radius: radius * 0.7, opacity: 0, scale: 0.96),
-                               identity: BlurFade(radius: 0, opacity: 1, scale: 1))
-                .animation(.easeIn(duration: 0.12))
-        )
-    }
 }
 
 // MARK: Wurzelansicht: die schwarze Form und ihr Inhalt
@@ -576,7 +563,7 @@ struct ShelfContent: View {
     private var mainTileItems: some View {
                 // Was gerade noch geladen wird (Bilder aus dem Web, große Dateien),
                 // steht sofort als Kachel da, an der Stelle, an der es landen wird
-                if showPending && settings.sortOrder == .newestFirst { pendingTiles }
+                if showPending { pendingTiles }
                 ForEach(actions.orderedEntries) { entry in
                     // „Original ersetzen“: Solange das Plugin läuft, steht sein Platzhalter an
                     // der Stelle des Originals; das Original selbst ist nicht zu sehen
@@ -602,7 +589,6 @@ struct ShelfContent: View {
                         }
                     }
                 }
-                if showPending && settings.sortOrder == .oldestFirst { pendingTiles }
                 if ui.showSampleTile { sizeGuides }
     }
 

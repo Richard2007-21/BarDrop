@@ -528,7 +528,7 @@ struct ActionSettings: View {
     @State private var selection: QuickAction.ID?
     @State private var addButtonFrame: CGRect = .zero
 
-    private var limit: Int { QuickAction.limit(twoRows: settings.twoActionRows) }
+    private var limit: Int { QuickAction.limit }
 
     private var labelMode: Binding<ActionLabelMode> {
         Binding(
@@ -620,16 +620,10 @@ struct ActionSettings: View {
         guard let i = settings.quickActions.firstIndex(of: action) else { return }
         var order = settings.quickActions
         var split = settings.effectiveActionSplit
-        if settings.twoActionRows {
-            // Erst die Reihe wechseln, wenn die Aktion am Rand ihrer Reihe steht
-            if offset < 0 && i == split, split < QuickAction.perRow { split += 1 }
-            else if offset > 0 && i == split - 1, order.count - split < QuickAction.perRow { split -= 1 }
-            else {
-                let j = i + offset
-                guard order.indices.contains(j) else { return }
-                order.swapAt(i, j)
-            }
-        } else {
+        // Erst die Reihe wechseln, wenn die Aktion am Rand ihrer Reihe steht
+        if offset < 0 && i == split, split < QuickAction.perRow { split += 1 }
+        else if offset > 0 && i == split - 1, order.count - split < QuickAction.perRow { split -= 1 }
+        else {
             let j = i + offset
             guard order.indices.contains(j) else { return }
             order.swapAt(i, j)
@@ -708,8 +702,6 @@ private struct ActionListEditor: View {
     private static let rowGap: CGFloat = 14                // Abstand zwischen den Karten
     private static let space = "actionList"
 
-    private var twoRows: Bool { settings.twoActionRows }
-
     private var committed: Arrangement {
         Arrangement(order: settings.quickActions.map(\.id), split: settings.effectiveActionSplit)
     }
@@ -720,7 +712,7 @@ private struct ActionListEditor: View {
     // MARK: Geometrie
 
     private func counts(_ a: Arrangement) -> (top: Int, bottom: Int) {
-        twoRows ? (a.split, a.order.count - a.split) : (a.order.count, 0)
+        (a.split, a.order.count - a.split)
     }
 
     /// Gezeigte Zeilen je Karte. Während des Ziehens behält die obere Karte ihre Höhe,
@@ -728,7 +720,7 @@ private struct ActionListEditor: View {
     /// statt unter dem Zeiger nach oben zu springen, und man trifft ihre Plätze.
     private func displayCounts(_ a: Arrangement) -> (top: Int, bottom: Int) {
         let c = counts(a)
-        guard twoRows, dragging != nil else { return c }
+        guard dragging != nil else { return c }
         return (max(c.top, counts(committed).top), c.bottom)
     }
 
@@ -736,20 +728,19 @@ private struct ActionListEditor: View {
 
     /// Oberkante der Karte einer Reihe
     private func rowTop(_ row: Int, _ a: Arrangement) -> CGFloat {
-        guard twoRows else { return 0 }
         if row == 0 { return Self.labelHeight }
         return Self.labelHeight + cardHeight(displayCounts(a).top) + Self.rowGap + Self.labelHeight
     }
 
     private func totalHeight(_ a: Arrangement) -> CGFloat {
         let c = displayCounts(a)
-        return twoRows ? rowTop(1, a) + cardHeight(c.bottom) : cardHeight(c.top)
+        return rowTop(1, a) + cardHeight(c.bottom)
     }
 
     /// Reihe und Platz einer Aktion
     private func slot(of id: QuickAction.ID, in a: Arrangement) -> (row: Int, index: Int)? {
         guard let i = a.order.firstIndex(of: id) else { return nil }
-        if twoRows && i >= a.split { return (1, i - a.split) }
+        if i >= a.split { return (1, i - a.split) }
         return (0, i)
     }
 
@@ -767,12 +758,6 @@ private struct ActionListEditor: View {
         guard let from = rest.firstIndex(of: id) else { return base }
         rest.remove(at: from)
         let center = top + Self.rowHeight / 2
-
-        guard twoRows else {
-            let index = min(max(Int(((center - Self.rowHeight / 2) / Self.pitch).rounded()), 0), rest.count)
-            rest.insert(id, at: index)
-            return Arrangement(order: rest, split: base.split)
-        }
 
         // Zwei Reihen: Anzahlen ohne die gezogene Aktion
         let topCount = from < base.split ? base.split - 1 : base.split
@@ -807,35 +792,21 @@ private struct ActionListEditor: View {
         let a = shown
         let c = counts(a)
         let actions = Dictionary(uniqueKeysWithValues: settings.quickActions.map { ($0.id, $0) })
-        let hiddenFrom = QuickAction.limit(twoRows: twoRows)
 
         ZStack(alignment: .topLeading) {
             // Karten, Überschriften und Trennlinien: stehen fest, nur die Höhe passt sich an
-            if twoRows {
-                rowLabel(L("Top row", "Obere Reihe"), y: 0)
-                rowLabel(L("Bottom row", "Untere Reihe"), y: rowTop(1, a) - Self.labelHeight)
-                let d = displayCounts(a)
-                card(count: d.top, top: rowTop(0, a), emptyHint: c.top == 0)
-                card(count: d.bottom, top: rowTop(1, a), emptyHint: c.bottom == 0)
-            } else {
-                card(count: c.top, top: 0, emptyHint: false)
-                if a.order.isEmpty {
-                    Text(L("No actions", "Keine Aktionen"))
-                        .font(.system(size: 13.5))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, SettingsTheme.rowPadding)
-                        .frame(height: Self.rowHeight)
-                }
-            }
+            rowLabel(L("Top row", "Obere Reihe"), y: 0)
+            rowLabel(L("Bottom row", "Untere Reihe"), y: rowTop(1, a) - Self.labelHeight)
+            let d = displayCounts(a)
+            card(count: d.top, top: rowTop(0, a), emptyHint: c.top == 0)
+            card(count: d.bottom, top: rowTop(1, a), emptyHint: c.bottom == 0)
 
             // Zeilen: liegen frei über den Karten
             ForEach(settings.quickActions) { action in
                 let isDragged = dragging == action.id
-                let index = a.order.firstIndex(of: action.id) ?? 0
                 ActionRow(action: action,
                           selected: selection == action.id,
                           lifted: isDragged,
-                          hidden: !twoRows && index >= hiddenFrom,
                           dragging: dragging != nil,
                           onRemove: { onRemove(action) })
                     .frame(height: Self.rowHeight)
@@ -912,7 +883,7 @@ private struct ActionListEditor: View {
                 }
                 // Nur innerhalb der Liste: von der ersten bis zur letzten Zeile
                 // (mit zwei Reihen bis zum letzten Platz der unteren Reihe)
-                let minTop = twoRows ? Self.labelHeight : 0
+                let minTop = Self.labelHeight
                 let maxTop = max(minTop, totalHeight(shown) - Self.rowHeight)
                 let top = min(max(dragStartY + g.translation.height, minTop), maxTop)
                 dragTranslation = top - dragStartY
@@ -953,7 +924,6 @@ private struct ActionRow: View {
     let action: QuickAction
     let selected: Bool
     let lifted: Bool
-    let hidden: Bool
     /// Irgendeine Zeile wird gerade gezogen: dann keine Knöpfe einblenden
     let dragging: Bool
     let onRemove: () -> Void
@@ -962,13 +932,12 @@ private struct ActionRow: View {
     var body: some View {
         HStack(spacing: 10) {
             QuickActionIcon(action: action, size: 26)
-                .opacity(hidden ? 0.4 : 1)
             VStack(alignment: .leading, spacing: 1) {
                 Text(action.title)
                     .font(.system(size: 13.5))
                     .foregroundStyle(selected ? Color.white : Color.primary)
                     .lineLimit(1)
-                Text(hidden ? L("Not shown, the bar is full", "Nicht sichtbar, die Leiste ist voll") : action.help)
+                Text(action.help)
                     .font(.system(size: 11))
                     .foregroundStyle(selected ? Color.white.opacity(0.8) : Color.secondary)
                     .lineLimit(1)

@@ -109,9 +109,9 @@ struct QuickAction: Codable, Identifiable, Hashable {
         return values?.isPackage == true ? nil : .folder
     }
 
-    /// Höchstzahl in der Leiste: eine Reihe mit sechs, zwei Reihen mit je fünf
-    static func limit(twoRows: Bool) -> Int { twoRows ? 2 * perRow : 6 }
-    /// Aktionen pro Reihe bei zwei Reihen
+    /// Höchstzahl in der Leiste: zwei Reihen mit je fünf
+    static var limit: Int { 2 * perRow }
+    /// Aktionen pro Reihe
     static let perRow = 5
 }
 

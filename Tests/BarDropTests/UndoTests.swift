@@ -148,16 +148,4 @@ final class UndoTests: XCTestCase {
         XCTAssertEqual(AppLanguage.systemLanguage(preferred: []), .english)
         XCTAssertNotEqual(AppLanguage.system.resolved, .system)
     }
-
-    func testOldestFirstReversesDisplayOrder() {
-        _ = addFiles()
-        let ui = ShelfUIModel()
-        let actions = ShelfActions(store: store, ui: ui, settings: AppSettings.shared)
-        let previous = AppSettings.shared.sortOrder
-        defer { AppSettings.shared.sortOrder = previous }
-        AppSettings.shared.sortOrder = .newestFirst
-        let newest = actions.orderedEntries.map(\.id)
-        AppSettings.shared.sortOrder = .oldestFirst
-        XCTAssertEqual(actions.orderedEntries.map(\.id), newest.reversed())
-    }
 }

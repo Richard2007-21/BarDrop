@@ -138,7 +138,7 @@ struct ShelfMetrics {
         // gerundet: Ein dünner Streifen bekommt dieselbe weiche Ecke wie ein dicker,
         // nur flacher. Die Übergänge direkt am Bildschirmrand bleiben, wie sie sind.
         let t = CGFloat(settings.peekThickness)
-        let soft = CGFloat(settings.peekRoundness)
+        let soft = CGFloat(PeekDefaults.roundness)
         let corner = t * 0.5
         let stretch = 1 + soft
         let cornerLength: CGFloat = 8                        // Eckenlänge des dicken Streifens (16 pt)

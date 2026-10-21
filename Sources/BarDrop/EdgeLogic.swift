@@ -112,8 +112,6 @@ enum EdgeLogic {
                 result.target = s.overExpanded || state.manualOpen || backAtEdge ? .expanded : .hidden
                 // Zurück am Rand: derselbe leichte Impuls wie beim ersten Hineinziehen
                 if result.target == .expanded && state.level != .expanded { result.haptic = true }
-            } else if c.dragReveal == .off {
-                result.target = s.overExpanded || state.manualOpen ? .expanded : .hidden
             } else if !s.onScreen || (s.innerEdge && !s.overExpanded && !state.manualOpen) {
                 // Drag auf anderem Bildschirm, oder auf dem Weg hinüber zum Bildschirm daneben
                 result.target = .hidden

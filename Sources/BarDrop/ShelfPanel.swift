@@ -253,7 +253,7 @@ final class ShelfDropHandler {
               ContentImporter.isUserFile(url), QuickAction.pinnableKind(url) != nil else { return nil }
         guard settings.canPin(url) else {
             // Ein Ordner oder eine App, aber kein Platz zum Anheften: warum (fürs Protokoll)
-            let full = settings.quickActions.count >= QuickAction.limit(twoRows: settings.twoActionRows)
+            let full = settings.quickActions.count >= QuickAction.limit
             let already = settings.quickActions.contains { $0.path == url.path }
             Diagnostics.shared.record("pin", "not offered full=\(full) alreadyPinned=\(already)")
             return nil

@@ -46,10 +46,8 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
 
     // MARK: Reihenfolge und Auswahl
 
-    /// Einträge in der eingestellten Reihenfolge. Gespeichert wird immer neueste zuerst.
-    var orderedEntries: [ShelfEntry] {
-        settings.sortOrder == .oldestFirst ? Array(store.entries.reversed()) : store.entries
-    }
+    /// Einträge in der gezeigten Reihenfolge: neueste zuerst, wie gespeichert
+    var orderedEntries: [ShelfEntry] { store.entries }
 
     var selectedEntries: [ShelfEntry] {
         orderedEntries.filter { ui.selection.contains($0.id) }
@@ -251,10 +249,6 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
     // Diagnoseprotokoll nahm sie sich dann den Fokus selbst, während BarDrop nicht aktiv
     // war, und Tasten gingen an die App dahinter; ohne Hauptfenster fand sie zeitweise keine
     // Steuerung und zeigte „Keine Objekte ausgewählt“.
-
-    func quickLook(_ entries: [ShelfEntry]) {
-        quickLook(urls: entries.flatMap(\.urls))
-    }
 
     /// Soll die Übersicht offen sein? Gilt statt `isVisible`: Beim Ein- und Ausblenden meldet
     /// die Übersicht noch den alten Zustand, und schnelles Drücken überholte sich sonst.

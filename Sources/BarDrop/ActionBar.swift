@@ -625,25 +625,20 @@ struct QuickActionBar: View {
         let pin = ui.pinCandidate.flatMap { settings.pinFromShelf ? $0 : nil }
         let slots = all.map(Slot.action) + (pin.map { [Slot.pin($0)] } ?? [])
         Group {
-            if settings.twoActionRows {
-                // Zwei Reihen, wie in den Einstellungen verteilt. Beide auf demselben
-                // Raster von fünf Plätzen, damit die Symbole übereinander stehen.
-                let split = AppSettings.clampSplit(settings.actionRowSplit, count: slots.count)
-                let top = Array(slots.prefix(split))
-                let bottom = Array(slots.dropFirst(split).prefix(QuickAction.perRow))
-                // Beide Reihen gleich groß: so groß, wie es die vollere Reihe erlaubt
-                let size = iconSize(forActions: max(Self.actionCount(top), Self.actionCount(bottom)))
-                if top.isEmpty || bottom.isEmpty {
-                    row(top.isEmpty ? bottom : top, iconSize: size)
-                } else {
-                    VStack(spacing: 4) {
-                        row(top, iconSize: size)
-                        row(bottom, iconSize: size)
-                    }
-                }
+            // Zwei Reihen, wie in den Einstellungen verteilt. Beide auf demselben
+            // Raster von fünf Plätzen, damit die Symbole übereinander stehen.
+            let split = AppSettings.clampSplit(settings.actionRowSplit, count: slots.count)
+            let top = Array(slots.prefix(split))
+            let bottom = Array(slots.dropFirst(split).prefix(QuickAction.perRow))
+            // Beide Reihen gleich groß: so groß, wie es die vollere Reihe erlaubt
+            let size = iconSize(forActions: max(Self.actionCount(top), Self.actionCount(bottom)))
+            if top.isEmpty || bottom.isEmpty {
+                row(top.isEmpty ? bottom : top, iconSize: size)
             } else {
-                let items = Array(slots.prefix(QuickAction.limit(twoRows: false)))
-                row(items, iconSize: iconSize(forActions: Self.actionCount(items)))
+                VStack(spacing: 4) {
+                    row(top, iconSize: size)
+                    row(bottom, iconSize: size)
+                }
             }
         }
         .padding(.horizontal, 6)

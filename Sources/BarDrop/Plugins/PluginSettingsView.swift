@@ -217,7 +217,7 @@ private struct PluginDetails: View {
         Binding(get: { settings.quickActions.contains { $0.kind == .plugin && $0.path == plugin.id } },
                 set: { on in
                     if on {
-                        guard settings.quickActions.count < QuickAction.limit(twoRows: settings.twoActionRows) else { return NSSound.beep() }
+                        guard settings.quickActions.count < QuickAction.limit else { return NSSound.beep() }
                         settings.quickActions.append(QuickAction(kind: .plugin, path: plugin.id))
                     } else {
                         settings.quickActions.removeAll { $0.kind == .plugin && $0.path == plugin.id }

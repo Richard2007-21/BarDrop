@@ -294,18 +294,12 @@ final class PluginTests: XCTestCase {
         let added = store.adoptResults([makeFile("result.txt")])
         XCTAssertEqual(added.count, 1)
         XCTAssertTrue(added[0].owned)
-        store.insertResults(added, nextTo: middle.id, newestFirst: true, replacing: false)
+        store.insertResults(added, nextTo: middle.id, replacing: false)
         XCTAssertEqual(store.entries.map { $0.files[0].url.lastPathComponent },
                        [order[0], order[1], "result.txt", order[2]])
 
-        // Älteste zuerst: in der Anzeige ebenfalls direkt dahinter
-        store.insertResults(store.adoptResults([makeFile("second.txt")]), nextTo: middle.id, newestFirst: false, replacing: false)
-        let shown = store.entries.reversed().map { $0.files[0].url.lastPathComponent }
-        let index = try XCTUnwrap(shown.firstIndex(of: middle.url.lastPathComponent))
-        XCTAssertEqual(shown[index + 1], "second.txt")
-
         // Ersetzen nimmt das Original aus der Ablage
-        store.insertResults(store.adoptResults([makeFile("third.txt")]), nextTo: middle.id, newestFirst: true, replacing: true)
+        store.insertResults(store.adoptResults([makeFile("third.txt")]), nextTo: middle.id, replacing: true)
         XCTAssertFalse(store.entries.flatMap(\.files).contains { $0.id == middle.id })
         XCTAssertTrue(FileManager.default.fileExists(atPath: middle.url.path))
         AppSettings.shared.stackMultiple = true

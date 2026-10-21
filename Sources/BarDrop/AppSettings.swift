@@ -97,13 +97,6 @@ enum AnimationStyle: String, CaseIterable, Identifiable {
 enum OpenMode: String, CaseIterable, Identifiable {
     case automatic, click
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .automatic: return L("Automatically", "Automatisch")
-        case .click: return L("On click", "Per Klick")
-        }
-    }
 }
 
 /// Eine Wahl unter „Öffnen“: nach einer Wartezeit oder nur per Klick.
@@ -168,26 +161,6 @@ enum DragReveal: String, CaseIterable, Identifiable {
     }
 }
 
-/// Titel oben in der offenen Ablage. Nicht mehr wählbar (immer „BarDrop“); der gespeicherte
-/// Wert bleibt lesbar, damit ältere Einstellungen nicht verloren gehen.
-enum ShelfTitle: String, CaseIterable, Identifiable {
-    case bardrop, shelf, hidden
-    var id: String { rawValue }
-}
-
-/// Reihenfolge der Objekte in der Ablage.
-enum SortOrder: String, CaseIterable, Identifiable {
-    case newestFirst, oldestFirst
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .newestFirst: return L("Newest first", "Neueste zuerst")
-        case .oldestFirst: return L("Oldest first", "Älteste zuerst")
-        }
-    }
-}
-
 /// Auf welchen Bildschirmen BarDrop verfügbar ist.
 enum DisplayMode: String, CaseIterable, Identifiable {
     case all, builtIn, external
@@ -226,6 +199,7 @@ extension NSScreen {
 enum PeekDefaults {
     static let thickness = 7.0
     static let length = 80.0
+    /// Rundung zum Rand: fest (nicht mehr einstellbar)
     static let roundness = 0.65
 }
 
@@ -234,8 +208,6 @@ enum ShelfDefaults {
     static let edge = ScreenEdge.right
     static let verticalPosition = 0.5
     static let adaptivePosition = true
-    static let adaptiveMiddleThird = true
-    static let adaptiveZoneHalf = true
     static let displayMode = DisplayMode.all
     static let width = 240.0
     static let height = 340.0
@@ -261,11 +233,9 @@ final class AppSettings: ObservableObject {
         static let dragReveal = "dragReveal"
         static let peekThickness = "peekThickness"
         static let peekLength = "peekLength"
-        static let peekRoundness = "peekRoundness"
         static let removeAfterDragOut = "removeAfterDragOut"
         static let stackMultiple = "stackMultiple"
         static let stackThreshold = "stackThreshold"
-        static let adaptiveZoneHalf = "adaptiveZoneHalf"
         /// Anteil des Rands, in dem die Ablage am Zeiger erscheint (0,1 bis 1 = ganzer Rand)
         static let adaptiveZone = "adaptiveZone"
         static let keepAfterAction = "keepAfterAction"
@@ -277,17 +247,13 @@ final class AppSettings: ObservableObject {
         static let dragOutCopyOnly = "dragOutCopyOnly"
         static let hapticsEnabled = "hapticsEnabled"
         static let quickActions = "quickActions"
-        static let sortOrder = "sortOrder"
         static let showOutline = "showOutline"
-        static let showTitle = "showTitle"
-        static let titleStyle = "titleStyle"
         static let openDelay = "openDelay"
         static let language = "language"
         static let generousHitArea = "generousHitArea"
         static let reopenWhereLeft = "reopenWhereLeft"
         static let exactPointer = "exactPointer"
         static let diagnosticsEnabled = "diagnosticsEnabled"
-        static let twoActionRows = "twoActionRows"
         static let actionRowSplit = "actionRowSplit"
         static let pinFromShelf = "pinFromShelf"
         static let addScreenshots = "addScreenshots"
@@ -313,10 +279,6 @@ final class AppSettings: ObservableObject {
     @Published var verticalPosition: Double { didSet { defaults.set(verticalPosition, forKey: Key.verticalPosition) } }
     /// Ablage erscheint dort, wo der Zeiger den Rand erreicht, statt an fester Höhe.
     @Published var adaptivePosition: Bool { didSet { defaults.set(adaptivePosition, forKey: Key.adaptivePosition) } }
-    /// Adaptive Höhe nur im mittleren Drittel des Bildschirmrands.
-    @Published var adaptiveMiddleThird: Bool { didSet { defaults.set(adaptiveMiddleThird, forKey: Key.adaptiveMiddleThird) } }
-    /// Eingeschränkter Bereich: mittlere Hälfte statt mittleres Drittel.
-    @Published var adaptiveZoneHalf: Bool { didSet { defaults.set(adaptiveZoneHalf, forKey: Key.adaptiveZoneHalf) } }
 
     /// „Am Zeiger“: Wie viel vom Rand reagiert, mittig, in Zwölfteln vom kleinsten Stück bis
     /// zum ganzen Rand (1). Ersetzt „nur mittlere Hälfte“ (früher `adaptiveMiddleThird` und
@@ -342,8 +304,6 @@ final class AppSettings: ObservableObject {
     /// Form des ersten Streifens am Rand
     @Published var peekThickness: Double { didSet { defaults.set(peekThickness, forKey: Key.peekThickness) } }
     @Published var peekLength: Double { didSet { defaults.set(peekLength, forKey: Key.peekLength) } }
-    /// 0 = eckig, 1 = ganz rund
-    @Published var peekRoundness: Double { didSet { defaults.set(peekRoundness, forKey: Key.peekRoundness) } }
     @Published var hapticsEnabled: Bool { didSet { defaults.set(hapticsEnabled, forKey: Key.hapticsEnabled) } }
     @Published var animationStyle: AnimationStyle { didSet { defaults.set(animationStyle.rawValue, forKey: Key.animationStyle) } }
     /// Automatisch ganz öffnen oder erst nach einem Klick auf die mittlere Stufe.
@@ -392,8 +352,6 @@ final class AppSettings: ObservableObject {
     @Published var autoUpdateCheck: Bool { didSet { defaults.set(autoUpdateCheck, forKey: Key.autoUpdateCheck) } }
     /// Feiner heller Rahmen um die schwarze Form (sichtbar auf dunklem Hintergrund).
     @Published var showOutline: Bool { didSet { defaults.set(showOutline, forKey: Key.showOutline) } }
-    /// Titel oben in der offenen Ablage: „BarDrop“, „Ablage“ oder keiner
-    @Published var titleStyle: ShelfTitle { didSet { defaults.set(titleStyle.rawValue, forKey: Key.titleStyle) } }
     /// So lange (Sekunden) muss der Zeiger am Streifen bleiben, bis die Ablage aufgeht.
     @Published var openDelay: Double { didSet { defaults.set(openDelay, forKey: Key.openDelay) } }
 
@@ -414,8 +372,6 @@ final class AppSettings: ObservableObject {
     @Published var diagnosticsEnabled: Bool { didSet { defaults.set(diagnosticsEnabled, forKey: Key.diagnosticsEnabled) } }
     /// Beim Öffnen dort weitermachen, wo man aufgehört hat: offener Stapel und Scrollstand bleiben
     @Published var reopenWhereLeft: Bool { didSet { defaults.set(reopenWhereLeft, forKey: Key.reopenWhereLeft) } }
-    /// Aktionsleiste in zwei Reihen mit je bis zu fünf Aktionen
-    @Published var twoActionRows: Bool { didSet { defaults.set(twoActionRows, forKey: Key.twoActionRows) } }
     /// Zwei Reihen: so viele Aktionen (vorne in `quickActions`) stehen in der oberen Reihe
     @Published var actionRowSplit: Int { didSet { defaults.set(actionRowSplit, forKey: Key.actionRowSplit) } }
     /// Ordner und Apps auf die Aktionsleiste der Ablage ziehen heftet sie an,
@@ -462,7 +418,7 @@ final class AppSettings: ObservableObject {
     /// Lässt sich dieser Ordner bzw. diese App gerade in der Ablage anheften?
     func canPin(_ url: URL) -> Bool {
         pinFromShelf
-            && quickActions.count < QuickAction.limit(twoRows: twoActionRows)
+            && quickActions.count < QuickAction.limit
             && QuickAction.pinnableKind(url) != nil
             && !quickActions.contains { $0.path == url.path }
     }
@@ -484,8 +440,8 @@ final class AppSettings: ObservableObject {
               let to = quickActions.firstIndex(where: { $0.id == target }) else { return }
         var order = quickActions
         var split = effectiveActionSplit
-        let fromTop = !twoActionRows || from < split
-        let toTop = !twoActionRows || to < split
+        let fromTop = from < split
+        let toTop = to < split
         let item = order.remove(at: from)
         if fromTop == toTop {
             order.insert(item, at: to)
@@ -531,8 +487,6 @@ final class AppSettings: ObservableObject {
             }
         }
     }
-    /// Reihenfolge der Objekte in der Ablage.
-    @Published var sortOrder: SortOrder { didSet { defaults.set(sortOrder.rawValue, forKey: Key.sortOrder) } }
 
     /// Aktionen in der Leiste unten, in der gewünschten Reihenfolge.
     @Published var quickActions: [QuickAction] {
@@ -553,15 +507,12 @@ final class AppSettings: ObservableObject {
             Key.edge: ShelfDefaults.edge.rawValue,
             Key.verticalPosition: ShelfDefaults.verticalPosition,
             Key.adaptivePosition: ShelfDefaults.adaptivePosition,
-            Key.adaptiveMiddleThird: ShelfDefaults.adaptiveMiddleThird,
-            Key.adaptiveZoneHalf: ShelfDefaults.adaptiveZoneHalf,
             Key.displayMode: ShelfDefaults.displayMode.rawValue,
             Key.shelfWidth: ShelfDefaults.width,
             Key.shelfHeight: ShelfDefaults.height,
             Key.showOnDrag: true,
             Key.peekThickness: PeekDefaults.thickness,
             Key.peekLength: PeekDefaults.length,
-            Key.peekRoundness: PeekDefaults.roundness,
             Key.hapticsEnabled: true,
             Key.removeAfterDragOut: true,
             Key.stackMultiple: true,
@@ -574,15 +525,12 @@ final class AppSettings: ObservableObject {
             Key.convertWebImages: true,
             Key.copyAllFiles: false,
             Key.dragOutCopyOnly: false,
-            Key.sortOrder: SortOrder.newestFirst.rawValue,
             Key.showOutline: true,
-            Key.showTitle: true,
             Key.openDelay: OpenDelay.quick,
             Key.language: AppLanguage.system.rawValue,
             Key.reopenWhereLeft: false,
             Key.exactPointer: false,
             Key.diagnosticsEnabled: false,
-            Key.twoActionRows: false,
             Key.pinFromShelf: true,
             Key.addScreenshots: false,
             Key.openInFullScreen: false,
@@ -603,12 +551,6 @@ final class AppSettings: ObservableObject {
         edge = ScreenEdge(rawValue: defaults.string(forKey: Key.edge) ?? "") ?? ShelfDefaults.edge
         verticalPosition = defaults.double(forKey: Key.verticalPosition)
         adaptivePosition = defaults.bool(forKey: Key.adaptivePosition)
-        adaptiveMiddleThird = defaults.bool(forKey: Key.adaptiveMiddleThird)
-        // „Am Zeiger, nur mittleres Drittel“ gibt es nicht mehr: wird zur mittleren Hälfte
-        if defaults.object(forKey: Key.adaptiveZoneHalf) as? Bool == false {
-            defaults.removeObject(forKey: Key.adaptiveZoneHalf)
-        }
-        adaptiveZoneHalf = defaults.bool(forKey: Key.adaptiveZoneHalf)
         // Bereich am Zeiger: eigener Wert, sonst wie bisher eingestellt (mittlere Hälfte
         // bzw. ganzer Rand). Bewusst nicht registriert, damit sich „nie gesetzt“ erkennen lässt
         if let stored = defaults.object(forKey: Key.adaptiveZone) as? Double {
@@ -639,18 +581,9 @@ final class AppSettings: ObservableObject {
            defaults.object(forKey: Key.peekLength) as? Double ?? 84 == 84 {
             defaults.removeObject(forKey: Key.peekThickness)
             defaults.removeObject(forKey: Key.peekLength)
-            defaults.removeObject(forKey: Key.peekRoundness)
-        }
-        // 1.9: „Übergang“ ersetzt „Enden“ mit anderer Bedeutung; einmalig auf Standard
-        if !defaults.bool(forKey: "peekShapeV19") {
-            defaults.removeObject(forKey: Key.peekRoundness)
-            defaults.set(true, forKey: "peekShapeV19")
         }
         peekThickness = defaults.double(forKey: Key.peekThickness)
         peekLength = defaults.double(forKey: Key.peekLength)
-        // „Rundung zum Rand“ ist nicht mehr einstellbar: immer der Standard (die Ecken
-        // bleiben bei jeder Dicke und Länge ohne Knick, siehe ShelfMetrics.peek)
-        peekRoundness = PeekDefaults.roundness
         hapticsEnabled = defaults.bool(forKey: Key.hapticsEnabled)
         removeAfterDragOut = defaults.bool(forKey: Key.removeAfterDragOut)
         stackMultiple = defaults.bool(forKey: Key.stackMultiple)
@@ -676,9 +609,6 @@ final class AppSettings: ObservableObject {
             store.set(false, forKey: Key.showOutline)
         }
         showOutline = defaults.bool(forKey: Key.showOutline)
-        // Bis 1.30.0 Beta 13 nur „BarDrop“ oder „Ablage“ (showTitle): einmalig übernehmen
-        titleStyle = ShelfTitle(rawValue: defaults.string(forKey: Key.titleStyle) ?? "")
-            ?? (defaults.bool(forKey: Key.showTitle) ? .bardrop : .shelf)
         // Auf eine der wählbaren Wartezeiten runden (ältere Versionen hatten andere)
         let storedDelay = defaults.double(forKey: Key.openDelay)
         openDelay = OpenDelay.choices.min { abs($0 - storedDelay) < abs($1 - storedDelay) } ?? OpenDelay.quick
@@ -690,8 +620,6 @@ final class AppSettings: ObservableObject {
         reopenWhereLeft = defaults.bool(forKey: Key.reopenWhereLeft)
         exactPointer = defaults.bool(forKey: Key.exactPointer)
         diagnosticsEnabled = defaults.bool(forKey: Key.diagnosticsEnabled)
-        // Zwei Reihen gibt es immer: Eine leere untere Reihe ist einfach nicht zu sehen
-        twoActionRows = true
         actionRowSplit = defaults.integer(forKey: Key.actionRowSplit)
         pinFromShelf = defaults.bool(forKey: Key.pinFromShelf)
         addScreenshots = defaults.bool(forKey: Key.addScreenshots)
@@ -709,9 +637,6 @@ final class AppSettings: ObservableObject {
         hotKeyCode = defaults.integer(forKey: Key.hotKeyCode)
         hotKeyModifiers = defaults.integer(forKey: Key.hotKeyModifiers)
         hotKeyLabel = defaults.string(forKey: Key.hotKeyLabel) ?? Self.defaultHotKey.label
-        // Die Ablage zeigt immer das Neueste zuerst; die Einstellung dafür gibt es nicht mehr
-        sortOrder = .newestFirst
-        defaults.removeObject(forKey: Key.sortOrder)
 
         // Werte aus älteren Versionen (Woche, 30 Tage) gibt es nicht mehr
         let stored = defaults.double(forKey: Key.autoRemoveAfter)
@@ -746,8 +671,6 @@ final class AppSettings: ObservableObject {
         edge = ShelfDefaults.edge
         verticalPosition = ShelfDefaults.verticalPosition
         adaptivePosition = ShelfDefaults.adaptivePosition
-        adaptiveMiddleThird = ShelfDefaults.adaptiveMiddleThird
-        adaptiveZoneHalf = ShelfDefaults.adaptiveZoneHalf
         adaptiveZone = Self.defaultAdaptiveZone
         displayMode = ShelfDefaults.displayMode
     }
@@ -760,7 +683,6 @@ final class AppSettings: ObservableObject {
         actionIconSize = ShelfDefaults.actionIconSize
         peekThickness = PeekDefaults.thickness
         peekLength = PeekDefaults.length
-        peekRoundness = PeekDefaults.roundness
     }
 
     /// Alle Einstellungen auf den Auslieferungszustand. Inhalt der Ablage,
@@ -770,7 +692,6 @@ final class AppSettings: ObservableObject {
         language = .system
         betaUpdates = false
         labelsOnlyFolders = false
-        titleStyle = .bardrop
         dragReveal = .immediately
         hapticsEnabled = true
         animationStyle = .standard
@@ -779,7 +700,6 @@ final class AppSettings: ObservableObject {
         reopenWhereLeft = false
         exactPointer = false
         diagnosticsEnabled = false
-        twoActionRows = true
         actionRowSplit = 0
         pinFromShelf = true
         addScreenshots = false
@@ -788,7 +708,6 @@ final class AppSettings: ObservableObject {
         showActionLabels = true
         labelsOnlyFolders = false
         showOutline = true
-        titleStyle = .bardrop
         removeAfterDragOut = true
         stackMultiple = true
         stackThreshold = 2
@@ -797,7 +716,6 @@ final class AppSettings: ObservableObject {
         convertWebImages = true
         copyAllFiles = false
         dragOutCopyOnly = false
-        sortOrder = .newestFirst
         quickActions = QuickAction.defaults
         autoUpdateCheck = true
         // Plugins bleiben installiert, sind aber aus und haben keine Rechte mehr
@@ -808,7 +726,7 @@ final class AppSettings: ObservableObject {
     }
 
     /// Form des ersten Streifens
-    var peekSignature: String { "\(peekThickness)|\(peekLength)|\(peekRoundness)" }
+    var peekSignature: String { "\(peekThickness)|\(peekLength)" }
 
     /// Größe der offenen Ablage
     var sizeSignature: String { "\(shelfWidth)|\(shelfHeight)|\(tileIconSize)|\(actionIconSize)|\(showActionLabels)" }

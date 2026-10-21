@@ -930,7 +930,7 @@ final class EdgeController: NSObject {
         // bevor die Ablage ganz offen ist, auch knapp neben der Form. Sonst landet die
         // Datei beim Loslassen in der App dahinter.
         // Nur im Bereich der Ablage selbst, damit Drops in Fenster daneben ungestört bleiben
-        let catchesThrow = dragging && !ui.ownDragActive && settings.dragReveal != .off
+        let catchesThrow = dragging && !ui.ownDragActive
             && !config.exactPointer
             && onScreen && !innerEdge && dx < config.dragExpand.distance
             && expandedBody.insetBy(dx: 0, dy: -12).contains(loc)

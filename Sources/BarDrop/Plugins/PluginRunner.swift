@@ -254,8 +254,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     private func place(_ job: PluginJob, _ files: [ShelfFile]) {
         guard let store else { return }
         for file in files { Thumbnails.shownOnce.insert(file.url.path) }
-        store.insertResults(files, nextTo: job.anchorFileID,
-                            newestFirst: settings.sortOrder == .newestFirst, replacing: job.replacesOriginal)
+        store.insertResults(files, nextTo: job.anchorFileID, replacing: job.replacesOriginal)
         removeJob(job, animated: false)
         NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
         if let actions {
