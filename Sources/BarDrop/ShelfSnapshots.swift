@@ -52,6 +52,27 @@ enum ShelfSnapshots {
         prune()
     }
 
+    /// Zustand der Scrollbereiche im Fenster ins Protokoll (Größe des Inhalts, ob etwas
+    /// aussteht, in welchem Modus die Ereignisschleife läuft), jetzt und nach den Verzögerungen
+    static func describe(_ window: NSWindow?, _ reason: String, after delays: [TimeInterval]) {
+        guard Diagnostics.shared.isEnabled, let window else { return }
+        for delay in delays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                var parts: [String] = []
+                func walk(_ view: NSView) {
+                    if let scroll = view as? NSScrollView {
+                        let doc = scroll.documentView
+                        parts.append("scroll doc=\(Int(doc?.frame.height ?? -1)) clip=\(Int(scroll.contentView.bounds.minY))/\(Int(scroll.contentView.bounds.height)) docLayout=\(doc?.needsLayout ?? false) docDisplay=\(doc?.needsDisplay ?? false) subviews=\(doc?.subviews.count ?? -1) live=\(scroll.inLiveResize)")
+                    }
+                    view.subviews.forEach(walk)
+                }
+                if let content = window.contentView { walk(content) }
+                let mode = RunLoop.current.currentMode?.rawValue ?? "–"
+                Diagnostics.shared.record("shot", "\(reason)+\(Int(delay * 1000))ms mode=\(mode) key=\(window.isKeyWindow) \(parts.joined(separator: " | "))")
+            }
+        }
+    }
+
     private static func prune() {
         let files = ((try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension == "png" }
@@ -111,6 +132,7 @@ final class DiagnosticCommands {
             pasteboard.clearContents()
             pasteboard.writeObjects(argument.split(separator: "|").map { URL(fileURLWithPath: String($0)) as NSURL })
             ShelfSnapshots.capture(panel, "add", after: [0.2, 0.6, 1.5, 3])
+            ShelfSnapshots.describe(panel, "add", after: [0.05, 0.3, 1])
             controller.store.ingest(from: pasteboard, byUser: true)
         case "folder":
             actions.openFolder(URL(fileURLWithPath: argument))

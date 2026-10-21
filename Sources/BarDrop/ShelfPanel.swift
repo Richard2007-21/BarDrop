@@ -295,6 +295,7 @@ final class ShelfDropHandler {
         }
         Diagnostics.shared.record("drop", "shelf types=\(sender.draggingPasteboard.types?.map(\.rawValue).prefix(12).joined(separator: ",") ?? "–") items=\(sender.draggingPasteboard.pasteboardItems?.count ?? 0) source=\(sender.draggingSource.map { String(describing: type(of: $0)) } ?? "external") intro=\(IntroGate.active)")
         ShelfSnapshots.capture(actions?.panel, "drop", after: [0.2, 0.6, 1.5, 3])
+        ShelfSnapshots.describe(actions?.panel, "drop", after: [0.05, 0.3, 1])
         store.ingest(from: sender.draggingPasteboard, byUser: true)
         Haptics.drop()
         setTargeted(false)

@@ -42,6 +42,8 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     private var showsPoof = false
 
     private enum DragMode { case none, inBar, detached }
+    /// Nach dem Lösen zurück in der Ablage und dort umgeordnet
+    private var reorderedWhileDetached = false
     private var mode: DragMode = .none
     /// Zuletzt verschoben: kurz nicht noch einmal, während die Leiste sich neu ordnet
     private static var reorderedAt = Date.distantPast
@@ -136,25 +138,35 @@ final class ActionDropNSView: NSView, NSDraggingSource {
             return
         }
         follow(event.locationInWindow)
+        reorder(at: event.locationInWindow)
+    }
+
+    /// Steht der Zeiger über der Mitte einer anderen Aktion, rückt diese an ihren Platz.
+    /// Auch nach dem Lösen, wenn der Zeiger zurück in die Ablage kommt: Sonst reagierten die
+    /// anderen Aktionen nicht mehr, sobald man einmal kurz über den Rand hinaus war.
+    @discardableResult
+    private func reorder(at pointInWindow: NSPoint) -> Bool {
+        guard let window else { return false }
         // Erst wenn die Leiste nach dem letzten Tausch wieder still steht (Feder etwa 0,3 s):
         // Solange die Symbole noch gleiten, lag der Zeiger noch über der alten Aktion, und sie
         // tauschten hin und her. Steht der Zeiger schon über dem eigenen Platz, nichts tun.
         guard let me = actionID, Date().timeIntervalSince(Self.reorderedAt) > 0.15,
-              !bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+              !bounds.contains(convert(pointInWindow, from: nil)) else { return false }
         let bar = Self.all.allObjects.filter { $0.window === window && $0.actionID != nil }
         // Erst wenn keine Aktion mehr gleitet: Mitten in der Feder lag der Zeiger noch über
         // der Aktion, mit der gerade getauscht wurde, und sie tauschten wieder zurück
         let now = Date()
-        guard bar.allSatisfy({ now.timeIntervalSince($0.movedAt) > 0.08 }) else { return }
+        guard bar.allSatisfy({ now.timeIntervalSince($0.movedAt) > 0.08 }) else { return false }
         for view in bar where view !== self {
             // Nur über der Mitte der anderen Aktion, nicht schon an ihrem Rand
             let inner = view.bounds.insetBy(dx: view.bounds.width * 0.2, dy: 0)
-            guard inner.contains(view.convert(event.locationInWindow, from: nil)) else { continue }
+            guard inner.contains(view.convert(pointInWindow, from: nil)) else { continue }
             Self.reorderedAt = Date()
             view.onReorder(me)
             ShelfSnapshots.capture(window, "reorder", after: [0.05, 0.2, 0.5])
-            break
+            return true
         }
+        return false
     }
 
     /// Den Zeiger melden, nicht den Abstand zum eigenen Platz: Den rechnet die Ansicht beim
@@ -211,7 +223,14 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
         // Draußen verschwindet die Aktion beim Loslassen, drinnen gleitet sie zurück
         let inside = dragStartFrame.contains(screenPoint)
-        session.animatesToStartingPositionsOnCancelOrFail = inside
+        // Zurück in der Ablage: wieder verschieben wie vor dem Lösen
+        if inside, mode == .detached, let window,
+           reorder(at: window.convertPoint(fromScreen: screenPoint)) {
+            reorderedWhileDetached = true
+        }
+        // Zurückgleiten nur an den alten Platz, solange er noch stimmt; nach einem Tausch
+        // erscheint die Aktion einfach an ihrem neuen Platz
+        session.animatesToStartingPositionsOnCancelOrFail = inside && !reorderedWhileDetached
         // Wie im Finder beim Herausziehen aus der Seitenleiste: Draußen zeigt der Zeiger die
         // Wolke mit dem x, drinnen wieder den normalen Zeiger
         if !inside {
@@ -225,6 +244,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         mode = .none
+        reorderedWhileDetached = false
         downEvent = nil
         ui?.ownDragActive = false
         onDraggingOut(false)
