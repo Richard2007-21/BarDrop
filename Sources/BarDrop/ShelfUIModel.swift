@@ -69,6 +69,18 @@ final class ShelfUIModel: ObservableObject {
     /// Lage der offenen Ablage (schwarze Form) auf dem Bildschirm, ohne Schattenrand
     var expandedBody: CGRect = .zero
 
+    /// Die Ablage wird an der Kopfzeile vom Rand gezogen (siehe EdgeTear): Form wie zwei
+    /// Tropfen, die sich trennen. nil: Sie sitzt wie immer am Rand.
+    struct Tear: Equatable {
+        /// Abstand zwischen Ablage und Bildschirmrand auf der Seite `side`
+        var gap: CGFloat = 0
+        /// Verbindung zum Rand: 1 ganz angedockt, 0 gelöst
+        var attach: CGFloat = 1
+        /// Rand, mit dem die Ablage gerade verbunden ist oder dem sie sich nähert
+        var side: ScreenEdge
+    }
+    @Published var tear: Tear?
+
     /// Ordner oder App, die gerade über die Ablage gezogen wird und sich anheften ließe.
     /// Solange gesetzt, zeigt die Aktionsleiste einen freien Platz zum Anheften.
     @Published private(set) var pinCandidate: URL?

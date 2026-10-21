@@ -44,32 +44,45 @@ struct ShelfRootView: View {
     var body: some View {
         let m = ShelfMetrics.for(ui.level, settings: settings)
         let full = ShelfMetrics.for(.expanded, settings: settings)
+        // Vom Rand gezogen (EdgeTear): Das Fenster ist dann breiter und die Ablage steht in
+        // seiner Mitte. Die Form zeichnet TearGoo, die Kacheln bleiben dieselben Ansichten
+        // (nur ihre Umgebung ändert sich, damit Scrollstand und Auswahl erhalten bleiben).
+        let tear = ui.level == .expanded ? ui.tear : nil
         let shape = EdgeBlobShape(edge: settings.edge, cornerRadius: m.cornerRadius, fillet: m.fillet,
-                                  filletStretch: m.filletStretch, cornerStretch: m.cornerStretch)
+                                  filletStretch: m.filletStretch, cornerStretch: m.cornerStretch,
+                                  detached: tear != nil)
 
-        ZStack(alignment: edgeAlignment) {
+        ZStack(alignment: tear == nil ? edgeAlignment : .center) {
             Color.clear
 
             ZStack(alignment: edgeAlignment) {
-                // Weicher Schatten, der innerhalb des Fensterrands ganz ausläuft
-                // (Platz dafür: ShelfMetrics.panelMargin). Nur eine Ebene: Jeder Schatten
-                // wird in jedem Bild der Animation neu berechnet.
-                shape
-                    .fill(Color.black)
-                    .shadow(color: .black.opacity(ui.level == .expanded ? 0.45 : 0),
-                            radius: 18, x: 0, y: 8)
+                if tear == nil {
+                    // Weicher Schatten, der innerhalb des Fensterrands ganz ausläuft
+                    // (Platz dafür: ShelfMetrics.panelMargin). Nur eine Ebene: Jeder Schatten
+                    // wird in jedem Bild der Animation neu berechnet.
+                    shape
+                        .fill(Color.black)
+                        .shadow(color: .black.opacity(ui.level == .expanded ? 0.45 : 0),
+                                radius: 18, x: 0, y: 8)
 
-                // Feiner heller Rahmen: auf dunklem Hintergrund sichtbar, auf hellem
-                // verschwindet er fast. Ohne Linie am Bildschirmrand selbst.
-                EdgeBlobShape(edge: settings.edge, cornerRadius: m.cornerRadius, fillet: m.fillet,
-                              filletStretch: m.filletStretch, cornerStretch: m.cornerStretch, closed: false)
-                    .stroke(Color.white.opacity(settings.showOutline || ui.forcesOutline ? 0.2 : 0), lineWidth: 1)
-                    .allowsHitTesting(false)
+                    // Feiner heller Rahmen: auf dunklem Hintergrund sichtbar, auf hellem
+                    // verschwindet er fast. Ohne Linie am Bildschirmrand selbst.
+                    EdgeBlobShape(edge: settings.edge, cornerRadius: m.cornerRadius, fillet: m.fillet,
+                                  filletStretch: m.filletStretch, cornerStretch: m.cornerStretch, closed: false)
+                        .stroke(Color.white.opacity(settings.showOutline || ui.forcesOutline ? 0.2 : 0), lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
 
                 content(m: m, full: full)
                     .clipShape(shape)
             }
             .frame(width: m.width, height: m.height + 2 * m.fillet, alignment: edgeAlignment)
+            .background {
+                if let tear {
+                    TearGoo(tear: tear, inset: m.fillet, reach: EdgeTear.reach)
+                        .frame(width: m.width + 2 * EdgeTear.reach, height: m.height + 2 * m.fillet)
+                }
+            }
             // Kleine Stufen sitzen auf der Wunschhöhe (adaptiv: am Zeiger), die offene Ablage mittig im Fenster
             .offset(y: ui.level == .expanded ? 0 : ui.anchorOffset)
         }

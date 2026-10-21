@@ -201,7 +201,8 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         // während schon das Bild am Zeiger hing
         onDraggingOut(true)
         onMove(nil)
-        Haptics.drop()
+        // Spürbarer Ruck beim Lösen (Haptics.drop ist absichtlich stumm)
+        Haptics.tap()
         let item = NSPasteboardItem()
         item.setString("", forType: Self.actionType)
         let dragging = NSDraggingItem(pasteboardWriter: item)

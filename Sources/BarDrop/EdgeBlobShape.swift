@@ -21,6 +21,9 @@ struct EdgeBlobShape: Shape {
     var cornerStretch: CGFloat = 1
     /// false: nur die Kontur, ohne die Linie am Bildschirmrand (für den feinen Rahmen)
     var closed = true
+    /// Vom Rand gelöst (siehe EdgeTear): ein abgerundetes Rechteck ohne Übergänge zum Rand,
+    /// oben und unten um `fillet` eingerückt
+    var detached = false
 
     var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>> {
         get { AnimatablePair(AnimatablePair(cornerRadius, fillet), AnimatablePair(filletStretch, cornerStretch)) }
@@ -34,6 +37,11 @@ struct EdgeBlobShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         guard rect.width > 0.5, rect.height > 0.5 else { return Path() }
+        if detached {
+            let body = rect.insetBy(dx: 0, dy: max(0, fillet))
+            guard body.height > 0.5 else { return Path() }
+            return Path(roundedRect: body, cornerRadius: EdgeTear.cornerRadius, style: .continuous)
+        }
 
         let width = rect.width
         let maxFy = max(0, min(fillet, rect.height / 4))
