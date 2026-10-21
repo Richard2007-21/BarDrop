@@ -69,7 +69,10 @@ struct ShelfRootView: View {
                     // verschwindet er fast. Ohne Linie am Bildschirmrand selbst.
                     EdgeBlobShape(edge: settings.edge, cornerRadius: m.cornerRadius, fillet: m.fillet,
                                   filletStretch: m.filletStretch, cornerStretch: m.cornerStretch, closed: false)
-                        .stroke(Color.white.opacity(settings.showOutline || ui.forcesOutline ? 0.2 * ui.dockOutline : 0), lineWidth: 1)
+                        .stroke(Color.white.opacity(settings.showOutline || ui.forcesOutline ? 0.2 : 0), lineWidth: 1)
+                        // Nach dem Andocken blendet nur der Bogen zum Bildschirmrand weich ein
+                        // (den gab es beim Ziehen nicht), der übrige Rahmen bleibt einfach stehen
+                        .mask { edgeArcFade(m: m) }
                         .allowsHitTesting(false)
                 }
 
@@ -89,6 +92,27 @@ struct ShelfRootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.colorScheme, .dark)
+    }
+
+    /// Maske für den Rahmen am Rand: im Bereich der Bögen zum Bildschirmrand so stark wie
+    /// `ui.dockOutline`, sonst voll
+    private func edgeArcFade(m: ShelfMetrics) -> some View {
+        let width = max(1, m.width)
+        let zone = min(0.9, (m.fillet + 6) / width)
+        let soft = min(1, zone + 16 / width)
+        let fromLeft = settings.edge == .left
+        func band(_ inner: Color, _ outer: Color) -> some View {
+            BeyondFrameShape().fill(LinearGradient(
+                stops: [.init(color: inner, location: 0), .init(color: inner, location: zone),
+                        .init(color: outer, location: soft)],
+                startPoint: fromLeft ? .leading : .trailing,
+                endPoint: fromLeft ? .trailing : .leading))
+        }
+        // Zwei Ebenen, damit die Deckkraft sicher mitanimiert
+        return ZStack {
+            band(.clear, .black)
+            band(.black, .clear).opacity(ui.dockOutline)
+        }
     }
 
     /// Inhalt innerhalb der Form: Pfeil in der mittleren Stufe, Ablage im offenen Zustand.

@@ -53,19 +53,18 @@ struct TearGoo: View, Animatable {
 
     var body: some View {
         let attach = Double(max(0, min(1, tear.attach)))
-        let black = max(1 - glass, attach)
+        // Wie viel Schwarz insgesamt noch da ist (für den Schatten)
+        let black = 1 - glass
         ZStack {
             if glass > 0.001 {
                 // Schatten nur außerhalb der Ablage: Unter dem Glas sähe man ihn sonst durch
                 bodyShape
                     .fill(Color.black)
                     .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+                    // Maske reicht über den Rahmen hinaus, sonst war der Schatten unten abgeschnitten
                     .mask {
-                        ZStack {
-                            Rectangle()
-                            bodyShape.blendMode(.destinationOut)
-                        }
-                        .compositingGroup()
+                        OutsideBodyShape(reach: reach, inset: inset)
+                            .fill(style: FillStyle(eoFill: true))
                     }
                     .opacity(1 - black)
                 ShelfGlass(cornerRadius: EdgeTear.cornerRadius)
@@ -78,7 +77,7 @@ struct TearGoo: View, Animatable {
                     .fill(Color.black.opacity(EdgeTear.glassDarken))
                     .opacity(glass)
             }
-            if glass < 0.999 || attach > 0.001 {
+            if glass < 0.999 || attach > 0.01 {
                 // Das Schwarz zieht sich zum Rand hin zurück, als bliebe es dort hängen (beim
                 // Andocken kommt es von dort wieder)
                 solid.mask { darkness(attach: attach) }
@@ -91,8 +90,8 @@ struct TearGoo: View, Animatable {
         .accessibilityHidden(true)
     }
 
-    /// Wie schwarz die Ablage wo ist: an der Seite zum Rand zuletzt durchsichtig, in Randnähe
-    /// (Verbindung) überall schwarz
+    /// Wie schwarz die Ablage wo ist: Das Schwarz weicht von der fernen Seite zum Rand hin
+    /// zurück; solange sie mit dem Rand verbunden ist, bleibt es dort an der Verbindung
     private func darkness(attach: Double) -> some View {
         // Übergangskante wandert mit dem Glas von der fernen Seite zum Rand
         let width = 0.45
@@ -101,15 +100,19 @@ struct TearGoo: View, Animatable {
             let x = Double(i) / 12
             let t = max(0, min(1, (x - edge) / width))
             let sweep = 1 - t * t * (3 - 2 * t)
-            return Gradient.Stop(color: Color.black.opacity(max(sweep, attach)), location: x)
+            // Verbindung: ein schmaler Bereich an der Seite zum Rand, so stark wie die Verbindung
+            let b = max(0, min(1, x / 0.18))
+            let band = attach * (1 - b * b * (3 - 2 * b))
+            return Gradient.Stop(color: Color.black.opacity(max(sweep, band)), location: x)
         }
         let fromLeft = tear.side == .left
-        // Verlauf über die Ablage selbst (links und rechts liegt im Fenster noch `reach`)
+        // Verlauf über die Ablage selbst (links und rechts liegt im Fenster noch `reach`); die
+        // Fläche reicht über den Rahmen hinaus, damit der Schatten nicht abgeschnitten wird
         return GeometryReader { geo in
             let w = max(1, geo.size.width)
             let near = UnitPoint(x: fromLeft ? reach / w : 1 - reach / w, y: 0.5)
             let far = UnitPoint(x: fromLeft ? 1 - reach / w : reach / w, y: 0.5)
-            LinearGradient(stops: stops, startPoint: near, endPoint: far)
+            BeyondFrameShape().fill(LinearGradient(stops: stops, startPoint: near, endPoint: far))
         }
     }
 
@@ -263,5 +266,24 @@ struct ShelfGlass: NSViewRepresentable {
         image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
         image.resizingMode = .stretch
         return image
+    }
+}
+
+/// Fläche über den eigenen Rahmen hinaus (für Masken, die den Schatten nicht abschneiden)
+struct BeyondFrameShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path(rect.insetBy(dx: -120, dy: -120))
+    }
+}
+
+/// Alles außer der losgelösten Ablage, über den Rahmen hinaus (mit eoFill)
+struct OutsideBodyShape: Shape {
+    let reach: CGFloat
+    let inset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path(rect.insetBy(dx: -120, dy: -120))
+        path.addPath(TearBodyShape(reach: reach, inset: inset).path(in: rect))
+        return path
     }
 }

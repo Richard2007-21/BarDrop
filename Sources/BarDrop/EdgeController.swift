@@ -1357,6 +1357,9 @@ extension EdgeController {
             body.origin.y += (p.y - drag.start.y) * 0.12
             drag.body = body
             setTear(gap: gap, attach: 1 - 0.8 * pow(pull / EdgeTear.tearDistance, 1.4), side: drag.origin)
+            // Schon beim Dehnen wird sie zu Glas, das Schwarz bleibt zum Rand hin hängen
+            let t = max(0, min(1, (pull - 8) / (EdgeTear.tearDistance - 8)))
+            setGlassAmount(Double(t * t * (3 - 2 * t)) * 0.85)
             applyTearFrame(body)
         case .free:
             var target = NSRect(x: p.x - drag.grab.x, y: p.y - drag.grab.y,
@@ -1462,11 +1465,20 @@ extension EdgeController {
     }
 
     /// Losgelöst wird sie zu Glas, beim Andocken wieder schwarz, jeweils weich
+    /// Glas direkt aus der Bewegung (beim Dehnen), ohne eigene Animation
+    private func setGlassAmount(_ value: Double) {
+        let rounded = (value * 50).rounded() / 50
+        guard ui.tearGlass != rounded else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { ui.tearGlass = rounded }
+    }
+
     private func setGlass(_ on: Bool, animated: Bool = true) {
         let value: Double = on ? 1 : 0
         guard ui.tearGlass != value else { return }
         if animated {
-            withAnimation(.easeInOut(duration: on ? 0.6 : 0.3)) { ui.tearGlass = value }
+            withAnimation(.easeOut(duration: on ? 0.3 : 0.3)) { ui.tearGlass = value }
         } else {
             var transaction = Transaction()
             transaction.disablesAnimations = true
