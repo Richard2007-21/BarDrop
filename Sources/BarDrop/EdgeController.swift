@@ -65,6 +65,8 @@ final class EdgeController: NSObject {
     private var edgeObserver: AnyCancellable?
     /// Die Ablage wird gerade an der Kopfzeile gezogen (siehe EdgeTear)
     var tearDrag: TearDrag?
+    /// Begleitfenster mit dem Glas der losgelösten Ablage (erst bei Bedarf angelegt)
+    var glassWindow: ShelfGlassWindow?
     var tearTimer: Timer?
     /// Der Rand wurde durch Andocken gewechselt: ohne Verschwinden und neu Erscheinen
     var dockingEdgeChange = false
@@ -1222,6 +1224,7 @@ extension EdgeController {
             if panel.frame.origin != frame.origin { panel.setFrameOrigin(frame.origin) }
         } else {
             panel.setFrame(frame, display: true)
+            syncGlassWindow()
         }
         ui.expandedBody = body
     }
@@ -1472,18 +1475,38 @@ extension EdgeController {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { ui.tearGlass = rounded }
+        syncGlassWindow()
+    }
+
+    /// Begleitfenster mit dem Glas an Lage und Stärke der losgelösten Ablage anpassen
+    private func syncGlassWindow(duration: TimeInterval = 0) {
+        guard tearDrag != nil, ui.tearGlass > 0 || glassWindow != nil else { return }
+        let window = glassWindow ?? ShelfGlassWindow()
+        glassWindow = window
+        let m = ShelfMetrics.for(.expanded, settings: settings)
+        let size = panel.frame.size
+        let body = NSRect(x: ((size.width - m.width) / 2).rounded(), y: ((size.height - m.height) / 2).rounded(),
+                          width: m.width, height: m.height)
+        window.follow(panel, body: body)
+        window.show(CGFloat(ui.tearGlass), duration: duration)
+    }
+
+    /// Glas ganz weg (angedockt, abgebrochen)
+    private func removeGlassWindow() {
+        glassWindow?.detach()
     }
 
     private func setGlass(_ on: Bool, animated: Bool = true) {
         let value: Double = on ? 1 : 0
         guard ui.tearGlass != value else { return }
         if animated {
-            withAnimation(.easeOut(duration: on ? 0.3 : 0.3)) { ui.tearGlass = value }
+            withAnimation(.easeOut(duration: 0.3)) { ui.tearGlass = value }
         } else {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) { ui.tearGlass = value }
         }
+        syncGlassWindow(duration: animated ? 0.3 : 0)
     }
 
     private func detachTear(_ drag: TearDrag) {
@@ -1595,6 +1618,7 @@ extension EdgeController {
             ui.tear = nil
             ui.grabbing = false
             ui.tearGlass = 0
+            removeGlassWindow()
             // Der Rahmen am Rand läuft in die Rundungen zum Bildschirm hinein, die es eben
             // noch nicht gab: Er kommt weich hinzu statt kurz aufzublitzen
             ui.dockOutline = 0
@@ -1627,6 +1651,7 @@ extension EdgeController {
             ui.grabbing = false
             ui.tearGlass = 0
         }
+        removeGlassWindow()
         layoutPanel()
         Diagnostics.shared.record("tear", "ended")
     }

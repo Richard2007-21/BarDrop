@@ -67,12 +67,8 @@ struct TearGoo: View, Animatable {
                             .fill(style: FillStyle(eoFill: true))
                     }
                     .opacity(1 - black)
-                ShelfGlass(cornerRadius: EdgeTear.cornerRadius)
-                    .padding(.horizontal, reach)
-                    .padding(.vertical, inset)
-                    .opacity(glass)
-                // Eigene dunkle Tönung über dem Glas: Liquid Glass passt seine Helligkeit dem
-                // Hintergrund und dem Fokus an und wurde sonst ohne Fokus deutlich heller
+                // Das Glas selbst liegt in einem Begleitfenster darunter (ShelfGlassWindow),
+                // hier nur die eigene dunkle Tönung darüber
                 bodyShape
                     .fill(Color.black.opacity(EdgeTear.glassDarken))
                     .opacity(glass)
@@ -222,50 +218,6 @@ struct TearBodyShape: Shape {
         let body = rect.insetBy(dx: reach, dy: inset)
         guard body.width > 0, body.height > 0 else { return Path() }
         return Path(roundedRect: body, cornerRadius: EdgeTear.cornerRadius, style: .continuous)
-    }
-}
-
-/// Glas hinter der losgelösten Ablage: ab macOS 26 Liquid Glass (mit der leichten Verzerrung
-/// an den Rändern), dunkel getönt, damit Schrift und Symbole gut lesbar bleiben. Davor eine
-/// dunkle Unschärfe des Hintergrunds.
-struct ShelfGlass: NSViewRepresentable {
-    var cornerRadius: CGFloat
-
-    func makeNSView(context: Context) -> NSView {
-        if #available(macOS 26.0, *) {
-            let glass = NSGlassEffectView()
-            glass.appearance = NSAppearance(named: .darkAqua)
-            glass.cornerRadius = cornerRadius
-            // Ohne Tönung des Systems: Mit ihr wurde das Glas ohne Fokus deutlich heller.
-            // Abgedunkelt wird darüber selbst (EdgeTear.glassDarken), unabhängig vom Fokus
-            glass.tintColor = nil
-            return glass
-        }
-        let blur = NSVisualEffectView()
-        blur.appearance = NSAppearance(named: .darkAqua)
-        blur.material = .hudWindow
-        blur.blendingMode = .behindWindow
-        blur.state = .active
-        blur.maskImage = Self.mask(cornerRadius)
-        return blur
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        if #available(macOS 26.0, *), let glass = view as? NSGlassEffectView {
-            glass.cornerRadius = cornerRadius
-        }
-    }
-
-    private static func mask(_ radius: CGFloat) -> NSImage {
-        let side = radius * 2 + 1
-        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
-            return true
-        }
-        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
-        image.resizingMode = .stretch
-        return image
     }
 }
 
