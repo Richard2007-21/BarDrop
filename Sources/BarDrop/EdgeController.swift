@@ -528,6 +528,7 @@ final class EdgeController: NSObject {
         guard new != old else { return }
         Diagnostics.shared.record("edge", "level \(old) → \(new) dragging=\(self.dragPasteboard.changeCount != self.dragBaseline) ownDrag=\(self.ui.ownDragActive) manual=\(self.logic.manualOpen) preview=\(self.previewUntil != nil ? String(describing: self.previewLevel) : "–") guide=\(self.guideActive ? String(describing: self.guideLevel) : "–") locked=\(self.ui.isLocked)")
         lastActivity = Date()
+        if new == .expanded { FramePacer.shared.start(on: panel, label: "open", duration: 0.6) }
         let style = settings.animationStyle
         // Kleine Stufen haben ihre eigene, elastische Bewegung; die Ablage selbst die gewählte
         let animation: Animation
@@ -1076,6 +1077,9 @@ final class TearDrag {
     var closeAfterDock = false
     /// Nur für die Diagnose (Befehl „tear“): Zeiger vorgegeben statt der echten Maus
     var pointer: NSPoint?
+    /// macOS selbst schiebt das Fenster mit dem Zeiger (performDrag): so flüssig wie beim
+    /// Ziehen eines Fensters an der Titelleiste
+    var systemDragging = false
 
     init(down: NSEvent?, start: NSPoint, origin: ScreenEdge, originScreen: NSScreen) {
         self.down = down
@@ -1123,6 +1127,7 @@ extension EdgeController {
             // Ein liegengebliebenes Drücken (Loslassen nicht gesehen) zählt nicht mehr
             if let drag = tearDrag, drag.phase == .pending {
                 if drag.pendingFromFloating { drag.phase = .floating } else { tearDrag = nil }
+                setGrabbing(false)
             }
             let p = NSEvent.mouseLocation
             if let drag = tearDrag {
@@ -1134,10 +1139,13 @@ extension EdgeController {
                 drag.down = event
                 drag.start = p
                 drag.grab = NSPoint(x: p.x - drag.body.minX, y: p.y - drag.body.minY)
+                // Der Griff wird schon beim Drücken hell
+                setGrabbing(true)
                 return nil
             }
             guard event.window === panel, let screen, canTear(at: p, event: event) else { return event }
             tearDrag = TearDrag(down: event, start: p, origin: settings.edge, originScreen: screen)
+            setGrabbing(true)
             return nil
         case .leftMouseDragged:
             guard let drag = tearDrag else { return event }
@@ -1148,8 +1156,16 @@ extension EdgeController {
                 if drag.pendingFromFloating { beginMoveFloating(drag) } else { beginTear(drag) }
                 updateTear(drag, fromTimer: false)
                 return nil
-            case .stretching, .free:
+            case .stretching:
                 updateTear(drag, fromTimer: false)
+                return nil
+            case .free:
+                if drag.springDone, drag.pointer == nil, !drag.systemDragging {
+                    // Ab hier schiebt macOS das Fenster selbst mit dem Zeiger, ohne Nachziehen
+                    systemDrag(drag, with: event)
+                } else if !drag.systemDragging {
+                    updateTear(drag, fromTimer: false)
+                }
                 return nil
             case .docking, .floating:
                 return event
@@ -1160,6 +1176,7 @@ extension EdgeController {
             case .pending:
                 // Nur geklickt: Drücken und Loslassen wie sonst ausliefern
                 if drag.pendingFromFloating { drag.phase = .floating } else { tearDrag = nil }
+                setGrabbing(false)
                 if let down = drag.down {
                     DispatchQueue.main.async { [weak self] in
                         self?.panel.sendEvent(down)
@@ -1268,6 +1285,8 @@ extension EdgeController {
         }
         switch drag.phase {
         case .stretching, .free:
+            // Schiebt macOS gerade selbst, nichts dazwischen tun
+            if drag.systemDragging { return }
             // Sicherheitsnetz: Taste los, ohne dass das Loslassen ankam
             if drag.pointer == nil, (NSEvent.pressedMouseButtons & 1) == 0 {
                 releaseTear(drag)
@@ -1343,7 +1362,7 @@ extension EdgeController {
                 // Gleich nach dem Lösen schnellt sie mit einer Feder zum Zeiger (leicht
                 // gedämpft, kaum Überschwingen), danach folgt sie ihm direkt
                 let dt: CGFloat = 1.0 / 60
-                let omega: CGFloat = 26, zeta: CGFloat = 0.82
+                let omega: CGFloat = 34, zeta: CGFloat = 0.85
                 let dx = target.minX - body.minX, dy = target.minY - body.minY
                 drag.velocity.dx += (omega * omega * dx - 2 * zeta * omega * drag.velocity.dx) * dt
                 drag.velocity.dy += (omega * omega * dy - 2 * zeta * omega * drag.velocity.dy) * dt
@@ -1356,33 +1375,65 @@ extension EdgeController {
                 }
             }
             drag.body = body
-            guard let near = nearestDock(for: body) else {
-                setTear(gap: 0, attach: drag.leftZone ? 0 : nil, side: ui.tear?.side ?? drag.origin)
-                applyTearFrame(body)
-                return
-            }
-            if near.distance >= EdgeTear.attachZone { drag.leftZone = true }
-            if drag.leftZone {
-                // Nah an einem Rand: Er wölbt sich ihr entgegen, mit derselben Bewegung wie
-                // beim Lösen, nur rückwärts
-                let inZone = near.distance < EdgeTear.attachZone
-                // Dezenter Impuls, wenn der Rand sie zu fassen bekommt (nicht beim Verlassen)
-                if inZone && !drag.inZone { Haptics.tap() }
-                drag.inZone = inZone
-                let attach = inZone ? 1 - near.distance / EdgeTear.attachZone : 0
-                setTear(gap: near.distance, attach: attach * 0.85, side: near.side)
-            } else {
-                // Gleich nach dem Lösen: Die Verbindung zum alten Rand zieht sich schnell zurück
-                let screen = drag.originScreen.frame
-                let gap = drag.origin == .right ? screen.maxX - body.maxX : body.minX - screen.minX
-                let t = min(1, Date().timeIntervalSince(drag.detachStarted) / 0.14)
-                let fade = CGFloat(1 - (1 - t) * (1 - t))
-                setTear(gap: gap, attach: drag.detachAttach * (1 - fade), side: drag.origin)
-            }
+            updateAttraction(drag)
             applyTearFrame(body)
         default:
             break
         }
+    }
+
+    /// Ränder in der Nähe der gezogenen Ablage: Der nächste wölbt sich ihr entgegen; gleich nach
+    /// dem Lösen zieht sich die Verbindung zum alten Rand zurück
+    private func updateAttraction(_ drag: TearDrag) {
+        let body = drag.body
+        guard let near = nearestDock(for: body) else {
+            setTear(gap: 0, attach: drag.leftZone ? 0 : nil, side: ui.tear?.side ?? drag.origin)
+            return
+        }
+        if near.distance >= EdgeTear.attachZone { drag.leftZone = true }
+        if drag.leftZone {
+            // Nah an einem Rand: Er wölbt sich ihr entgegen, mit derselben Bewegung wie
+            // beim Lösen, nur rückwärts
+            let inZone = near.distance < EdgeTear.attachZone
+            // Dezenter Impuls, wenn der Rand sie zu fassen bekommt (nicht beim Verlassen)
+            if inZone && !drag.inZone { Haptics.tap() }
+            drag.inZone = inZone
+            let attach = inZone ? 1 - near.distance / EdgeTear.attachZone : 0
+            setTear(gap: near.distance, attach: attach * 0.85, side: near.side)
+        } else {
+            // Gleich nach dem Lösen: Die Verbindung zum alten Rand zieht sich schnell zurück
+            let screen = drag.originScreen.frame
+            let gap = drag.origin == .right ? screen.maxX - body.maxX : body.minX - screen.minX
+            let t = min(1, Date().timeIntervalSince(drag.detachStarted) / 0.14)
+            let fade = CGFloat(1 - (1 - t) * (1 - t))
+            setTear(gap: gap, attach: drag.detachAttach * (1 - fade), side: drag.origin)
+        }
+    }
+
+    /// Das Fenster folgt dem Zeiger über macOS selbst (wie beim Ziehen an der Titelleiste).
+    /// Kehrt erst nach dem Loslassen zurück; währenddessen meldet das Fenster jede Bewegung.
+    private func systemDrag(_ drag: TearDrag, with event: NSEvent) {
+        drag.systemDragging = true
+        let observer = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification, object: panel, queue: nil
+        ) { [weak self, weak drag] _ in
+            guard let self, let drag, drag.systemDragging else { return }
+            let frame = self.panel.frame
+            drag.body = NSRect(x: frame.minX + EdgeTear.reach, y: frame.midY - drag.body.height / 2,
+                               width: drag.body.width, height: drag.body.height)
+            self.ui.expandedBody = drag.body
+            self.updateAttraction(drag)
+        }
+        FramePacer.shared.start(on: panel, label: "drag", duration: 30)
+        panel.performDrag(with: event)
+        FramePacer.shared.stop()
+        NotificationCenter.default.removeObserver(observer)
+        drag.systemDragging = false
+        let frame = panel.frame
+        drag.body = NSRect(x: frame.minX + EdgeTear.reach, y: frame.midY - drag.body.height / 2,
+                           width: drag.body.width, height: drag.body.height)
+        ui.expandedBody = drag.body
+        if drag.phase == .free { releaseTear(drag) }
     }
 
     private func detachTear(_ drag: TearDrag) {

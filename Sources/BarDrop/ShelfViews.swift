@@ -368,7 +368,7 @@ struct ShelfContent: View {
                 Capsule()
                     .fill(Color.white.opacity(ui.grabbing ? 0.85 : 0.28))
                     .frame(width: ui.grabbing ? 46 : 36, height: 5)
-                    .padding(.top, 6)
+                    .padding(.top, 9)
                     .opacity(ui.grabbing || ui.grabberHover ? 1 : 0)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
