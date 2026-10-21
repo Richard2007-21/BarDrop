@@ -24,6 +24,8 @@ final class SettingsFocusReturn {
     private var clickMonitor: Any?
     /// Die Einstellungen hatten eben noch den Fokus
     private var settingsWereKey = false
+    /// BarDrop war zuletzt die vorderste App (laut macOS, nicht nur Fokus in der Ablage)
+    private var ownAppFrontmost = AppActivation.isFrontmost
     /// Der Fokus ging an eine App ohne Fenster in der Menüleiste: deren Prozess und wann
     private var pending: (pid: pid_t, since: Date)?
     /// So lange darf das Menü offen gewesen sein, danach wird nichts mehr zurückgeholt
@@ -38,8 +40,7 @@ final class SettingsFocusReturn {
             // Nur, wenn man wirklich in den Einstellungen war (BarDrop vorderste App). Gab die
             // Ablage den Fokus ab, wurden die Einstellungen teils im Hintergrund Schlüsselfenster,
             // ohne dass man dort war; nach dem Kontrollzentrum sprangen sie dann ungefragt nach vorn
-            self.settingsWereKey = self.settingsWindow()?.isKeyWindow == true && AppActivation.isFrontmost
-            Diagnostics.shared.record("focus", "resign active settingsKey=\(self.settingsWindow()?.isKeyWindow == true) frontmost=\(AppActivation.isFrontmost)")
+            self.settingsWereKey = self.settingsWindow()?.isKeyWindow == true
         })
         observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
                                             queue: .main) { [weak self] _ in
@@ -63,6 +64,8 @@ final class SettingsFocusReturn {
     }
 
     private func activated(_ app: NSRunningApplication?) {
+        let wasFrontmost = ownAppFrontmost
+        ownAppFrontmost = app?.processIdentifier == ProcessInfo.processInfo.processIdentifier
         guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
         if app.activationPolicy != .regular {
             guard Self.menuBarServices.contains(app.bundleIdentifier ?? "") else {
@@ -71,8 +74,11 @@ final class SettingsFocusReturn {
                 pending = nil
                 return
             }
-            // Kontrollzentrum & Co.: merken, wenn die Einstellungen den Fokus hatten
-            if settingsWereKey, settingsWindow()?.isVisible == true {
+            // Kontrollzentrum & Co.: merken, wenn die Einstellungen den Fokus hatten. Nur, wenn
+            // BarDrop davor wirklich vorn war: Gab die Ablage den Fokus ab, wurden die
+            // Einstellungen teils im Hintergrund Schlüsselfenster, ohne dass man dort war, und
+            // sprangen nach dem Kontrollzentrum ungefragt nach vorn
+            if settingsWereKey, wasFrontmost, settingsWindow()?.isVisible == true {
                 pending = (app.processIdentifier, Date())
             }
             settingsWereKey = false
