@@ -1082,6 +1082,8 @@ final class TearDrag {
     /// macOS selbst schiebt das Fenster mit dem Zeiger (performDrag): so flüssig wie beim
     /// Ziehen eines Fensters an der Titelleiste
     var systemDragging = false
+    /// Meldet die Bewegungen des Fensters, solange macOS es schiebt
+    var moveObserver: NSObjectProtocol?
 
     init(down: NSEvent?, start: NSPoint, origin: ScreenEdge, originScreen: NSScreen) {
         self.down = down
@@ -1188,7 +1190,7 @@ extension EdgeController {
                 drag.down = nil
                 return nil
             case .stretching, .free:
-                releaseTear(drag)
+                if drag.systemDragging { finishSystemDrag(drag) } else { releaseTear(drag) }
                 return nil
             case .docking, .floating:
                 return event
@@ -1287,8 +1289,11 @@ extension EdgeController {
         }
         switch drag.phase {
         case .stretching, .free:
-            // Schiebt macOS gerade selbst, nichts dazwischen tun
-            if drag.systemDragging { return }
+            // Schiebt macOS gerade selbst, nichts dazwischen tun, bis die Taste los ist
+            if drag.systemDragging {
+                if (NSEvent.pressedMouseButtons & 1) == 0 { finishSystemDrag(drag) }
+                return
+            }
             // Sicherheitsnetz: Taste los, ohne dass das Loslassen ankam
             if drag.pointer == nil, (NSEvent.pressedMouseButtons & 1) == 0 {
                 releaseTear(drag)
@@ -1416,7 +1421,7 @@ extension EdgeController {
     /// Kehrt erst nach dem Loslassen zurück; währenddessen meldet das Fenster jede Bewegung.
     private func systemDrag(_ drag: TearDrag, with event: NSEvent) {
         drag.systemDragging = true
-        let observer = NotificationCenter.default.addObserver(
+        drag.moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: panel, queue: nil
         ) { [weak self, weak drag] _ in
             guard let self, let drag, drag.systemDragging else { return }
@@ -1428,8 +1433,22 @@ extension EdgeController {
         }
         FramePacer.shared.start(on: panel, label: "drag", duration: 30)
         panel.performDrag(with: event)
+        // performDrag kehrt je nach System sofort zurück und macOS schiebt das Fenster danach
+        // weiter, bis die Taste losgelassen wird. Erst dann ist das Ziehen vorbei (sonst fiel
+        // die Entscheidung Einrasten oder Schweben schon beim Anfassen).
+        if (NSEvent.pressedMouseButtons & 1) == 0 {
+            finishSystemDrag(drag)
+        } else {
+            startTearTimer()
+        }
+    }
+
+    /// Taste los nach dem Schieben durch macOS: Lage übernehmen, dann einrasten oder schweben
+    private func finishSystemDrag(_ drag: TearDrag) {
+        guard drag.systemDragging else { return }
         FramePacer.shared.stop()
-        NotificationCenter.default.removeObserver(observer)
+        if let observer = drag.moveObserver { NotificationCenter.default.removeObserver(observer) }
+        drag.moveObserver = nil
         drag.systemDragging = false
         let frame = panel.frame
         drag.body = NSRect(x: frame.minX + EdgeTear.reach, y: frame.midY - drag.body.height / 2,
@@ -1506,16 +1525,21 @@ extension EdgeController {
     }
 
     private func stepDock(_ drag: TearDrag) {
-        let duration: TimeInterval = 0.22
+        // Weich wie eine gedämpfte Feder ohne Überschwingen: zügig los, sanft ankommen
+        let duration: TimeInterval = 0.34
         let t = min(1, Date().timeIntervalSince(drag.dockStarted) / duration)
-        let e = CGFloat(1 - pow(1 - t, 3))
+        let w = 7.0
+        let spring = { (x: Double) in 1 - (1 + w * x) * exp(-w * x) }
+        let e = CGFloat(t >= 1 ? 1 : spring(t) / spring(1))
         let from = drag.dockFrom, to = drag.dockTo
         let body = NSRect(x: from.minX + (to.minX - from.minX) * e, y: from.minY + (to.minY - from.minY) * e,
                           width: to.width, height: to.height)
         drag.body = body
         if let screen = drag.dockScreen {
             let gap = drag.dockSide == .right ? screen.frame.maxX - body.maxX : body.minX - screen.frame.minX
-            setTear(gap: gap, attach: drag.dockAttach + (1 - drag.dockAttach) * e, side: drag.dockSide)
+            // Der Rand greift etwas früher nach ihr, als sie ankommt
+            let reach = min(1, e * 1.35)
+            setTear(gap: gap, attach: drag.dockAttach + (1 - drag.dockAttach) * reach, side: drag.dockSide)
         }
         applyTearFrame(body)
         if t >= 1 { finishDock(drag) }
@@ -1552,8 +1576,10 @@ extension EdgeController {
     /// Sofort zurück an den Rand, ohne Bewegung (Rand in den Einstellungen geändert,
     /// Einführung startet). Die Ablage bleibt dabei offen; was danach geschieht, regelt der Aufrufer.
     func endTearImmediately() {
-        guard tearDrag != nil else { return }
+        guard let drag = tearDrag else { return }
         stopTearTimer()
+        if let observer = drag.moveObserver { NotificationCenter.default.removeObserver(observer) }
+        if drag.systemDragging { FramePacer.shared.stop() }
         tearDrag = nil
         var transaction = Transaction()
         transaction.disablesAnimations = true
