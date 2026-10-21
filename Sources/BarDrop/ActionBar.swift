@@ -223,6 +223,15 @@ final class ActionDropNSView: NSView, NSDraggingSource {
 
     // MARK: Herausziehen (Quelle)
 
+    /// Über der Ablage: wo sie beim Start stand oder wo sie jetzt offen steht. Schließt sie
+    /// sich unterwegs und öffnet sich wieder, kann sie woanders stehen (Höhe am Zeiger);
+    /// dort losgelassen galt die Aktion sonst als herausgezogen und verschwand.
+    private func isOverShelf(_ screenPoint: NSPoint) -> Bool {
+        if dragStartFrame.contains(screenPoint) { return true }
+        guard let ui, ui.level == .expanded else { return false }
+        return ui.expandedBody.contains(screenPoint)
+    }
+
     func draggingSession(_ session: NSDraggingSession,
                          sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         .move
@@ -230,7 +239,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
 
     func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
         // Draußen verschwindet die Aktion beim Loslassen, drinnen gleitet sie zurück
-        let inside = dragStartFrame.contains(screenPoint)
+        let inside = isOverShelf(screenPoint)
         // Zurück in der Ablage: wieder verschieben wie vor dem Lösen
         if inside, mode == .detached, reorder(atScreen: screenPoint) {
             reorderedWhileDetached = true
@@ -259,7 +268,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
             NSCursor.arrow.set()
             showsPoof = false
         }
-        guard operation == [], !dragStartFrame.contains(screenPoint), let remove = dragOut?.remove else { return }
+        guard operation == [], !isOverShelf(screenPoint), let remove = dragOut?.remove else { return }
         // Ohne Staubwolke: Die Aktion verschwindet einfach, ihr Platz schließt sich. Klang wie
         // beim Herausziehen eines Symbols aus dem Dock
         Haptics.drop()
