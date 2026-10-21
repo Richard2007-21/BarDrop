@@ -528,14 +528,16 @@ enum MenuPresenter {
 /// darunter die Leiste mit Rasterpunkten.
 struct SliderRow: View {
     let title: String
+    var info: String?
     @Binding var value: Double
     let range: ClosedRange<Double>
     var step: Double = 0
     var format: (Double) -> String
 
-    init(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double = 0,
+    init(_ title: String, info: String? = nil, value: Binding<Double>, range: ClosedRange<Double>, step: Double = 0,
          format: @escaping (Double) -> String) {
         self.title = title
+        self.info = info
         self._value = value
         self.range = range
         self.step = step
@@ -545,7 +547,10 @@ struct SliderRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(title).font(.system(size: 13.5))
+                HStack(spacing: 6) {
+                    Text(title).font(.system(size: 13.5))
+                    if let info { InfoButton(info) }
+                }
                 Spacer()
                 Text(format(value))
                     .font(.system(size: 13, design: .monospaced))

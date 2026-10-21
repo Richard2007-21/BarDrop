@@ -86,8 +86,8 @@ struct KeyboardSettings: View {
     var body: some View {
         SettingsPage {
             SettingsSection(L("Show or hide the shelf", "Ablage ein- oder ausblenden"),
-                            info: L("Click a modifier key to turn it on or off. Click the key on the right, then press a new one.",
-                                    "Klick auf eine Sondertaste, um sie an- oder auszuschalten. Klick auf die Taste rechts und drück eine neue."),
+                            info: L("Click ⌃, ⌥, ⇧ or ⌘ to turn it on or off. For a different key, click the key on the right and press the new one.",
+                                    "Klick auf ⌃, ⌥, ⇧ oder ⌘, um sie an- oder auszuschalten. Für eine andere Taste klick rechts darauf und drück die neue."),
                             note: hotKeyStatus.available ? nil : L("Another app already uses this shortcut. Choose a different combination.",
                                                                    "Dieser Kurzbefehl ist schon von einer anderen App belegt. Wähl eine andere Kombination."),
                             noteColor: .red) {
@@ -125,7 +125,7 @@ struct KeyboardSettings: View {
                     ShortcutRow(L("Select all", "Alle auswählen"), ["⌘", "A"])
                     ShortcutRow(L("Move selection", "Auswahl bewegen"), ["←", "→", "↑", "↓"])
                     ShortcutRow(L("Extend selection", "Auswahl erweitern"), ["⇧", "←"])
-                    ShortcutRow(L("Back from a stack", "Zurück aus einem Stapel"), ["⌘", "↑"])
+                    ShortcutRow(L("Back from a stack or folder", "Zurück aus Stapel oder Ordner"), ["⌘", "↑"])
                     ShortcutRow(L("Move or remove an action", "Aktion verschieben oder entfernen"), ["⌘", L("Drag", "Ziehen")])
                     ShortcutRow(L("Clear selection, then close", "Auswahl aufheben, dann schließen"), ["esc"])
                 }
@@ -225,7 +225,10 @@ struct OpeningSettings: View {
                           options: HeightMode.allCases.map { ($0, $0.title) })
                 if settings.adaptivePosition {
                     // Wie viel vom Rand reagiert, mittig: ein kleines Stück bis der ganze Rand
-                    SliderRow(L("Area along the edge", "Bereich am Rand"), value: $settings.adaptiveZone,
+                    SliderRow(L("Area along the edge", "Bereich am Rand"),
+                              info: L("In this part of the edge, the shelf opens at the pointer.",
+                                      "In diesem Teil des Rands öffnet sich die Ablage am Zeiger."),
+                              value: $settings.adaptiveZone,
                               range: AppSettings.adaptiveZoneRange, step: AppSettings.adaptiveZoneStep,
                               format: SliderRow.percent)
                 } else {
@@ -251,8 +254,8 @@ struct OpeningSettings: View {
                 PickerRow(L("While dragging files", "Beim Ziehen von Dateien"), selection: $settings.dragReveal,
                           options: DragReveal.selectable.map { ($0, $0.title) }, menu: true)
                 ToggleRow(L("Open where you left off", "An letzter Stelle öffnen"),
-                          info: L("The shelf opens at the same scroll position and in the stack you were last in.",
-                                  "Die Ablage öffnet an derselben Scrollposition und in dem Stapel, in dem du zuletzt warst."),
+                          info: L("The shelf opens where you were last: at the same place in the list, in the same stack or folder.",
+                                  "Die Ablage öffnet dort, wo du zuletzt warst: an derselben Stelle in der Liste, im selben Stapel oder Ordner."),
                           isOn: $settings.reopenWhereLeft)
             }
 
@@ -479,22 +482,25 @@ struct ItemSettings: View {
             }
 
             SettingsSection(L("Storage", "Speichern"),
-                            info: L("Images from the web, text, links and files from browsers or other apps are always stored in BarDrop. WebP, AVIF and HEIC can be saved as PNG or JPEG.",
-                                    "Bilder aus dem Web, Texte, Links und Dateien aus Browsern oder anderen Apps werden immer in BarDrop gespeichert. WebP, AVIF und HEIC lassen sich als PNG oder JPEG speichern.")) {
+                            info: L("Images from the web, text, links and files from browsers or other apps are always stored in BarDrop.",
+                                    "Bilder aus dem Web, Texte, Links und Dateien aus Browsern oder anderen Apps werden immer in BarDrop gespeichert.")) {
                 PickerRow(L("Files from the Finder", "Dateien aus dem Finder"),
-                          info: L("Use original: The shelf points to your file, so you always get the latest version when you drag it out. Keep a copy: The shelf stores its own copy. It stays as it was when you dropped it, even if you change or delete the original.",
-                                  "Original verwenden: Die Ablage zeigt auf deine Datei. Beim Herausziehen bekommst du immer die aktuelle Fassung. Kopie behalten: Die Ablage speichert eine eigene Kopie. Sie bleibt so, wie sie beim Ablegen war, auch wenn du das Original änderst oder löschst."),
+                          info: L("Use original: The shelf remembers where the file is and always gives out the latest version. Keep a copy: The shelf makes its own copy, which stays as it was.",
+                                  "Original verwenden: Die Ablage merkt sich, wo die Datei liegt, und gibt immer die aktuelle Fassung heraus. Kopie behalten: Die Ablage legt eine eigene Kopie an, die so bleibt, wie sie war."),
                           selection: finderFiles,
                           options: FinderFiles.allCases.map { ($0, $0.title) },
                           menu: true)
-                ToggleRow(L("Save web images as PNG or JPEG", "Bilder aus dem Web als PNG oder JPEG speichern"), isOn: $settings.convertWebImages)
+                ToggleRow(L("Save compatibly", "Kompatibel speichern"),
+                          info: L("Images from the web in WebP, AVIF or HEIC format are saved as PNG or JPEG. Any app can open these formats.",
+                                  "Bilder aus dem Web im Format WebP, AVIF oder HEIC werden als PNG oder JPEG gespeichert. Diese Formate kann jede App öffnen."),
+                          isOn: $settings.convertWebImages)
                 ToggleRow(L("Add new screenshots", "Neue Bildschirmfotos hinzufügen"),
                           isOn: $settings.addScreenshots)
             }
 
             SettingsSection(L("Cleanup", "Aufräumen"),
-                            info: L("Removing an item (⌫) never deletes a file from the Finder. Copies, images, links and text that only exist in BarDrop are deleted 15 minutes after you drag them out, use them in an action or they’re removed automatically. Otherwise they’re deleted once removing them can no longer be undone with ⌘Z. Move to Trash (⌘⌫) puts files in the Trash; ⌘Z puts them back.",
-                                    "Entfernen (⌫) löscht nie eine Datei aus dem Finder. Kopien, Bilder, Links und Texte, die nur in BarDrop liegen, werden 15 Minuten nach dem Herausziehen, einer Aktion oder dem automatischen Entfernen gelöscht. Sonst werden sie gelöscht, sobald sich das Entfernen nicht mehr mit ⌘Z widerrufen lässt. „In den Papierkorb legen“ (⌘⌫) legt Dateien in den Papierkorb, ⌘Z legt sie zurück.")) {
+                            info: L("Removing (⌫) only takes items out of the shelf; files in the Finder stay. What only exists in BarDrop (copies, images, links, text) is deleted once ⌘Z can no longer bring it back, at the latest 15 minutes after dragging it out or using it in an action. ⌘⌫ moves files to the Trash; ⌘Z puts them back.",
+                                    "Entfernen (⌫) nimmt Objekte nur aus der Ablage, Dateien im Finder bleiben. Was nur in BarDrop liegt (Kopien, Bilder, Links, Texte), wird gelöscht, sobald ⌘Z es nicht mehr zurückholen kann, spätestens 15 Minuten nach dem Herausziehen oder einer Aktion. ⌘⌫ legt Dateien in den Papierkorb, ⌘Z legt sie zurück.")) {
                 PickerRow(L("Remove automatically", "Automatisch entfernen"), selection: autoRemove,
                           options: AutoRemoveOption.allCases.map { ($0, $0.title) })
             }
