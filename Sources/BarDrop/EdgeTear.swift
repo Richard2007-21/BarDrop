@@ -12,6 +12,8 @@ enum EdgeTear {
     static let reach: CGFloat = 140
     /// So weit (pt) muss man vom Rand weg ziehen, bis sich die Ablage löst
     static let tearDistance: CGFloat = 85
+    /// Zusätzliche dunkle Tönung über dem Glas der losgelösten Ablage
+    static let glassDarken: Double = 0.32
     /// Bis zu diesem Abstand zum Rand zieht er die Ablage wieder an
     static let attachZone: CGFloat = 70
     /// Dehnen bis zum Lösen: höchstens so weit (pt) folgt die Ablage, und so schnell wird es
@@ -43,7 +45,8 @@ struct TearGoo: View {
     var glass: Double = 0
 
     var body: some View {
-        let black = max(1 - glass, Double(max(0, min(1, tear.attach))))
+        let attach = Double(max(0, min(1, tear.attach)))
+        let black = max(1 - glass, attach)
         ZStack {
             if glass > 0.001 {
                 // Schatten nur außerhalb der Ablage: Unter dem Glas sähe man ihn sonst durch
@@ -62,14 +65,45 @@ struct TearGoo: View {
                     .padding(.horizontal, reach)
                     .padding(.vertical, inset)
                     .opacity(glass)
+                // Eigene dunkle Tönung über dem Glas: Liquid Glass passt seine Helligkeit dem
+                // Hintergrund und dem Fokus an und wurde sonst ohne Fokus deutlich heller
+                bodyShape
+                    .fill(Color.black.opacity(EdgeTear.glassDarken))
+                    .opacity(glass)
             }
-            solid.opacity(black)
+            if glass < 0.999 || attach > 0.001 {
+                // Das Schwarz zieht sich zum Rand hin zurück, als bliebe es dort hängen (beim
+                // Andocken kommt es von dort wieder)
+                solid.mask { darkness(attach: attach) }
+            }
             if outline {
                 outlineStroke
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// Wie schwarz die Ablage wo ist: an der Seite zum Rand zuletzt durchsichtig, in Randnähe
+    /// (Verbindung) überall schwarz
+    private func darkness(attach: Double) -> some View {
+        // Übergangskante wandert mit dem Glas von der fernen Seite zum Rand
+        let width = 0.45
+        let edge = (1 + width) * (1 - glass) - width
+        let stops: [Gradient.Stop] = (0...12).map { i in
+            let x = Double(i) / 12
+            let t = max(0, min(1, (x - edge) / width))
+            let sweep = 1 - t * t * (3 - 2 * t)
+            return Gradient.Stop(color: Color.black.opacity(max(sweep, attach)), location: x)
+        }
+        let fromLeft = tear.side == .left
+        // Verlauf über die Ablage selbst (links und rechts liegt im Fenster noch `reach`)
+        return GeometryReader { geo in
+            let w = max(1, geo.size.width)
+            let near = UnitPoint(x: fromLeft ? reach / w : 1 - reach / w, y: 0.5)
+            let far = UnitPoint(x: fromLeft ? 1 - reach / w : reach / w, y: 0.5)
+            LinearGradient(stops: stops, startPoint: near, endPoint: far)
+        }
     }
 
     /// Umriss der Ablage im Rahmen
@@ -192,7 +226,7 @@ struct ShelfGlass: NSViewRepresentable {
             let glass = NSGlassEffectView()
             glass.appearance = NSAppearance(named: .darkAqua)
             glass.cornerRadius = cornerRadius
-            glass.tintColor = NSColor.black.withAlphaComponent(0.45)
+            glass.tintColor = NSColor.black.withAlphaComponent(0.3)
             return glass
         }
         let blur = NSVisualEffectView()

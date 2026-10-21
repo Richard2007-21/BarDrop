@@ -1466,7 +1466,7 @@ extension EdgeController {
         let value: Double = on ? 1 : 0
         guard ui.tearGlass != value else { return }
         if animated {
-            withAnimation(.easeInOut(duration: on ? 0.4 : 0.3)) { ui.tearGlass = value }
+            withAnimation(.easeInOut(duration: on ? 0.6 : 0.3)) { ui.tearGlass = value }
         } else {
             var transaction = Transaction()
             transaction.disablesAnimations = true
