@@ -7,6 +7,18 @@ import UniformTypeIdentifiers
 /// Herausziehen von Dateien (auch mehrere auf einmal).
 final class DragSourceNSView: NSView, NSDraggingSource {
     var filesProvider: () -> [ShelfFile] = { [] }
+    /// Klickflächen (Bild, Name) in Kachelkoordinaten, oben links gemessen; leer: alles
+    var hitRects: [CGRect] = []
+
+    /// Wie im Finder: Klicks neben Bild und Namen gehen an die Fläche der Ablage darunter
+    /// (Auswahl aufheben, Auswahlrahmen)
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard !hitRects.isEmpty, let superview else { return super.hitTest(point) }
+        let local = convert(point, from: superview)
+        let topLeft = CGPoint(x: local.x, y: isFlipped ? local.y : bounds.height - local.y)
+        guard hitRects.contains(where: { $0.insetBy(dx: -2, dy: -2).contains(topLeft) }) else { return nil }
+        return super.hitTest(point)
+    }
     var onMouseDown: (NSEvent.ModifierFlags) -> Void = { _ in }
     var onClick: (Int, NSEvent.ModifierFlags) -> Void = { _, _ in }
     var onHover: (Bool) -> Void = { _ in }
@@ -349,6 +361,8 @@ final class DragSourceNSView: NSView, NSDraggingSource {
 struct DragSource: NSViewRepresentable {
     var ui: ShelfUIModel
     var files: () -> [ShelfFile]
+    /// Klickflächen in der Kachel (oben links gemessen); leer: die ganze Kachel
+    var hitRects: [CGRect] = []
     var onMouseDown: (NSEvent.ModifierFlags) -> Void = { _ in }
     var onClick: (Int, NSEvent.ModifierFlags) -> Void = { _, _ in }
     var onHover: (Bool) -> Void = { _ in }
@@ -387,6 +401,7 @@ struct DragSource: NSViewRepresentable {
         view.onOwnDrop = onOwnDrop
         view.onShelfDrop = onShelfDrop
         view.onShelfTargeted = onShelfTargeted
+        view.hitRects = hitRects
     }
 }
 

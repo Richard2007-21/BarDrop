@@ -1009,6 +1009,32 @@ enum TileMetrics {
     static let labelRadius: CGFloat = 4.5
 }
 
+/// Wie im Finder reagiert eine Kachel nur auf Klicks auf ihr Bild und ihren Namen, nicht im
+/// freien Raum daneben: die beiden Flächen, in der Kachel gemessen
+struct TileHitKey: PreferenceKey {
+    static var defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value += nextValue() }
+}
+
+extension View {
+    /// Diese Fläche zählt für Klicks auf die Kachel (siehe TileHitKey)
+    func reportsTileHitArea() -> some View {
+        background(GeometryReader { g in
+            Color.clear.preference(key: TileHitKey.self, value: [g.frame(in: .named(TileHitKey.space))])
+        })
+    }
+
+    /// Kachel mit Klickflächen: misst Bild und Namen und gibt sie an `update`
+    func tileHitAreas(_ update: @escaping ([CGRect]) -> Void) -> some View {
+        coordinateSpace(name: TileHitKey.space)
+            .onPreferenceChange(TileHitKey.self) { update($0) }
+    }
+}
+
+extension TileHitKey {
+    static let space = "tileHit"
+}
+
 struct TileLabel<Preview: View>: View {
     let title: String
     let isSelected: Bool
@@ -1035,6 +1061,7 @@ struct TileLabel<Preview: View>: View {
                     RoundedRectangle(cornerRadius: TileMetrics.boxRadius(iconSize), style: .continuous)
                         .fill(Color.white.opacity(isSelected || isDropTarget ? 0.14 : 0))
                 )
+                .reportsTileHitArea()
                 .scaleEffect(isDropTarget ? 1.06 : 1)
                 .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isDropTarget)
             Text(title)
@@ -1046,6 +1073,7 @@ struct TileLabel<Preview: View>: View {
                 .padding(.horizontal, TileMetrics.labelPadding)
                 .padding(.vertical, 1)
                 .background(RoundedRectangle(cornerRadius: TileMetrics.labelRadius, style: .continuous).fill(nameBackground))
+                .reportsTileHitArea()
                 .frame(maxWidth: TileMetrics.labelWidth(iconSize), minHeight: 30, alignment: .top)
         }
         .padding(.vertical, 6)
@@ -1063,6 +1091,9 @@ struct TileView: View {
     /// Als Wert übergeben, damit sich die Kachel beim Verstellen sofort neu zeichnet
     var iconSize: CGFloat = 64
 
+    /// Bild und Name in der Kachel: nur dort reagiert sie auf Klicks
+    @State private var hitRects: [CGRect] = []
+
     var body: some View {
         TileLabel(title: entry.title, isSelected: isSelected, isKey: ui.isKey || ui.level == .expanded, iconSize: iconSize) {
             if entry.isStack {
@@ -1071,10 +1102,12 @@ struct TileView: View {
                 ThumbnailView(url: file.url, size: iconSize)
             }
         }
+        .tileHitAreas { hitRects = $0 }
         .overlay(Group { if !shelfDemo {
             DragSource(
                 ui: ui,
                 files: { actions.dragFiles(for: entry) },
+                hitRects: hitRects,
                 onMouseDown: { mods in actions.select(entry, modifiers: mods) },
                 onClick: { clicks, mods in
                     actions.clickedWithoutDrag(entry, modifiers: mods)
@@ -1115,15 +1148,20 @@ struct StackMemberTile: View {
     let isSelected: Bool
     var iconSize: CGFloat = 64
 
+    /// Bild und Name in der Kachel: nur dort reagiert sie auf Klicks
+    @State private var hitRects: [CGRect] = []
+
     var body: some View {
         TileLabel(title: ShelfEntry.displayName(for: file.url), isSelected: isSelected, isKey: ui.isKey || ui.level == .expanded,
                   iconSize: iconSize) {
             ThumbnailView(url: file.url, size: iconSize)
         }
+        .tileHitAreas { hitRects = $0 }
         .overlay(Group { if !shelfDemo {
             DragSource(
                 ui: ui,
                 files: { actions.memberDragFiles(for: file) },
+                hitRects: hitRects,
                 onMouseDown: { mods in actions.selectMember(file, modifiers: mods) },
                 onClick: { clicks, mods in
                     actions.clickedMemberWithoutDrag(file, modifiers: mods)
