@@ -42,8 +42,6 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     private var showsPoof = false
 
     private enum DragMode { case none, inBar, detached }
-    /// Nach dem Lösen zurück in der Ablage und dort umgeordnet
-    private var reorderedWhileDetached = false
     private var mode: DragMode = .none
     /// Zuletzt verschoben: kurz nicht noch einmal, während die Leiste sich neu ordnet
     private static var reorderedAt = Date.distantPast
@@ -217,11 +215,30 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         // Wie beim Herausziehen von Objekten: Die Ablage bleibt, solange der Drag läuft
         ui?.ownDragActive = true
         let session = beginDraggingSession(with: [dragging], event: event, source: self)
-        // Die Wolke erst, wenn der Zeiger wirklich draußen ist (draggingSession movedTo)
-        session.animatesToStartingPositionsOnCancelOrFail = true
+        // Nicht von macOS zurückgleiten lassen: Das Bild flog an den alten Platz, erst danach
+        // erschien die Aktion dort, ruckartig. Zurück gleitet jetzt das Symbol selbst (endedAt)
+        session.animatesToStartingPositionsOnCancelOrFail = false
     }
 
     // MARK: Herausziehen (Quelle)
+
+    /// Über der Ablage losgelassen: Das Symbol erscheint genau dort, wo das Bild am Zeiger
+    /// hing, und gleitet in einem Zug an seinen Platz, wie beim Loslassen in der Leiste.
+    /// Ist die Leiste inzwischen neu aufgebaut, übernimmt das die Ansicht, die jetzt dort steht.
+    private func settle(at screenPoint: NSPoint) {
+        guard let me = actionID,
+              let live = Self.all.allObjects.first(where: {
+                  $0.actionID == me && $0.window is ShelfPanel && $0.window?.isVisible == true
+              }), let window = live.window else {
+            onDraggingOut(false)
+            return
+        }
+        live.follow(window.convertPoint(fromScreen: screenPoint))
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { onDraggingOut(false) }
+        DispatchQueue.main.async { live.onMove(nil) }
+    }
 
     /// Über der Ablage: wo sie beim Start stand oder wo sie jetzt offen steht. Schließt sie
     /// sich unterwegs und öffnet sich wieder, kann sie woanders stehen (Höhe am Zeiger);
@@ -241,12 +258,7 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         // Draußen verschwindet die Aktion beim Loslassen, drinnen gleitet sie zurück
         let inside = isOverShelf(screenPoint)
         // Zurück in der Ablage: wieder verschieben wie vor dem Lösen
-        if inside, mode == .detached, reorder(atScreen: screenPoint) {
-            reorderedWhileDetached = true
-        }
-        // Zurückgleiten nur an den alten Platz, solange er noch stimmt; nach einem Tausch
-        // erscheint die Aktion einfach an ihrem neuen Platz
-        session.animatesToStartingPositionsOnCancelOrFail = inside && !reorderedWhileDetached
+        if inside, mode == .detached { reorder(atScreen: screenPoint) }
         // Wie im Finder beim Herausziehen aus der Seitenleiste: Draußen zeigt der Zeiger die
         // Wolke mit dem x, drinnen wieder den normalen Zeiger
         if !inside {
@@ -260,15 +272,18 @@ final class ActionDropNSView: NSView, NSDraggingSource {
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         mode = .none
-        reorderedWhileDetached = false
         downEvent = nil
         ui?.ownDragActive = false
-        onDraggingOut(false)
         if showsPoof {
             NSCursor.arrow.set()
             showsPoof = false
         }
-        guard operation == [], !isOverShelf(screenPoint), let remove = dragOut?.remove else { return }
+        if isOverShelf(screenPoint) {
+            settle(at: screenPoint)
+            return
+        }
+        onDraggingOut(false)
+        guard operation == [], let remove = dragOut?.remove else { return }
         // Ohne Staubwolke: Die Aktion verschwindet einfach, ihr Platz schließt sich. Klang wie
         // beim Herausziehen eines Symbols aus dem Dock
         Haptics.drop()
