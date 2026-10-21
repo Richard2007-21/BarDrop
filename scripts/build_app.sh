@@ -7,6 +7,8 @@ cd "$(dirname "$0")/.."
 APP="BarDrop"
 VERSION="$(cat Resources/VERSION | tr -d '[:space:]')"
 BUILD_NUMBER="${GITHUB_RUN_NUMBER:-1}"
+# Commit, aus dem die App gebaut ist (in den Einstellungen bei Beta-Versionen zu sehen)
+COMMIT="$(git rev-parse --short=7 HEAD 2>/dev/null || echo unbekannt)"
 OUT="build"
 
 rm -rf "$OUT"
@@ -22,7 +24,8 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN_DIR/$APP" "$APP_DIR/Contents/MacOS/$APP"
 # macOS erwartet nur Zahlen (1.29.0); die volle Version mit „-beta.N“ steht in BarDropVersion
 SHORT="${VERSION%%-*}"
-sed -e "s/__VERSION__/$VERSION/g" -e "s/__SHORT__/$SHORT/g" -e "s/__BUILD__/$BUILD_NUMBER/g" Resources/Info.plist > "$APP_DIR/Contents/Info.plist"
+sed -e "s/__VERSION__/$VERSION/g" -e "s/__SHORT__/$SHORT/g" -e "s/__BUILD__/$BUILD_NUMBER/g" \
+    -e "s/__COMMIT__/$COMMIT/g" Resources/Info.plist > "$APP_DIR/Contents/Info.plist"
 printf "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 echo "==> Erzeuge App-Icon"

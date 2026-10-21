@@ -322,6 +322,13 @@ struct AboutSettings: View {
         Updater.shared.currentVersion
     }
 
+    /// Commit, aus dem die App gebaut ist (build_app.sh trägt ihn ein); nil ohne Angabe
+    static var commit: String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: "BarDropCommit") as? String,
+              !value.isEmpty, !value.hasPrefix("__") else { return nil }
+        return value
+    }
+
     /// „1.29.0-beta.2“ lesbar als „1.29.0 Beta 2“
     static func readable(_ version: String) -> String {
         version.replacingOccurrences(of: "-beta.", with: " Beta ")
@@ -364,6 +371,15 @@ struct AboutSettings: View {
                                 .lineLimit(1)
                                 .fixedSize()
                             ReleaseNotesButton()
+                        }
+                        // Bei Beta-Versionen: aus welchem Commit diese App gebaut ist
+                        if settings.betaUpdates, let commit = Self.commit {
+                            Text("Commit \(commit)")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                                .textSelection(.enabled)
+                                .lineLimit(1)
+                                .fixedSize()
                         }
                     }
                     Spacer(minLength: 0)

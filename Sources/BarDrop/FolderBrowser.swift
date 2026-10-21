@@ -19,6 +19,10 @@ final class FolderBrowser: ObservableObject {
     @Published private(set) var files: [ShelfFile] = []
     /// Wird noch gelesen (großer Ordner, Netzlaufwerk): noch nicht „leer“ zeigen
     @Published private(set) var isLoading = false
+    /// macOS lässt BarDrop den Ordner nicht lesen (Schreibtisch, Dokumente, Downloads, iCloud
+    /// Drive brauchen eine Erlaubnis). Vorher schloss sich die Ansicht dann still, und man sah
+    /// statt des Ordners die Ablage. Jetzt bleibt er offen und sagt, was fehlt.
+    @Published private(set) var accessDenied = false
 
     /// Der Ordner ist verschwunden (gelöscht, Laufwerk abgezogen): Ansicht schließen
     var onVanished: () -> Void = {}
@@ -88,6 +92,7 @@ final class FolderBrowser: ObservableObject {
         folder = nil
         files = []
         isLoading = false
+        accessDenied = false
     }
 
     /// Der Inhalt wurde seit dem Öffnen noch nicht gelesen: Er erscheint dann ohne
@@ -99,19 +104,55 @@ final class FolderBrowser: ObservableObject {
         folder = url
         files = []
         isLoading = true
+        accessDenied = false
         firstLoad = true
         watch(url)
         // Auf der eigenen Platte gleich lesen: Der Inhalt ist dann schon beim Überblenden
         // da, wie bei einem Stapel. Netzlaufwerke und Ähnliches im Hintergrund.
-        if Self.isLocal(url), let listed = Self.list(url) {
-            reloadWork?.cancel()
-            generation += 1
-            files = listed
-            isLoading = false
-            firstLoad = false
-            return
+        if Self.isLocal(url) {
+            switch Self.read(url) {
+            case .success(let listed):
+                reloadWork?.cancel()
+                generation += 1
+                files = listed
+                isLoading = false
+                firstLoad = false
+                Diagnostics.shared.record("folder", "open items=\(listed.count) local=true")
+                return
+            case .failure(let error) where Self.isDenied(error):
+                denied(error)
+                return
+            case .failure:
+                break
+            }
         }
         reload(after: 0)
+    }
+
+    private func denied(_ error: Error) {
+        reloadWork?.cancel()
+        generation += 1
+        files = []
+        isLoading = false
+        accessDenied = true
+        Diagnostics.shared.failure("folder", "Kein Zugriff auf den Ordner", error)
+    }
+
+    /// Keine Erlaubnis (nicht: Ordner fehlt)
+    static func isDenied(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain && ns.code == NSFileReadNoPermissionError { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError, underlying.domain == NSPOSIXErrorDomain {
+            return underlying.code == Int(EPERM) || underlying.code == Int(EACCES)
+        }
+        return ns.domain == NSPOSIXErrorDomain && (ns.code == Int(EPERM) || ns.code == Int(EACCES))
+    }
+
+    /// Die Systemeinstellungen bei „Dateien und Ordner“ öffnen, wo man BarDrop den Zugriff erlaubt
+    static func openPrivacySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private static func isLocal(_ url: URL) -> Bool {
@@ -131,11 +172,21 @@ final class FolderBrowser: ObservableObject {
         generation += 1
         let current = generation
         queue.async { [weak self] in
-            let listed = Self.list(folder)
+            let result = Self.read(folder)
             DispatchQueue.main.async {
                 guard let self, self.generation == current, self.folder == folder else { return }
                 self.isLoading = false
-                guard let listed else { return self.vanished() }
+                let listed: [ShelfFile]
+                switch result {
+                case .success(let files):
+                    listed = files
+                    if self.accessDenied { self.accessDenied = false }
+                case .failure(let error) where Self.isDenied(error):
+                    return self.denied(error)
+                case .failure(let error):
+                    Diagnostics.shared.failure("folder", "Ordner nicht lesbar, geschlossen", error)
+                    return self.vanished()
+                }
                 let first = self.firstLoad
                 self.firstLoad = false
                 guard listed != self.files else { return }
@@ -164,21 +215,31 @@ final class FolderBrowser: ObservableObject {
     /// Sichtbare Objekte des Ordners, neueste zuerst: wann sie in den Ordner kamen (wie
     /// „Hinzugefügt am“ im Finder), sonst erstellt bzw. geändert. nil: nicht lesbar.
     static func list(_ folder: URL) -> [ShelfFile]? {
+        try? read(folder).get()
+    }
+
+    /// Wie `list`, mit dem Grund, falls der Ordner nicht lesbar ist
+    static func read(_ folder: URL) -> Result<[ShelfFile], Error> {
         let keys: [URLResourceKey] = [.addedToDirectoryDateKey, .creationDateKey, .contentModificationDateKey]
-        guard let urls = try? FileManager.default.contentsOfDirectory(
-            at: folder, includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return nil }
+        let urls: [URL]
+        do {
+            urls = try FileManager.default.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: keys,
+                options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        } catch {
+            return .failure(error)
+        }
         let dated = urls.map { url -> (url: URL, date: Date) in
             let values = try? url.resourceValues(forKeys: Set(keys))
             return (url, values?.addedToDirectoryDate ?? values?.creationDate
                          ?? values?.contentModificationDate ?? .distantPast)
         }
-        return dated
+        return .success(dated
             .sorted { a, b in
                 if a.date != b.date { return a.date > b.date }
                 return a.url.lastPathComponent.localizedStandardCompare(b.url.lastPathComponent) == .orderedAscending
             }
-            .map { ShelfFile(listed: $0.url, id: id(for: $0.url)) }
+            .map { ShelfFile(listed: $0.url, id: id(for: $0.url)) })
     }
 
     /// Feste Kennung je Pfad: Auswahl und Kacheln bleiben beim Neulesen dieselben

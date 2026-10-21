@@ -634,7 +634,12 @@ struct ShelfContent: View {
 
     @ViewBuilder
     private func stackGrid(_ stack: ShelfEntry) -> some View {
-        if folderOpen && stack.files.isEmpty {
+        if folderOpen && folder.accessDenied {
+            // Keine Erlaubnis: sagen, was fehlt, statt still die Ablage zu zeigen
+            deniedFolder
+                .frame(maxWidth: .infinity)
+                .frame(height: max(0, viewportHeight - barHeight))
+        } else if folderOpen && stack.files.isEmpty {
             // Leerer Ordner: mittig, wie die leere Ablage; erst nach dem Lesen
             emptyFolder
                 .opacity(folder.isLoading ? 0 : 1)
@@ -643,6 +648,24 @@ struct ShelfContent: View {
                 .allowsHitTesting(false)
         } else {
             stackTiles(stack)
+        }
+    }
+
+    private var deniedFolder: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "lock")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.white.opacity(0.45))
+            Text(L("No access to this folder", "Kein Zugriff auf diesen Ordner"))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.6))
+            Text(L("Allow BarDrop under Files and Folders.", "Erlaube BarDrop den Zugriff unter „Dateien und Ordner“."))
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.45))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+            Button(L("Open Settings", "Einstellungen öffnen")) { FolderBrowser.openPrivacySettings() }
+                .controlSize(.small)
         }
     }
 
