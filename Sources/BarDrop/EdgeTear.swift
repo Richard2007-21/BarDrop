@@ -13,7 +13,7 @@ enum EdgeTear {
     /// So weit (pt) muss man vom Rand weg ziehen, bis sich die Ablage löst
     static let tearDistance: CGFloat = 85
     /// Zusätzliche dunkle Tönung über dem Glas der losgelösten Ablage
-    static let glassDarken: Double = 0.32
+    static let glassDarken: Double = 0.5
     /// Bis zu diesem Abstand zum Rand zieht er die Ablage wieder an
     static let attachZone: CGFloat = 70
     /// Dehnen bis zum Lösen: höchstens so weit (pt) folgt die Ablage, und so schnell wird es
@@ -32,7 +32,7 @@ enum EdgeTear {
 /// Die schwarze Form, solange die Ablage gezogen wird: Ablage, Verbindung und ein Stück
 /// Rand verschmelzen wie Flüssigkeit (Unschärfe, dann harte Schwelle). Je weiter die
 /// Ablage vom Rand weg ist, desto dünner die Verbindung, bis sie reißt.
-struct TearGoo: View {
+struct TearGoo: View, Animatable {
     let tear: ShelfUIModel.Tear
     /// Platz über und unter der Ablage im Rahmen (Rand-Übergänge)
     let inset: CGFloat
@@ -43,6 +43,13 @@ struct TearGoo: View {
     /// Losgelöst aus Glas (0 schwarz wie am Rand, 1 Glas). Je näher sie einem Rand kommt,
     /// desto schwärzer, damit sie beim Andocken nahtlos in die schwarze Ablage übergeht.
     var glass: Double = 0
+
+    /// Der Übergang zu Glas wird Bild für Bild berechnet (sonst sprang der Verlauf sofort ans
+    /// Ende, während das Glas erst einblendete: kurz war alles durchsichtig)
+    var animatableData: Double {
+        get { glass }
+        set { glass = newValue }
+    }
 
     var body: some View {
         let attach = Double(max(0, min(1, tear.attach)))
@@ -226,7 +233,9 @@ struct ShelfGlass: NSViewRepresentable {
             let glass = NSGlassEffectView()
             glass.appearance = NSAppearance(named: .darkAqua)
             glass.cornerRadius = cornerRadius
-            glass.tintColor = NSColor.black.withAlphaComponent(0.3)
+            // Ohne Tönung des Systems: Mit ihr wurde das Glas ohne Fokus deutlich heller.
+            // Abgedunkelt wird darüber selbst (EdgeTear.glassDarken), unabhängig vom Fokus
+            glass.tintColor = nil
             return glass
         }
         let blur = NSVisualEffectView()
