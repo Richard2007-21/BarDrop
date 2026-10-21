@@ -1084,6 +1084,8 @@ final class TearDrag {
     var systemDragging = false
     /// Meldet die Bewegungen des Fensters, solange macOS es schiebt
     var moveObserver: NSObjectProtocol?
+    /// Abstand zum Zeiger beim Lösen, der in kurzer Zeit auf null ausläuft
+    var catchUp: CGVector?
 
     init(down: NSEvent?, start: NSPoint, origin: ScreenEdge, originScreen: NSScreen) {
         self.down = down
@@ -1230,6 +1232,9 @@ extension EdgeController {
         tear.gap = (max(0, gap) * 2).rounded() / 2
         if let attach { tear.attach = (max(0, min(1, attach)) * 100).rounded() / 100 }
         tear.side = side
+        // Ohne Verbindung zum Rand spielt der Abstand keine Rolle: nicht bei jeder Bewegung
+        // neu zeichnen
+        if let old = ui.tear, tear.attach <= 0.01, old.attach <= 0.01 { tear.gap = old.gap }
         guard tear != ui.tear else { return }
         var transaction = Transaction()
         transaction.disablesAnimations = true
@@ -1365,18 +1370,17 @@ extension EdgeController {
             if drag.springDone {
                 // Folgt dem Zeiger direkt, bei jeder Bewegung sofort
                 body.origin = target.origin
-            } else if fromTimer {
-                // Gleich nach dem Lösen schnellt sie mit einer Feder zum Zeiger (leicht
-                // gedämpft, kaum Überschwingen), danach folgt sie ihm direkt
-                let dt: CGFloat = 1.0 / 60
-                let omega: CGFloat = 34, zeta: CGFloat = 0.85
-                let dx = target.minX - body.minX, dy = target.minY - body.minY
-                drag.velocity.dx += (omega * omega * dx - 2 * zeta * omega * drag.velocity.dx) * dt
-                drag.velocity.dy += (omega * omega * dy - 2 * zeta * omega * drag.velocity.dy) * dt
-                body.origin.x += drag.velocity.dx * dt
-                body.origin.y += drag.velocity.dy * dt
-                if hypot(target.minX - body.minX, target.minY - body.minY) < 0.5,
-                   hypot(drag.velocity.dx, drag.velocity.dy) < 30 {
+            } else {
+                // Gleich nach dem Lösen schnellt sie zum Zeiger: Sie folgt ihm sofort mit
+                // jeder Bewegung, nur der Abstand vom Lösen läuft in kurzer Zeit weich aus.
+                // (Eine Feder hinter dem Zeiger her kam bei laufender Bewegung nie an und
+                // zog ruckelnd nach.)
+                let offset = drag.catchUp ?? CGVector(dx: body.minX - target.minX, dy: body.minY - target.minY)
+                drag.catchUp = offset
+                let t = min(1, Date().timeIntervalSince(drag.detachStarted) / 0.14)
+                let k = CGFloat(pow(1 - t, 3))
+                body.origin = NSPoint(x: target.minX + offset.dx * k, y: target.minY + offset.dy * k)
+                if t >= 1 {
                     body.origin = target.origin
                     drag.springDone = true
                 }
@@ -1463,6 +1467,7 @@ extension EdgeController {
         drag.detachAttach = ui.tear?.attach ?? 0
         drag.velocity = .zero
         drag.springDone = false
+        drag.catchUp = nil
         // Spürbar wie ein Einrasten, wenn sich die Ablage vom Rand löst
         Haptics.tap()
         Diagnostics.shared.record("tear", "detach")
