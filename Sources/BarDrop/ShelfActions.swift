@@ -600,6 +600,9 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
                 NSSound.beep()
                 self.announce(L("Shortcut failed", "Kurzbefehl fehlgeschlagen"))
             case .done(let results, let folder):
+                // Wie bei den anderen Aktionen: Verwendetes verlässt die Ablage (außer
+                // „Nach dem Verwenden“ sagt behalten), es bleibt nur, was herauskam
+                self.finishAction(urls)
                 guard !results.isEmpty else {
                     if let folder { try? FileManager.default.removeItem(at: folder) }
                     self.announce(L("Done", "Fertig"))
