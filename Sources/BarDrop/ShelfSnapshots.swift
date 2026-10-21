@@ -63,3 +63,70 @@ enum ShelfSnapshots {
         try? FileManager.default.removeItem(at: directory)
     }
 }
+
+/// Diagnose (nur mit eingeschaltetem Diagnoseprotokoll): Schritte, die sonst nur mit der Maus
+/// gehen, aus einer Textdatei ausführen, damit sich ein Fehler genau gleich wiederholen lässt.
+/// Liegt ~/Library/Logs/BarDrop/Befehl.txt vor, wird sie gelesen, gelöscht und Zeile für
+/// Zeile ausgeführt: open, close, add <Pfad>, folder <Pfad>, back, move <von> <nach>,
+/// shot <Name>, wait <Sekunden>. Ohne Diagnoseprotokoll geschieht nichts.
+final class DiagnosticCommands {
+    private let controller: EdgeController
+    private var timer: Timer?
+    private let file = ShelfSnapshots.directory.deletingLastPathComponent()
+        .appendingPathComponent("Befehl.txt")
+
+    init(controller: EdgeController) {
+        self.controller = controller
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.poll() }
+    }
+
+    private func poll() {
+        guard Diagnostics.shared.isEnabled,
+              let text = try? String(contentsOf: file, encoding: .utf8) else { return }
+        try? FileManager.default.removeItem(at: file)
+        var delay: TimeInterval = 0
+        for line in text.split(whereSeparator: \.isNewline) {
+            let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1).map(String.init)
+            guard let command = parts.first else { continue }
+            let argument = parts.count > 1 ? parts[1] : ""
+            if command == "wait" {
+                delay += Double(argument) ?? 0
+                continue
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.run(command, argument) }
+        }
+    }
+
+    private func run(_ command: String, _ argument: String) {
+        Diagnostics.shared.record("cmd", command)
+        let actions = controller.actions
+        let panel = controller.panel
+        switch command {
+        case "open":
+            if controller.ui.level != .expanded { controller.toggle() }
+        case "close":
+            if controller.ui.level == .expanded { controller.close() }
+        case "add":
+            let pasteboard = NSPasteboard(name: NSPasteboard.Name("BarDrop.diagnose.\(UUID().uuidString)"))
+            pasteboard.clearContents()
+            pasteboard.writeObjects(argument.split(separator: "|").map { URL(fileURLWithPath: String($0)) as NSURL })
+            ShelfSnapshots.capture(panel, "add", after: [0.2, 0.6, 1.5, 3])
+            controller.store.ingest(from: pasteboard, byUser: true)
+        case "folder":
+            actions.openFolder(URL(fileURLWithPath: argument))
+        case "back":
+            actions.closeFolder()
+            ShelfSnapshots.capture(panel, "back", after: [0.1, 0.5, 1.5])
+        case "move":
+            let indices = argument.split(separator: " ").compactMap { Int($0) }
+            let list = controller.settings.quickActions
+            guard indices.count == 2, list.indices.contains(indices[0]), list.indices.contains(indices[1]) else { return }
+            controller.settings.moveQuickAction(list[indices[0]].id, to: list[indices[1]].id)
+            ShelfSnapshots.capture(panel, "move", after: [0.05, 0.2, 0.5])
+        case "shot":
+            ShelfSnapshots.capture(panel, argument.isEmpty ? "shot" : argument, after: [0])
+        default:
+            Diagnostics.shared.record("cmd", "unbekannt")
+        }
+    }
+}

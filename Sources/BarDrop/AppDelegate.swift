@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var store: ShelfStore!
     private var ui: ShelfUIModel!
     private var controller: EdgeController!
+    private var diagnosticCommands: DiagnosticCommands?
     private var hotKeyObserver: AnyCancellable?
     private var languageObserver: AnyCancellable?
     private var settingsWindow: NSWindow?
@@ -34,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ui = ShelfUIModel()
         controller = EdgeController(store: store, ui: ui, settings: settings)
         controller.actions.openSettings = { [weak self] in self?.showSettings() }
+        diagnosticCommands = DiagnosticCommands(controller: controller)
         controller.keepAppActive = { [weak self] in
             self?.settingsWindow?.isVisible == true || self?.onboarding?.isVisible == true
         }
