@@ -270,9 +270,12 @@ struct ShelfContent: View {
                         .overlay(alignment: .top) {
                             Color.clear.frame(height: 1).id(Self.topID).allowsHitTesting(false)
                         }
-                        // Ohne Fokus laufen Einblend-Animationen nicht zuverlässig weiter: neue
-                        // Kacheln dann sofort zeigen statt unsichtbar am Anfang der Animation
-                        .transaction { if !ui.isKey { $0.animation = nil } }
+                        // Im Scrollbereich nie animieren: Laut Bildaufnahmen blieben Animationen
+                        // dort am Anfang stehen, auch mit Fokus. Oben stand schon „Downloads“
+                        // bzw. die neue Anzahl, darunter aber noch das Alte (der Ordner kam
+                        // nie, das Bild aus dem Web erst beim nächsten Öffnen). Ohne Fokus
+                        // wurde schon bisher nicht animiert, darum kam es per Befehl nie vor.
+                        .transaction { $0.animation = nil }
                         .coordinateSpace(name: "grid")
                         // Wie weit gescrollt ist (Oberkante des Rasters im sichtbaren Bereich)
                         .background(GeometryReader { g in
