@@ -67,6 +67,8 @@ final class EdgeController: NSObject {
     var tearDrag: TearDrag?
     /// Begleitfenster mit dem Glas der losgelösten Ablage (erst bei Bedarf angelegt)
     var glassWindow: ShelfGlassWindow?
+    /// Letzte Prüfung, ob ein fremdes Fenster über der schwebenden Ablage liegt
+    var coverCheck: (time: Date, point: NSPoint, covered: Bool) = (.distantPast, .zero, false)
     var tearTimer: Timer?
     /// Der Rand wurde durch Andocken gewechselt: ohne Verschwinden und neu Erscheinen
     var dockingEdgeChange = false
@@ -1375,9 +1377,6 @@ extension EdgeController {
             // Auf den ersten Punkten geht die Form der angedockten Ablage in die verschmelzende über
             setTear(gap: gap, attach: 1 - 0.8 * pow(pull / EdgeTear.tearDistance, 1.4), side: drag.origin,
                     dock: 1 - pull / 14)
-            // Schon beim Dehnen wird sie zu Glas, das Schwarz bleibt zum Rand hin hängen
-            let t = max(0, min(1, (pull - 8) / (EdgeTear.tearDistance - 8)))
-            setGlassAmount(Double(t * t * (3 - 2 * t)) * 0.85)
             applyTearFrame(body)
         case .free:
             var target = NSRect(x: p.x - drag.grab.x, y: p.y - drag.grab.y,
@@ -1678,11 +1677,36 @@ extension EdgeController {
         Diagnostics.shared.record("tear", "ended")
     }
 
-    /// Oberstes Fenster an dieser Stelle gehört nicht zu BarDrop
+    /// Liegt an dieser Stelle ein sichtbares Fenster einer anderen App über der Ablage
+    /// (Kontrollzentrum, Menü)? Unsichtbare Fenster anderer Apps zählen nicht (die Ablage
+    /// war sonst gar nicht mehr bedienbar). Kurz zwischengespeichert, um nicht bei jedem
+    /// Takt das System zu fragen.
     private func coveredByOtherWindow(at point: NSPoint) -> Bool {
-        let top = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0)
-        guard top > 0 else { return false }
-        return NSApp.window(withWindowNumber: top) == nil
+        let now = Date()
+        if now.timeIntervalSince(coverCheck.time) < 0.15, hypot(point.x - coverCheck.point.x, point.y - coverCheck.point.y) < 4 {
+            return coverCheck.covered
+        }
+        var covered = false
+        let mainHeight = NSScreen.screens.first?.frame.maxY ?? 0
+        let cgPoint = CGPoint(x: point.x, y: mainHeight - point.y)
+        let own = ProcessInfo.processInfo.processIdentifier
+        if let list = CGWindowListCopyWindowInfo([.optionOnScreenAboveWindow, .excludeDesktopElements],
+                                                 CGWindowID(panel.windowNumber)) as? [[String: Any]] {
+            for info in list {
+                guard (info[kCGWindowOwnerPID as String] as? Int32) != own,
+                      (info[kCGWindowAlpha as String] as? Double ?? 0) > 0.05,
+                      let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
+                      let bounds = CGRect(dictionaryRepresentation: boundsDict),
+                      bounds.contains(cgPoint) else { continue }
+                // Riesige Fenster über allem (Bildschirmaufnahme, Overlays) nicht mitzählen
+                if let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }),
+                   bounds.width >= screen.frame.width - 1, bounds.height >= screen.frame.height - 40 { continue }
+                covered = true
+                break
+            }
+        }
+        coverCheck = (now, point, covered)
+        return covered
     }
 
     /// Schwebend: statt Rand und Takt nur Maus und Fokus über der Ablage
