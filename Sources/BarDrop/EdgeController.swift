@@ -1485,7 +1485,7 @@ extension EdgeController {
     /// Losgelöst wird sie zu Glas, beim Andocken wieder schwarz, jeweils weich
     /// Glas direkt aus der Bewegung (beim Dehnen), ohne eigene Animation
     private func setGlassAmount(_ value: Double) {
-        let rounded = (value * 50).rounded() / 50
+        let rounded = settings.detachedGlass ? (value * 50).rounded() / 50 : 0
         guard ui.tearGlass != rounded else { return }
         var transaction = Transaction()
         transaction.disablesAnimations = true
@@ -1512,7 +1512,7 @@ extension EdgeController {
     }
 
     private func setGlass(_ on: Bool, animated: Bool = true) {
-        let value: Double = on ? 1 : 0
+        let value: Double = on && settings.detachedGlass ? 1 : 0
         guard ui.tearGlass != value else { return }
         if animated {
             withAnimation(.easeOut(duration: 0.3)) { ui.tearGlass = value }
@@ -1678,6 +1678,13 @@ extension EdgeController {
         Diagnostics.shared.record("tear", "ended")
     }
 
+    /// Oberstes Fenster an dieser Stelle gehört nicht zu BarDrop
+    private func coveredByOtherWindow(at point: NSPoint) -> Bool {
+        let top = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0)
+        guard top > 0 else { return false }
+        return NSApp.window(withWindowNumber: top) == nil
+    }
+
     /// Schwebend: statt Rand und Takt nur Maus und Fokus über der Ablage
     func floatTick(_ drag: TearDrag) {
         let loc = NSEvent.mouseLocation
@@ -1696,7 +1703,9 @@ extension EdgeController {
         let body = drag.body
         ui.expandedBody = body
         let locked = ui.isLocked || actions.isQuickLookVisible
-        let inside = body.contains(loc)
+        // Liegt etwas anderes darüber (Kontrollzentrum, Menüs anderer Apps), ist der Zeiger
+        // nicht über der Ablage: sonst holte sie sich den Fokus und schloss das Kontrollzentrum
+        let inside = body.contains(loc) && !coveredByOtherWindow(at: loc)
         // Klicks neben der Ablage gehen durch an die Fenster darunter
         let accept = inside || locked
         if accept != acceptsMouse {

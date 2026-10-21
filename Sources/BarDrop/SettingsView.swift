@@ -314,6 +314,10 @@ struct AppearanceSettings: View {
             SettingsSection(L("Style", "Stil")) {
                 ToggleRow(L("Light outline", "Heller Rahmen"),
                           isOn: $settings.showOutline)
+                ToggleRow(L("Glass when detached", "Glas, wenn losgelöst"),
+                          info: L("A shelf pulled away from the edge is see-through like glass. Off: deep black like at the edge.",
+                                  "Vom Rand gelöst ist die Ablage durchscheinend wie Glas. Aus: tiefschwarz wie am Rand."),
+                          isOn: $settings.detachedGlass)
                 PickerRow(L("Animation", "Animation"),
                           // Nur wenn die Auswahl gesperrt ist, braucht es eine Erklärung
                           info: AnimationStyle.reduceMotion

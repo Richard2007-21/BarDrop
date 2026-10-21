@@ -44,6 +44,10 @@ final class ShelfGlassWindow: NSPanel {
     /// Glas an die Lage der Ablage im Fenster `parent` anpassen (`body` in dessen Koordinaten)
     func follow(_ parent: NSWindow, body: NSRect) {
         if level != parent.level { level = parent.level }
+        // Glas folgt dem hellen oder dunklen Erscheinungsbild des Systems (hell: heller)
+        let light = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
+        let look = NSAppearance(named: light ? .aqua : .darkAqua)
+        if appearance?.name != look?.name { appearance = look }
         if collectionBehavior != parent.collectionBehavior { collectionBehavior = parent.collectionBehavior }
         if frame != parent.frame { setFrame(parent.frame, display: false) }
         if glassView.frame != body { glassView.frame = body }

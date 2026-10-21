@@ -248,6 +248,7 @@ final class AppSettings: ObservableObject {
         static let hapticsEnabled = "hapticsEnabled"
         static let quickActions = "quickActions"
         static let showOutline = "showOutline"
+        static let detachedGlass = "detachedGlass"
         static let openDelay = "openDelay"
         static let language = "language"
         static let generousHitArea = "generousHitArea"
@@ -352,6 +353,8 @@ final class AppSettings: ObservableObject {
     @Published var autoUpdateCheck: Bool { didSet { defaults.set(autoUpdateCheck, forKey: Key.autoUpdateCheck) } }
     /// Feiner heller Rahmen um die schwarze Form (sichtbar auf dunklem Hintergrund).
     @Published var showOutline: Bool { didSet { defaults.set(showOutline, forKey: Key.showOutline) } }
+    /// Vom Rand gelöste Ablage aus Glas statt tiefschwarz (nur die losgelöste)
+    @Published var detachedGlass: Bool { didSet { defaults.set(detachedGlass, forKey: Key.detachedGlass) } }
     /// So lange (Sekunden) muss der Zeiger am Streifen bleiben, bis die Ablage aufgeht.
     @Published var openDelay: Double { didSet { defaults.set(openDelay, forKey: Key.openDelay) } }
 
@@ -526,6 +529,7 @@ final class AppSettings: ObservableObject {
             Key.copyAllFiles: false,
             Key.dragOutCopyOnly: false,
             Key.showOutline: true,
+            Key.detachedGlass: true,
             Key.openDelay: OpenDelay.quick,
             Key.language: AppLanguage.system.rawValue,
             Key.reopenWhereLeft: false,
@@ -609,6 +613,7 @@ final class AppSettings: ObservableObject {
             store.set(false, forKey: Key.showOutline)
         }
         showOutline = defaults.bool(forKey: Key.showOutline)
+        detachedGlass = defaults.bool(forKey: Key.detachedGlass)
         // Auf eine der wählbaren Wartezeiten runden (ältere Versionen hatten andere)
         let storedDelay = defaults.double(forKey: Key.openDelay)
         openDelay = OpenDelay.choices.min { abs($0 - storedDelay) < abs($1 - storedDelay) } ?? OpenDelay.quick
@@ -708,6 +713,7 @@ final class AppSettings: ObservableObject {
         showActionLabels = true
         labelsOnlyFolders = false
         showOutline = true
+        detachedGlass = true
         removeAfterDragOut = true
         stackMultiple = true
         stackThreshold = 2

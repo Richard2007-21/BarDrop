@@ -12,8 +12,9 @@ enum EdgeTear {
     static let reach: CGFloat = 140
     /// So weit (pt) muss man vom Rand weg ziehen, bis sich die Ablage löst
     static let tearDistance: CGFloat = 85
-    /// Zusätzliche dunkle Tönung über dem Glas der losgelösten Ablage
-    static let glassDarken: Double = 0.5
+    /// Zusätzliche dunkle Tönung über dem Glas der losgelösten Ablage: im hellen
+    /// Erscheinungsbild weniger (mittelgrau, weiße Schrift bleibt lesbar)
+    static func glassDarken(light: Bool) -> Double { light ? 0.3 : 0.5 }
     /// Bis zu diesem Abstand zum Rand zieht er die Ablage wieder an
     static let attachZone: CGFloat = 70
     /// Dehnen bis zum Lösen: höchstens so weit (pt) folgt die Ablage, und so schnell wird es
@@ -90,7 +91,7 @@ struct TearGoo: View, Animatable {
                 // Das Glas selbst liegt in einem Begleitfenster darunter (ShelfGlassWindow),
                 // hier nur die eigene dunkle Tönung darüber
                 bodyShape
-                    .fill(Color.black.opacity(EdgeTear.glassDarken))
+                    .fill(Color.black.opacity(EdgeTear.glassDarken(light: Self.systemIsLight)))
                     .opacity(glass)
             }
             // Überblendung zur angedockten Form: erst kommt sie dazu, dann geht die
@@ -152,6 +153,11 @@ struct TearGoo: View, Animatable {
             let far = UnitPoint(x: fromLeft ? 1 - reach / w : reach / w, y: 0.5)
             BeyondFrameShape().fill(LinearGradient(stops: stops, startPoint: near, endPoint: far))
         }
+    }
+
+    /// Helles Erscheinungsbild des Systems (die Ablage selbst zeichnet immer dunkel)
+    private static var systemIsLight: Bool {
+        NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
     }
 
     /// Nur die Kontur der angedockten Form, ohne Linie am Bildschirmrand (wie ihr Rahmen)
