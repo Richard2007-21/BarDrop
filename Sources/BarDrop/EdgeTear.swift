@@ -111,11 +111,12 @@ struct TearGoo: View, Animatable {
                     .opacity(dockIn)
             }
             if outline {
+                // Rahmen wechseln gegenläufig (sonst lagen kurz zwei Bögen übereinander)
                 Group {
                     outlineStroke
                     if attach > 0.01 { gooRim }
                 }
-                .opacity(1 - gooOut)
+                .opacity(1 - dockIn)
                 if dockIn > 0.001, let docked {
                     DockedSpan(base: Self.contour(docked), reach: reach, gap: tear.gap, side: tear.side)
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
