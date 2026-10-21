@@ -242,7 +242,7 @@ struct ShelfContent: View {
     /// Raster passend zur Symbolgröße (Spalten mindestens Symbol + 22 pt, höchstens + 40 pt)
     private var grid: TileGridLayout {
         let icon = CGFloat(settings.tileIconSize)
-        return TileGridLayout(minimum: icon + 22, maximum: icon + 40, spacing: 8, rowSpacing: 6)
+        return TileGridLayout(minimum: icon + 22, maximum: icon + 40, spacing: 8, rowSpacing: 4)
     }
 
     /// Geöffneter Stapel, solange er noch ein Stapel ist, oder der geöffnete Ordner
@@ -602,7 +602,7 @@ struct ShelfContent: View {
                 .allowsHitTesting(false)
                 .transition(Self.tileTransition)
         } else if store.entries.count > Self.lazyThreshold {
-            LazyVGrid(columns: lazyColumns, spacing: 6) { mainTileItems }
+            LazyVGrid(columns: lazyColumns, spacing: 4) { mainTileItems }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .transition(Self.tileTransition)
@@ -737,7 +737,7 @@ struct ShelfContent: View {
     @ViewBuilder
     private func stackTiles(_ stack: ShelfEntry) -> some View {
         if stack.files.count > Self.lazyThreshold {
-            LazyVGrid(columns: lazyColumns, spacing: 6) {
+            LazyVGrid(columns: lazyColumns, spacing: 4) {
                 stackTileItems(stack)
             }
             .padding(.horizontal, 12)
@@ -1074,9 +1074,10 @@ struct TileLabel<Preview: View>: View {
                 .padding(.vertical, 1)
                 .background(RoundedRectangle(cornerRadius: TileMetrics.labelRadius, style: .continuous).fill(nameBackground))
                 .reportsTileHitArea()
-                .frame(maxWidth: TileMetrics.labelWidth(iconSize), minHeight: 30, alignment: .top)
+                .frame(maxWidth: TileMetrics.labelWidth(iconSize), minHeight: 28, alignment: .top)
         }
-        .padding(.vertical, 6)
+        // Etwas dichter als früher (6/30/6 pt), näher am Finder: rund 122 statt 132 pt je Reihe
+        .padding(.vertical, 3)
         .frame(maxWidth: .infinity)
     }
 }
