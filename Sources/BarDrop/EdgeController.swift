@@ -62,6 +62,7 @@ final class EdgeController: NSObject {
     private var dragBaseline = NSPasteboard(name: .drag).changeCount
     private var monitors: [Any] = []
     private var layoutDirty = false
+    private var edgeObserver: AnyCancellable?
     private var settingsObserver: AnyCancellable?
     private var contentObserver: AnyCancellable?
     private var tileObserver: AnyCancellable?
@@ -169,6 +170,18 @@ final class EdgeController: NSObject {
         settingsObserver = settings.objectWillChange.sink { [weak self] _ in
             self?.layoutDirty = true
             DispatchQueue.main.async { self?.wake() }
+        }
+        // Rand gewechselt: sofort unsichtbar, noch bevor SwiftUI neu zeichnet. Sonst stand
+        // der Inhalt für ein Bild schon am neuen Rand, das Fenster aber noch am alten, und
+        // mitten auf dem Bildschirm blitzte ein Strich auf (Bildschirmaufnahme). Wieder
+        // sichtbar macht es der Umzug im Takt; zur Sicherheit spätestens nach einer Sekunde.
+        edgeObserver = settings.$edge.dropFirst().removeDuplicates().sink { [weak self] _ in
+            guard let self else { return }
+            self.panel.alphaValue = 0
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                guard let self, self.panel.alphaValue == 0 else { return }
+                self.panel.alphaValue = 1
+            }
         }
         // Neuer Inhalt, der erst später fertig wird (Bilder aus dem Web, große Dateien,
         // iCloud): Ohne Fokus zeichnet macOS das Fenster teils erst beim nächsten Öffnen

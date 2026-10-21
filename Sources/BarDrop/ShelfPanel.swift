@@ -329,6 +329,19 @@ final class ShelfHostingView<Content: View>: NSHostingView<Content> {
         dropHandler?.entered(sender) ?? []
     }
 
+    /// Rechtsklick, der bis hierher durchfällt: Gleich nach dem Öffnen sind die Flächen mit
+    /// den Menüs noch nicht an ihrem Platz (laut Protokoll ging der Klick 0,3 s nach dem
+    /// Öffnen an diese Ansicht selbst), und es kam gar kein Menü. Dann das Menü der Ablage.
+    override func rightMouseDown(with event: NSEvent) {
+        guard let actions = dropHandler?.actions, actions.ui.level == .expanded else {
+            super.rightMouseDown(with: event)
+            return
+        }
+        actions.ui.menuOpen = true
+        ShelfMenu.popUp(actions.backgroundMenu(), with: event, for: self)
+        actions.ui.menuOpen = false
+    }
+
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         dropHandler?.updated(sender) ?? []
     }
