@@ -1034,6 +1034,8 @@ final class TearDrag {
     /// Lösen: Die Verbindung zum Rand zieht sich in diesem Moment zurück
     var detachStarted = Date()
     var detachAttach: CGFloat = 0
+    /// Nur für die Diagnose (Befehl „tear“): Zeiger vorgegeben statt der echten Maus
+    var pointer: NSPoint?
 
     init(down: NSEvent, start: NSPoint, origin: ScreenEdge, originScreen: NSScreen) {
         self.down = down
@@ -1156,7 +1158,7 @@ extension EdgeController {
         switch drag.phase {
         case .stretching, .free:
             // Sicherheitsnetz: Taste los, ohne dass das Loslassen ankam
-            if (NSEvent.pressedMouseButtons & 1) == 0 {
+            if drag.pointer == nil, (NSEvent.pressedMouseButtons & 1) == 0 {
                 releaseTear(drag)
             } else {
                 updateTear(drag)
@@ -1195,7 +1197,7 @@ extension EdgeController {
     }
 
     private func updateTear(_ drag: TearDrag) {
-        let p = NSEvent.mouseLocation
+        let p = drag.pointer ?? NSEvent.mouseLocation
         switch drag.phase {
         case .stretching:
             // Erst dehnt sich die Ablage am Rand, wie ein Tropfen, der noch hängt
@@ -1338,5 +1340,38 @@ extension EdgeController {
         logic.outsideSince = nil
         lastActivity = Date()
         wake()
+    }
+}
+
+// MARK: Diagnose: Ziehen ohne Maus
+
+extension EdgeController {
+    /// Befehl „tear“ (nur Diagnose): Die offene Ablage wird wie mit der Maus an der Kopfzeile
+    /// gezogen, entlang `points` (Abstand vom Startpunkt in pt, je 1/60 s), dann losgelassen.
+    /// Dazu Bilder des Fensters, um Form und Lage prüfen zu können.
+    func simulateTear(path points: [NSPoint], shots: Set<Int>) {
+        guard tearDrag == nil, ui.level == .expanded, let screen,
+              let down = NSEvent.mouseEvent(with: .leftMouseDown, location: .zero, modifierFlags: [],
+                                            timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: panel.windowNumber, context: nil,
+                                            eventNumber: 0, clickCount: 1, pressure: 1) else { return }
+        let body = ui.expandedBody
+        let start = NSPoint(x: body.midX, y: body.maxY - expandedFillet - EdgeTear.headerHeight / 2)
+        let drag = TearDrag(down: down, start: start, origin: settings.edge, originScreen: screen)
+        drag.pointer = start
+        tearDrag = drag
+        for (index, offset) in points.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) / 60) { [weak self] in
+                guard let self, self.tearDrag === drag else { return }
+                drag.pointer = NSPoint(x: start.x + offset.x, y: start.y + offset.y)
+                if drag.phase == .pending { self.beginTear(drag) }
+                if drag.phase == .stretching || drag.phase == .free { self.updateTear(drag) }
+                if shots.contains(index) { ShelfSnapshots.capture(self.panel, "tear\(index)", after: [0]) }
+                if index == points.count - 1 {
+                    self.releaseTear(drag)
+                    ShelfSnapshots.capture(self.panel, "dock", after: [0.1, 0.2, 0.5])
+                }
+            }
+        }
     }
 }

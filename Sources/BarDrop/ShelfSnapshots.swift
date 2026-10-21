@@ -178,6 +178,13 @@ final class DiagnosticCommands {
             ShelfSnapshots.capture(panel, "move", after: [0.05, 0.2, 0.5])
         case "shot":
             ShelfSnapshots.capture(panel, argument.isEmpty ? "shot" : argument, after: [0])
+        case "tear":
+            // tear <Richtung in pt> <Schritte>: geradlinig weg vom Rand (negativ: zum anderen Rand)
+            let values = argument.split(separator: " ").compactMap { Double($0) }
+            let total = values.first ?? 300, steps = Int(values.count > 1 ? values[1] : 40)
+            let away: CGFloat = controller.settings.edge == .right ? -1 : 1
+            let points = (0...steps).map { NSPoint(x: away * CGFloat(total) * CGFloat($0) / CGFloat(steps), y: 0) }
+            controller.simulateTear(path: points, shots: Set(stride(from: 0, through: steps, by: max(1, steps / 10))))
         case "intro-shot":
             // Fenster der Einführung (nur BarDrops eigenes Fenster, keine Bildschirmaufnahme)
             ShelfSnapshots.capture(NSApp.windows.first { $0 is IntroWindow }, argument.isEmpty ? "intro" : argument, after: [0])
