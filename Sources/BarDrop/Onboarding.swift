@@ -37,7 +37,7 @@ final class OnboardingModel: ObservableObject {
         self.settings = settings
         self.sampleURL = sampleURL
         isRerun = settings.didLaunchBefore
-        launchAtLogin = settings.didLaunchBefore ? SMAppService.mainApp.status == .enabled : true
+        launchAtLogin = settings.didLaunchBefore ? LoginItem.isOn : true
     }
 
     enum LoginItemChange: Equatable { case register, unregister }

@@ -5,9 +5,20 @@ import UniformTypeIdentifiers
 
 // MARK: Allgemein
 
+/// „Beim Anmelden öffnen“: Auch eine Anmeldung, die macOS erst noch bestätigt haben will,
+/// gilt als eingeschaltet. Sonst stand der Schalter aus, obwohl BarDrop angemeldet war.
+enum LoginItem {
+    static var isOn: Bool {
+        let status = SMAppService.mainApp.status
+        return status == .enabled || status == .requiresApproval
+    }
+    static var needsApproval: Bool { SMAppService.mainApp.status == .requiresApproval }
+}
+
 struct GeneralSettings: View {
     @ObservedObject var settings: AppSettings
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin = LoginItem.isOn
+    @State private var needsApproval = LoginItem.needsApproval
     @State private var loginError: String?
 
     var body: some View {
@@ -15,6 +26,12 @@ struct GeneralSettings: View {
             // Start, Sprache und Impuls in einer Karte: je eine Zeile, eigene Abschnitte lohnen nicht
             SettingsSection(note: loginError, noteColor: .red) {
                 ToggleRow(L("Open at login", "Beim Anmelden öffnen"), isOn: $launchAtLogin)
+                if launchAtLogin && needsApproval {
+                    SettingsRow(L("macOS still needs your OK", "macOS wartet auf deine Bestätigung")) {
+                        Button(L("Open", "Öffnen")) { SMAppService.openSystemSettingsLoginItems() }
+                            .buttonStyle(KlackButtonStyle())
+                    }
+                }
                 PickerRow(L("Language", "Sprache"), selection: $settings.language,
                           options: AppLanguage.allCases.map { ($0, $0.title) })
                 ToggleRow(L("Haptic feedback", "Haptisches Feedback"),
@@ -28,8 +45,10 @@ struct GeneralSettings: View {
                 } catch {
                     loginError = L("Not possible. Is BarDrop in the Applications folder?",
                                    "Nicht möglich. Liegt BarDrop im Ordner „Programme“?")
-                    launchAtLogin = SMAppService.mainApp.status == .enabled
+                    Diagnostics.shared.failure("login", "Beim Anmelden öffnen nicht umgestellt", error)
+                    launchAtLogin = LoginItem.isOn
                 }
+                needsApproval = LoginItem.needsApproval
             }
 
             SettingsSection(L("Reset", "Zurücksetzen")) {

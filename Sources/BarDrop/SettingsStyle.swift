@@ -360,8 +360,12 @@ struct SegmentedValue<Value: Hashable>: View {
     let options: [(Value, String)]
     @Environment(\.isEnabled) private var isEnabled
     @State private var frames: [Int: CGRect] = [:]
+    /// Gerade angeklickt: Der Knopf zeigt die Wahl sofort, auch wenn das Übernehmen erst
+    /// einen Moment später ankommt
+    @State private var chosen: Value?
 
-    private var selectedIndex: Int? { options.firstIndex { $0.0 == selection } }
+    private var shown: Value { chosen ?? selection }
+    private var selectedIndex: Int? { options.firstIndex { $0.0 == shown } }
     private static var space: String { "segmented" }
 
     var body: some View {
@@ -371,8 +375,16 @@ struct SegmentedValue<Value: Hashable>: View {
                 Button {
                     guard !selected else { return }
                     // Kein eigener Impuls: Der Klick auf dem Trackpad ist schon einer,
-                    // zusammen fühlte es sich doppelt an
-                    selection = option.0
+                    // zusammen fühlte es sich doppelt an.
+                    // Erst die Markierung, dann (im nächsten Durchlauf) die Einstellung: In der
+                    // Einführung zog beim Wechsel des Rands die ganze Ablage um, und die
+                    // Markierung blieb stehen, bis man ein zweites Mal klickte
+                    chosen = option.0
+                    let value = option.0
+                    DispatchQueue.main.async {
+                        selection = value
+                        chosen = nil
+                    }
                 } label: {
                     ZStack {
                         // Platz für die fette Schrift, damit die Breite gleich bleibt

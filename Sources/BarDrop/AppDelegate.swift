@@ -87,7 +87,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !settings.didLaunchBefore {
             // „Beim Anmelden öffnen“ ist Standard: gleich beim ersten Start anmelden
             // (in der Einführung und in den Einstellungen lässt es sich ausschalten)
-            if SMAppService.mainApp.status != .enabled { try? SMAppService.mainApp.register() }
+            if SMAppService.mainApp.status != .enabled {
+                do { try SMAppService.mainApp.register() } catch {
+                    Diagnostics.shared.failure("login", "Anmelden beim ersten Start nicht möglich", error)
+                }
+            }
+            Diagnostics.shared.record("login", "first launch status=\(SMAppService.mainApp.status.rawValue)")
             DispatchQueue.main.async { [weak self] in self?.showOnboarding() }
         } else if !Updater.launchedAfterUpdate {
             // Nach einem stillen Update nicht zeigen: Davon soll man nichts merken
