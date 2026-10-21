@@ -151,7 +151,6 @@ struct TearGoo: View, Animatable {
             // etwas voraus, oben und unten etwas später, die Ecken zuletzt (beim Lösen
             // umgekehrt). Gezeichnet in waagrechten Streifen, je mit eigenem Verlauf, danach
             // weichgezeichnet, damit keine Stufen zu sehen sind.
-            context.addFilter(.blur(radius: 8))
             let fromEdge: (CGFloat) -> CGPoint = { x in
                 CGPoint(x: fromLeft ? body.minX + x : body.maxX - x, y: 0)
             }
@@ -161,11 +160,15 @@ struct TearGoo: View, Animatable {
             let front = travel * (1 - glass) - softness
             // Verbindung zum Rand: an der Randseite so dunkel wie die Verbindung, weich auslaufend
             let link = min(1, attach * 1.4)
-            let rows = 28
-            let top = -beyond, bottom = size.height + beyond
+            // Streifen von 4 pt auf ganzen Punkten, ohne Überlappung und ohne Kantenglättung:
+            // Überlappende Ränder wurden doppelt dunkel und zeigten sich als Streifen
+            let rowHeight: CGFloat = 4
+            let rows = Int((size.height / rowHeight).rounded(.up))
+            context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 6))
             for row in 0..<rows {
-                let y0 = top + (bottom - top) * CGFloat(row) / CGFloat(rows)
-                let y1 = top + (bottom - top) * CGFloat(row + 1) / CGFloat(rows)
+                let y0 = CGFloat(row) * rowHeight
+                let y1 = y0 + rowHeight
                 let mid = (y0 + y1) / 2
                 let yn = max(-1.2, min(1.2, Double((mid - body.midY) / (body.height / 2))))
                 // In dieser Höhe liegt die Front um `lag` weiter zur Randseite
@@ -179,10 +182,12 @@ struct TearGoo: View, Animatable {
                     return Gradient.Stop(color: Color.black.opacity(max(wave, band)), location: Double(k) / 10)
                 }
                 let start = fromEdge(0), end = fromEdge(body.width * 1.2)
-                context.fill(Path(CGRect(x: 0, y: y0, width: size.width, height: y1 - y0 + 0.5)),
-                             with: .linearGradient(Gradient(stops: stops),
-                                                   startPoint: CGPoint(x: start.x, y: mid),
-                                                   endPoint: CGPoint(x: end.x, y: mid)))
+                layer.fill(Path(CGRect(x: 0, y: y0, width: size.width, height: rowHeight)),
+                           with: .linearGradient(Gradient(stops: stops),
+                                                 startPoint: CGPoint(x: start.x, y: mid),
+                                                 endPoint: CGPoint(x: end.x, y: mid)),
+                           style: FillStyle(antialiased: false))
+            }
             }
         }
         .padding(-beyond)
