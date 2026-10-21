@@ -624,7 +624,7 @@ struct ShelfContent: View {
     @ViewBuilder
     private var pendingTiles: some View {
         ForEach(0..<max(store.pendingImports, 0), id: \.self) { _ in
-            TileLabel(title: L("Importing", "Wird übernommen"), isSelected: false, isKey: false) {
+            TileLabel(title: L("Importing", "Importieren"), isSelected: false, isKey: false) {
                 ProgressView()
                     .controlSize(.small)
             }

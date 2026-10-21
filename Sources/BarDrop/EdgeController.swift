@@ -103,6 +103,8 @@ final class EdgeController: NSObject {
     private var pointerInside = false
     /// Die Übersicht war im letzten Takt offen
     private var quickLookWasVisible = false
+    /// Objekte, deren Vorschaubild schon geladen wird oder beim Start da waren
+    private var knownFileIDs: Set<UUID>?
 
     /// Dauer der Schließanimation; erst danach darf das Fenster den Bildschirm wechseln.
     private let collapseDuration: TimeInterval = 0.35
@@ -174,7 +176,18 @@ final class EdgeController: NSObject {
             .merge(with: store.$pendingImports.map { _ in () })
             .merge(with: actions.plugins.$jobs.map { _ in () })
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] in self?.refreshContent() }
+            .sink { [weak self] in
+                guard let self else { return }
+                // Vorschaubilder neu dazugekommener Objekte gleich laden (siehe
+                // Thumbnails.prefetch); was beim Start schon da war, lädt wie bisher beim Öffnen
+                let files = self.store.entries.flatMap(\.files)
+                if let known = self.knownFileIDs {
+                    Thumbnails.prefetch(files.filter { !known.contains($0.id) }.map(\.url),
+                                        size: CGFloat(self.settings.tileIconSize))
+                }
+                self.knownFileIDs = Set(files.map(\.id))
+                self.refreshContent()
+            }
         // Dasselbe für Änderungen innerhalb der Kacheln, die später kommen als der Eintrag
         // selbst: Eine neue Kachel zeigt ihr Bild erst, wenn das Vorschaubild da ist (bzw.
         // nach einem kurzen Moment). Ohne Neuzeichnen bliebe sie bis zum nächsten Öffnen leer.

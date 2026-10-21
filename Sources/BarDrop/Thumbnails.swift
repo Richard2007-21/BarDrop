@@ -162,6 +162,7 @@ enum Thumbnails {
                     // Das scharfe Bild ersetzt das schnelle; umgekehrt nie
                     if type == .thumbnail || cache.object(forKey: k as NSString) == nil {
                         cache.setObject(image, forKey: k as NSString)
+                        ThumbnailEvents.shared.changed()
                     }
                     if type == .thumbnail { sharp.insert(k) }
                 }
@@ -170,6 +171,28 @@ enum Thumbnails {
                       let waiting = pending.removeValue(forKey: k) else { return }
                 waiting.forEach { $0(type == .icon ? nil : image) }
             }
+        }
+    }
+
+    /// Vorschaubilder neu abgelegter Dateien gleich laden, nicht erst, wenn ihre Kachel
+    /// erscheint. Laut Diagnoseprotokoll startete SwiftUI das Laden in der offenen Ablage
+    /// nicht, solange eine andere App vorn war: Ein Bild aus dem Web blieb unsichtbar, bis
+    /// die Ablage schloss. Frische Dateien liefern zuerst oft nur ein Symbol: dann noch
+    /// zweimal nachsehen.
+    private static var prefetched = Set<String>()
+
+    static func prefetch(_ urls: [URL], size: CGFloat) {
+        for url in urls {
+            let k = key(url, size: size)
+            guard !prefetched.contains(k), cache.object(forKey: k as NSString) == nil else { continue }
+            prefetched.insert(k)
+            func attempt(_ left: Int) {
+                load(url, size: size) { image in
+                    guard image == nil, left > 0, !isUnavailable(k) else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { attempt(left - 1) }
+                }
+            }
+            attempt(2)
         }
     }
 
@@ -183,9 +206,30 @@ enum Thumbnails {
     }
 }
 
+/// Meldet neue Vorschaubilder an die Kacheln: Sie zeigen ein Bild aus dem Zwischenspeicher,
+/// sobald es da ist, auch wenn ihr eigenes Laden (noch) nicht gestartet ist
+final class ThumbnailEvents: ObservableObject {
+    static let shared = ThumbnailEvents()
+    @Published private(set) var revision = 0
+    private var scheduled = false
+
+    /// Viele Bilder auf einmal (großer Ordner): höchstens alle 30 ms neu zeichnen
+    func changed() {
+        guard !scheduled else { return }
+        scheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+            guard let self else { return }
+            self.scheduled = false
+            self.revision &+= 1
+            NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
+        }
+    }
+}
+
 struct ThumbnailView: View {
     let url: URL
     let size: CGFloat
+    @ObservedObject private var events = ThumbnailEvents.shared
     @State private var image: NSImage?
     /// Echte Vorschau (Bild, PDF, Video …) statt Symbol: bekommt runde Ecken wie im Finder.
     /// Wird beim Laden gemerkt statt beim Zeichnen geprüft (das kostet Dateizugriffe).
@@ -204,14 +248,17 @@ struct ThumbnailView: View {
     }
 
     var body: some View {
-        Image(nsImage: image ?? Thumbnails.icon(url))
+        // Schon im Zwischenspeicher (vorab geladen), auch wenn das eigene Laden noch nicht lief
+        let shown = image ?? Thumbnails.cached(url, size: size)
+        let preview = isPreview || (image == nil && shown != nil)
+        Image(nsImage: shown ?? Thumbnails.icon(url))
             .resizable()
             .interpolation(.high)
             .aspectRatio(contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: isPreview ? max(3, size * 0.07) : 0, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: preview ? max(3, size * 0.07) : 0, style: .continuous))
             .frame(width: size, height: size)
             .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
-            .opacity(ready ? 1 : 0)
+            .opacity(ready || shown != nil || Thumbnails.isUnavailable(url, size: size) ? 1 : 0)
             // Spätestens nach kurzer Zeit das Symbol zeigen, falls Quick Look länger braucht.
             // Bilder, PDFs und Videos bekommen fast immer gleich ein Vorschaubild: etwas länger
             // darauf warten, statt erst das Symbol und dann das Bild zu zeigen (das flackerte)
