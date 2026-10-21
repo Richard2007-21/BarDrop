@@ -11,6 +11,11 @@ enum EdgeTear {
     static let reach: CGFloat = 140
     /// So weit (pt) muss man vom Rand weg ziehen, bis sich die Ablage löst
     static let tearDistance: CGFloat = 85
+    /// Frei gezogen wird die Ablage etwas durchsichtig (wie bei Dropover), damit man sieht,
+    /// wohin man sie legt. Weich ein- und ausgeblendet.
+    static let dragOpacity: CGFloat = 0.8
+    static let fadeOut: TimeInterval = 0.35
+    static let fadeIn: TimeInterval = 0.25
     /// Bis zu diesem Abstand zum Rand zieht er die Ablage wieder an
     static let attachZone: CGFloat = 70
     /// Dehnen bis zum Lösen: höchstens so weit (pt) folgt die Ablage, und so schnell wird es

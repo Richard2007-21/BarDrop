@@ -1266,6 +1266,7 @@ extension EdgeController {
 
     /// Aus dem Schweben heraus gegriffen: sie folgt gleich dem Zeiger
     private func beginMoveFloating(_ drag: TearDrag) {
+        fadePanel(to: EdgeTear.dragOpacity, duration: EdgeTear.fadeOut)
         drag.phase = .free
         drag.springDone = true
         drag.leftZone = true
@@ -1461,7 +1462,19 @@ extension EdgeController {
         if drag.phase == .free { releaseTear(drag) }
     }
 
+    /// Durchsichtigkeit des ganzen Fensters, weich (macOS blendet, nichts wird neu gezeichnet)
+    private func fadePanel(to alpha: CGFloat, duration: TimeInterval) {
+        // Ist sie gerade ganz ausgeblendet (Randwechsel), nichts dazwischenfunken
+        guard panel.alphaValue > 0, abs(panel.alphaValue - alpha) > 0.001 else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().alphaValue = alpha
+        }
+    }
+
     private func detachTear(_ drag: TearDrag) {
+        fadePanel(to: EdgeTear.dragOpacity, duration: EdgeTear.fadeOut)
         drag.phase = .free
         drag.detachStarted = Date()
         drag.detachAttach = ui.tear?.attach ?? 0
@@ -1475,6 +1488,7 @@ extension EdgeController {
 
     private func releaseTear(_ drag: TearDrag) {
         setGrabbing(false)
+        fadePanel(to: 1, duration: EdgeTear.fadeIn)
         switch drag.phase {
         case .stretching:
             dock(drag, side: drag.origin, screen: drag.originScreen)
@@ -1591,6 +1605,7 @@ extension EdgeController {
         stopTearTimer()
         if let observer = drag.moveObserver { NotificationCenter.default.removeObserver(observer) }
         if drag.systemDragging { FramePacer.shared.stop() }
+        if panel.alphaValue > 0 && panel.alphaValue < 1 { panel.alphaValue = 1 }
         tearDrag = nil
         var transaction = Transaction()
         transaction.disablesAnimations = true
