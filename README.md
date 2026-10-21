@@ -114,7 +114,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 
 | Key | Action |
 |---|---|
-| `⌃⌥B` | Show or hide the shelf anywhere (change it in Settings → Keyboard) |
+| `⌃⌥B` | Show or hide the shelf anywhere (change it in Settings → Keyboard); a floating shelf goes back to the edge |
 | Space, `⌘Y` | Quick Look |
 | `↩`, `⌘O` | Open |
 | `⌘R` | Show in Finder |
@@ -129,13 +129,13 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 | `⌘↑` | Back from a stack or folder |
 | `⌘,` | Settings |
 | Arrow keys | Move selection, extend with `⇧` |
-| `esc` | Step back (Quick Look, folder, selection, stack), then close |
+| `esc` | Step back (Quick Look, folder, selection, stack), then close; a floating shelf goes back to the edge |
 
 ## Privacy
 
 BarDrop collects no data and sends nothing about you. The shelf lives only on your Mac in `~/Library/Application Support/BarDrop`. BarDrop only connects to GitHub: to check for updates, which you can turn off, and to load “What’s new” when you open Settings → About BarDrop. Images and links from the web are only downloaded when you drag them into the shelf yourself.
 
-**Diagnostic log (beta versions only, off by default).** If you use beta versions, you can turn on a diagnostic log in Settings → About BarDrop, after a notice explaining what it records. It records in detail what happens in the app (drops, previews, the shelf at the edge, keyboard focus, actions, the introduction, errors), your settings and your Mac model and macOS version. File and folder names, paths and contents are never recorded; files appear only as an anonymous code with their type. The log stays in `~/Library/Logs/BarDrop` on your Mac and is never sent anywhere. Only “Save Log” creates a text file, which you can pass on yourself to help fix bugs. Turning it off deletes the log.
+**Diagnostic log (beta versions only, off by default).** If you use beta versions, you can turn on a diagnostic log in Settings → About BarDrop, after a notice explaining what it records. It records in detail what happens in the app (drops, previews, the shelf at the edge, keyboard focus, actions, the introduction, errors), your settings and your Mac model and macOS version. File and folder names, paths and contents are never recorded; files appear only as an anonymous code with their type. The log stays in `~/Library/Logs/BarDrop` on your Mac and is never sent anywhere. Only “Save Log” creates a text file, which you can pass on yourself to help fix bugs. Turning it off deletes the log. Only if you create the folder `Bilder` in that folder yourself does it also save pictures of the shelf, which do show names and previews; delete the folder to stop.
 
 ## Build it yourself
 
@@ -162,10 +162,11 @@ The shelf stores its contents in `shelf.json`. So that an update never loses ite
 |---|---|
 | `EdgeController.swift`, `EdgeLogic.swift` | Detects the pointer and drags, decides which stage to show |
 | `ShelfPanel.swift`, `ShelfViews.swift`, `TileGridLayout.swift`, `EdgeBlobShape.swift` | Window, interface and shape of the shelf |
+| `EdgeTear.swift`, `ShelfGlassWindow.swift` | Pulling the shelf off the edge, floating, docking, glass |
 | `ShelfStore.swift` | Contents, storage, undo |
 | `ContentImporter.swift`, `ImageNormalizer.swift`, `CloudFiles.swift`, `FileSanitizer.swift` | Taking in files, web images, links and text |
 | `DragExport.swift`, `DragSource.swift` | Dragging out |
-| `ShelfActions.swift`, `ActionBar.swift`, `QuickActions.swift` | Selection, menus, action bar |
+| `ShelfActions.swift`, `ActionBar.swift`, `QuickActions.swift`, `ShortcutRunner.swift` | Selection, menus, action bar, shortcuts as actions |
 | `FolderBrowser.swift` | Folder contents shown in the shelf |
 | `AppActivation.swift`, `SettingsFocusReturn.swift` | Keyboard focus between shelf, Quick Look and Settings |
 | `SettingsWindow.swift`, `SettingsView.swift`, `SettingsStyle.swift`, `AppSettings.swift` | Settings |
@@ -173,7 +174,7 @@ The shelf stores its contents in `shelf.json`. So that an update never loses ite
 | `Onboarding.swift` | Introduction on first launch |
 | `IntroDemo.swift` | Scenes of the introduction: the real shelf in demo mode |
 | `Updater.swift`, `ReleaseNotes.swift` | Updates and release notes from GitHub |
-| `Diagnostics.swift`, `FocusDiagnostics.swift` | Diagnostic log (beta versions) |
+| `Diagnostics.swift`, `FocusDiagnostics.swift`, `FramePacer.swift`, `ShelfSnapshots.swift` | Diagnostic log (beta versions): events, smoothness, and pictures of the shelf only if you create the folder `Bilder` yourself |
 | `Plugins/` | Plugins: installing, permissions, running |
 | `Tests/` | Automated tests |
 | `scripts/` | Build, DMG, app icon, preview |
