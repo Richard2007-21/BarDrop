@@ -589,6 +589,10 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
         }
     }
 
+    /// Nur für einen Kurzbefehl in die Ablage übernommen (von außen direkt auf die Aktion
+    /// gezogen, z. B. Bilder aus dem Web): Nach dem Lauf verlassen sie die Ablage immer
+    var shortcutOnlyInputs = Set<URL>()
+
     /// Kurzbefehl mit den Dateien ausführen; was er zurückgibt, kommt in die Ablage
     private func runShortcut(_ name: String, on urls: [URL]) {
         // Kurz, der Platz oben rechts ist klein; der Name steht schon an der Aktion
@@ -597,12 +601,16 @@ final class ShelfActions: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDele
             guard let self else { return }
             switch outcome {
             case .failed:
+                self.shortcutOnlyInputs.subtract(urls)
                 NSSound.beep()
                 self.announce(L("Shortcut failed", "Kurzbefehl fehlgeschlagen"))
             case .done(let results, let folder):
                 // Wie bei den anderen Aktionen: Verwendetes verlässt die Ablage (außer
                 // „Nach dem Verwenden“ sagt behalten), es bleibt nur, was herauskam
                 self.finishAction(urls)
+                let transient = urls.filter { self.shortcutOnlyInputs.contains($0) }
+                self.shortcutOnlyInputs.subtract(urls)
+                if !transient.isEmpty { self.store.removeFiles(at: transient, deleteOwnedAfter: 15 * 60) }
                 guard !results.isEmpty else {
                     if let folder { try? FileManager.default.removeItem(at: folder) }
                     self.announce(L("Done", "Fertig"))

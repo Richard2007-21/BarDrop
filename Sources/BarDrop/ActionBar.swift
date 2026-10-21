@@ -632,6 +632,8 @@ struct QuickActionButton: View {
                         // Bilder aus dem Web, temporäre Dateien, Links, Text: zuerst in die
                         // Ablage übernehmen, dann ausführen
                         store.ingest(from: pb) { urls in
+                            // Für einen Kurzbefehl nur Zwischenschritt: danach zählt nur das Ergebnis
+                            if action.kind == .shortcut { actions.shortcutOnlyInputs.formUnion(urls) }
                             actions.perform(action, urls: urls, anchor: anchor, modifiers: modifiers)
                         }
                     }
