@@ -286,8 +286,9 @@ struct ShelfContent: View {
                         // Unschärfe beim Öffnen auf dem Inhalt im Scrollbereich, nicht auf dem
                         // Scrollbereich selbst: Der ist eine AppKit-Ansicht, eine Unschärfe darauf
                         // legte ihn auf eine eigene Ebene über die Aktionsleiste, deren Schwarz
-                        // dann zeitweise fehlte. So bleibt die Leiste obenauf und deckt ab
-                        .blur(radius: openBlur)
+                        // dann zeitweise fehlte. So bleibt die Leiste obenauf und deckt ab.
+                        // Nur solange sie wirkt (siehe OpenBlur)
+                        .modifier(OpenBlur(radius: openBlur))
                         // Platz unter der letzten Reihe: Sie lässt sich ganz über die Leiste scrollen
                         .padding(.bottom, barHeight)
                         .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
@@ -1157,4 +1158,20 @@ private struct OpaqueBlack: NSViewRepresentable {
 
     func makeNSView(context: Context) -> BlackView { BlackView(frame: .zero) }
     func updateNSView(_ view: BlackView, context: Context) {}
+}
+
+/// Unschärfe beim Öffnen, aber nur solange sie wirkt. Auch mit Stärke 0 legt `.blur` eine
+/// Filter-Ebene über den Inhalt. Im Scrollbereich behielt die einen alten Stand: Oben stand
+/// schon „Downloads“ oder „1 ausgewählt“, die Kacheln darunter waren aber noch die alten,
+/// bis man klickte (Bildschirmaufnahmen). Ohne Unschärfe kein Filter.
+private struct OpenBlur: ViewModifier {
+    let radius: CGFloat
+
+    func body(content: Content) -> some View {
+        if radius > 0 {
+            content.blur(radius: radius)
+        } else {
+            content
+        }
+    }
 }
