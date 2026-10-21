@@ -45,6 +45,18 @@ final class ActionDropNSView: NSView, NSDraggingSource {
     private var mode: DragMode = .none
     /// Zuletzt verschoben: kurz nicht noch einmal, während die Leiste sich neu ordnet
     private static var reorderedAt = Date.distantPast
+    /// Wann diese Aktion zuletzt ihren Platz geändert hat (auch mitten in der Feder)
+    private var movedAt = Date.distantPast
+
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+        if newOrigin != frame.origin { movedAt = Date() }
+        super.setFrameOrigin(newOrigin)
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        if newSize != frame.size { movedAt = Date() }
+        super.setFrameSize(newSize)
+    }
     /// Alle Aktionen der Leiste, um beim Ziehen die unter dem Zeiger zu finden
     private static let all = NSHashTable<ActionDropNSView>.weakObjects()
 
@@ -127,9 +139,14 @@ final class ActionDropNSView: NSView, NSDraggingSource {
         // Erst wenn die Leiste nach dem letzten Tausch wieder still steht (Feder etwa 0,3 s):
         // Solange die Symbole noch gleiten, lag der Zeiger noch über der alten Aktion, und sie
         // tauschten hin und her. Steht der Zeiger schon über dem eigenen Platz, nichts tun.
-        guard let me = actionID, Date().timeIntervalSince(Self.reorderedAt) > 0.35,
+        guard let me = actionID, Date().timeIntervalSince(Self.reorderedAt) > 0.15,
               !bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
-        for view in Self.all.allObjects where view !== self && view.window === window && view.actionID != nil {
+        let bar = Self.all.allObjects.filter { $0.window === window && $0.actionID != nil }
+        // Erst wenn keine Aktion mehr gleitet: Mitten in der Feder lag der Zeiger noch über
+        // der Aktion, mit der gerade getauscht wurde, und sie tauschten wieder zurück
+        let now = Date()
+        guard bar.allSatisfy({ now.timeIntervalSince($0.movedAt) > 0.08 }) else { return }
+        for view in bar where view !== self {
             // Nur über der Mitte der anderen Aktion, nicht schon an ihrem Rand
             let inner = view.bounds.insetBy(dx: view.bounds.width * 0.2, dy: 0)
             guard inner.contains(view.convert(event.locationInWindow, from: nil)) else { continue }

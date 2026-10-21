@@ -105,6 +105,23 @@ final class EdgeController: NSObject {
     private var quickLookWasVisible = false
     private var hostView: ShelfHostingView<ShelfRootView>?
 
+    /// Nach jedem Ereignis (Klick, Taste, Mausbewegung) lässt macOS alle Fenster ihre
+    /// ausstehenden Aktualisierungen erledigen (`updateWindows`), und SwiftUI hängt Teile
+    /// seiner Aktualisierung daran. Ein Bild aus dem Browser kommt aber ohne Ereignis an (die
+    /// Datei wird im Hintergrund fertig): Laut Protokoll hatte die Ablage es sofort, zeigte
+    /// es aber erst nach dem nächsten Klick. Darum hier selbst aktualisieren und ein leeres
+    /// Ereignis einreihen, das die Ereignisschleife einmal durchlaufen lässt wie ein Klick.
+    private static func nudgeEventLoop(_ window: NSWindow) {
+        window.update()
+        NSApp.updateWindows()
+        if let event = NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [],
+                                          timestamp: ProcessInfo.processInfo.systemUptime,
+                                          windowNumber: window.windowNumber, context: nil,
+                                          subtype: 0, data1: 0, data2: 0) {
+            NSApp.postEvent(event, atStart: false)
+        }
+    }
+
     /// Alle Scrollbereiche unter `view` samt Inhalt neu auslegen und zeichnen lassen
     private static func invalidateScrollViews(in view: NSView) {
         if let scroll = view as? NSScrollView {
@@ -635,6 +652,7 @@ final class EdgeController: NSObject {
                 Self.invalidateScrollViews(in: host)
                 host.layoutSubtreeIfNeeded()
                 self.panel.displayIfNeeded()
+                Self.nudgeEventLoop(self.panel)
             }
             DispatchQueue.main.async(execute: redraw)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: redraw)
