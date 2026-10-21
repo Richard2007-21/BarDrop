@@ -1003,8 +1003,9 @@ final class EdgeController: NSObject {
         // Nicht während einer Vorschau oder der Einführung, nicht bei gedrückter Taste und
         // nicht, solange Übersicht, Menü oder ein Dialog offen sind.
         let inside = ui.level == .expanded && expandedBody.contains(loc)
-        // Griff oben, solange der Zeiger in der Kopfzeile ist
-        let hover = inside && headerZone(expandedBody).contains(loc)
+        // Griff oben, solange der Zeiger in der Kopfzeile ist; nicht, während etwas gezogen
+        // wird (Dateien über der Ablage) oder die Taste gedrückt ist
+        let hover = inside && !mouseDown && headerZone(expandedBody).contains(loc)
         if ui.grabberHover != hover {
             withAnimation(.easeOut(duration: 0.15)) { ui.grabberHover = hover }
         }
@@ -1689,7 +1690,7 @@ extension EdgeController {
             takeFocus()
         }
         pointerInside = inside
-        let hover = inside && headerZone(body).contains(loc)
+        let hover = inside && !mouseDown && headerZone(body).contains(loc)
         if ui.grabberHover != hover {
             withAnimation(.easeOut(duration: 0.15)) { ui.grabberHover = hover }
         }

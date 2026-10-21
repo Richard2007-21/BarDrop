@@ -28,6 +28,23 @@ enum EdgeTear {
     /// Bereich oben, in dem der Griff erscheint: bis ins obere Drittel des Titels (Kopfzeile:
     /// 12 pt Abstand, Zeile 30 pt, siehe ShelfContent), nicht schon an seiner Unterkante
     static let headerHeight: CGFloat = 25
+
+    /// Umriss der Ablage: Je fester sie mit dem Rand verbunden ist, desto eckiger werden die
+    /// Ecken auf seiner Seite. Angedockt hat sie dort keine Rundung, sondern geht in den Bogen
+    /// zum Bildschirmrand über; so gibt es am Ende des Andockens keinen Sprung.
+    static func bodyPath(_ body: CGRect, attach: CGFloat, side: ScreenEdge, grow: CGFloat = 0) -> Path {
+        let t = max(0, min(1, (attach - 0.55) / 0.45))
+        let square = t * t * (3 - 2 * t)
+        let edge = cornerRadius * (1 - square) + grow
+        let far = cornerRadius + grow
+        let left = side == .left
+        return UnevenRoundedRectangle(topLeadingRadius: left ? edge : far,
+                                      bottomLeadingRadius: left ? edge : far,
+                                      bottomTrailingRadius: left ? far : edge,
+                                      topTrailingRadius: left ? far : edge,
+                                      style: .continuous)
+            .path(in: body.insetBy(dx: -grow, dy: -grow))
+    }
 }
 
 /// Die schwarze Form, solange die Ablage gezogen wird: Ablage, Verbindung und ein Stück
@@ -64,7 +81,7 @@ struct TearGoo: View, Animatable {
                     .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
                     // Maske reicht über den Rahmen hinaus, sonst war der Schatten unten abgeschnitten
                     .mask {
-                        OutsideBodyShape(reach: reach, inset: inset)
+                        OutsideBodyShape(reach: reach, inset: inset, attach: tear.attach, side: tear.side)
                             .fill(style: FillStyle(eoFill: true))
                     }
                     .opacity(1 - black)
@@ -116,7 +133,7 @@ struct TearGoo: View, Animatable {
 
     /// Umriss der Ablage im Rahmen
     private var bodyShape: TearBodyShape {
-        TearBodyShape(reach: reach, inset: inset)
+        TearBodyShape(reach: reach, inset: inset, attach: tear.attach, side: tear.side)
     }
 
     /// Schwarze Ablage wie am Rand (angedockt, beim Dehnen, beim Andocken)
@@ -154,8 +171,7 @@ struct TearGoo: View, Animatable {
                 mask.addRect(connectionZone(body: body, size: size))
                 context.clip(to: mask, style: FillStyle(eoFill: true))
             }
-            let path = Path(roundedRect: body.insetBy(dx: -0.5, dy: -0.5),
-                            cornerRadius: EdgeTear.cornerRadius + 0.5, style: .continuous)
+            let path = EdgeTear.bodyPath(body, attach: tear.attach, side: tear.side, grow: 0.5)
             context.stroke(path, with: .color(.white.opacity(0.2)), lineWidth: 1)
         }
     }
@@ -220,8 +236,7 @@ struct TearGoo: View, Animatable {
         let body = CGRect(x: reach, y: inset, width: max(0, size.width - 2 * reach),
                           height: max(0, size.height - 2 * inset))
         guard body.width > 0, body.height > 0 else { return }
-        layer.fill(Path(roundedRect: body.insetBy(dx: -grow, dy: -grow),
-                        cornerRadius: EdgeTear.cornerRadius + grow, style: .continuous),
+        layer.fill(EdgeTear.bodyPath(body, attach: tear.attach, side: tear.side, grow: grow),
                    with: .color(.black))
         let a = max(0, min(1, tear.attach))
         guard a > 0.01 else { return }
@@ -256,11 +271,13 @@ struct TearGoo: View, Animatable {
 struct TearBodyShape: Shape {
     let reach: CGFloat
     let inset: CGFloat
+    var attach: CGFloat = 0
+    var side: ScreenEdge = .left
 
     func path(in rect: CGRect) -> Path {
         let body = rect.insetBy(dx: reach, dy: inset)
         guard body.width > 0, body.height > 0 else { return Path() }
-        return Path(roundedRect: body, cornerRadius: EdgeTear.cornerRadius, style: .continuous)
+        return EdgeTear.bodyPath(body, attach: attach, side: side)
     }
 }
 
@@ -275,10 +292,12 @@ struct BeyondFrameShape: Shape {
 struct OutsideBodyShape: Shape {
     let reach: CGFloat
     let inset: CGFloat
+    var attach: CGFloat = 0
+    var side: ScreenEdge = .left
 
     func path(in rect: CGRect) -> Path {
         var path = Path(rect.insetBy(dx: -120, dy: -120))
-        path.addPath(TearBodyShape(reach: reach, inset: inset).path(in: rect))
+        path.addPath(TearBodyShape(reach: reach, inset: inset, attach: attach, side: side).path(in: rect))
         return path
     }
 }
