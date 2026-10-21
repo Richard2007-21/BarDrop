@@ -1209,9 +1209,9 @@ extension EdgeController {
                 updateTear(drag)
                 return
             }
-            // Mit spürbarem Widerstand: Die Ablage folgt nur zu einem Drittel, dann reißt sie
+            // Mit spürbarem Widerstand: Die Ablage folgt nur zu einem Viertel, dann reißt sie
             let pull = max(0, away)
-            let gap = pull * 0.33
+            let gap = pull * 0.25
             var body = drag.bodyStart
             body.origin.x += drag.origin == .right ? -gap : gap
             body.origin.y += (p.y - drag.start.y) * 0.15
@@ -1229,10 +1229,11 @@ extension EdgeController {
             }
             var body = drag.body
             let dx = target.minX - body.minX, dy = target.minY - body.minY
-            if hypot(dx, dy) < 0.5 {
+            if hypot(dx, dy) < 0.5 || Date().timeIntervalSince(drag.detachStarted) > 0.12 {
+                // Folgt dem Zeiger direkt, ohne nachzuziehen
                 body.origin = target.origin
             } else {
-                // Nach dem Lösen schnappt sie zum Zeiger, danach folgt sie ihm direkt
+                // Gleich nach dem Lösen schnappt sie zum Zeiger
                 body.origin.x += dx * 0.55
                 body.origin.y += dy * 0.55
             }

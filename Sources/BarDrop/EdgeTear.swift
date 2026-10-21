@@ -33,12 +33,14 @@ struct TearGoo: View {
 
     var body: some View {
         ZStack {
-            if outline {
-                // Dieselbe Form, 1 pt größer und hell: Unter der schwarzen bleibt ein feiner Rand
-                goo(grow: 1, color: Color.white.opacity(0.2))
-            }
             goo(grow: 0, color: .black)
                 .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+            if outline {
+                // Dieselbe Form, 1 pt größer und hell, darüber noch einmal die schwarze: So
+                // bleibt rundum ein feiner Rand. Über dem Schatten, sonst verschwand er unten.
+                goo(grow: 1, color: Color.white.opacity(0.2))
+                goo(grow: 0, color: .black)
+            }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
