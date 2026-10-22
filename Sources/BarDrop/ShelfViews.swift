@@ -215,6 +215,11 @@ struct ShelfContent: View {
     /// Gleich nach dem Öffnen noch unscharf, dann scharf: Kopf, Kacheln (im Scrollbereich)
     /// und Aktionsleiste samt ihrem Schwarz, je für sich
     @State private var sharpened = false
+    /// Zählt neu hinzugekommene Objekte. Der Inhalt des Scrollbereichs wird dann neu angelegt:
+    /// Laut Aufnahme stand nach dem Ablegen eines Bildes aus dem Web oben schon „2 Objekte“,
+    /// im Raster fehlte die neue Kachel aber samt Namen, bis man hineinklickte oder die Ablage
+    /// neu öffnete. Der Scrollbereich (eigene AppKit-Ansicht) hatte die Änderung nicht übernommen.
+    @State private var gridGeneration = 0
 
     private var openBlur: CGFloat {
         sharpened || ui.ownDragActive ? 0 : settings.animationStyle.blur
@@ -299,7 +304,7 @@ struct ShelfContent: View {
                         // Wechsel zwischen leerer Ablage und Kacheln als neue Ansicht: Laut
                         // Aufnahme stand oben schon „1 Objekt“, darunter blieb aber „Hier ablegen“
                         // stehen, bis man die Ablage neu öffnete oder hineinklickte
-                        .id(store.entries.isEmpty && !showPending && !ui.showSampleTile)
+                        .id("\(store.entries.isEmpty && !showPending && !ui.showSampleTile)-\(gridGeneration)")
                         // Unschärfe beim Öffnen auf dem Inhalt im Scrollbereich, nicht auf dem
                         // Scrollbereich selbst (das legte ihn auf eine eigene Ebene). Nur solange
                         // sie wirkt (siehe OpenBlur)
@@ -431,11 +436,17 @@ struct ShelfContent: View {
                 }
             }
         }
-        .onChange(of: store.entries) { _, entries in
+        .onChange(of: store.entries) { old, entries in
             // Stapel aufgelöst oder entfernt: zurück zur Ablage
             if ui.openStack != nil && stack == nil { ui.openStack = nil }
+            // Neues Objekt dazugekommen: Raster neu anlegen (siehe gridGeneration). Nicht beim
+            // Entfernen (dort blendet die Kachel aus) und nicht, während aus der Ablage gezogen wird
+            let known = Set(old.map(\.id))
+            if !ui.ownDragActive, entries.contains(where: { !known.contains($0.id) }) {
+                gridGeneration &+= 1
+            }
             // Diagnose: Die Oberfläche hat den neuen Inhalt verarbeitet (siehe refreshContent)
-            Diagnostics.shared.record("view", "entries=\(entries.count) level=\(ui.level) key=\(ui.isKey)")
+            Diagnostics.shared.record("view", "entries=\(entries.count) level=\(ui.level) key=\(ui.isKey) grid=\(gridGeneration)")
         }
     }
 

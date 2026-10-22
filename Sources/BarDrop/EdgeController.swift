@@ -718,12 +718,33 @@ final class EdgeController: NSObject {
         guard ui.level == .expanded, let host = panel.contentView else { return }
         host.needsLayout = true
         host.needsDisplay = true
+        Self.invalidateScrollContent(in: host)
         panel.displayIfNeeded()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self, self.ui.level == .expanded else { return }
-            self.panel.contentView?.needsDisplay = true
-            self.panel.displayIfNeeded()
+        // Später noch einmal: SwiftUI übernimmt die Änderung teils erst im nächsten Durchlauf
+        for delay in [0.05, 0.25, 0.8] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.ui.level == .expanded, let host = self.panel.contentView else { return }
+                host.needsDisplay = true
+                Self.invalidateScrollContent(in: host)
+                host.layoutSubtreeIfNeeded()
+                self.panel.displayIfNeeded()
+            }
         }
+    }
+
+    /// Den Inhalt der Scrollbereiche selbst neu anordnen und zeichnen lassen. Das Fenster
+    /// darüber neu zu zeichnen reicht nicht: Laut Diagnose meldete der Scrollbereich nach
+    /// dem Ablegen nichts Ausstehendes, und die neue Kachel kam erst nach einem Klick.
+    private static func invalidateScrollContent(in view: NSView) {
+        if let scroll = view as? NSScrollView {
+            scroll.contentView.needsLayout = true
+            scroll.contentView.needsDisplay = true
+            if let doc = scroll.documentView {
+                doc.needsLayout = true
+                doc.needsDisplay = true
+            }
+        }
+        for sub in view.subviews { invalidateScrollContent(in: sub) }
     }
 
     /// Zeichnet die offene Ablage sofort neu und holt den Fokus zurück, wenn der Zeiger
