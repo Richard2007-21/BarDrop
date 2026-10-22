@@ -834,7 +834,10 @@ final class EdgeController: NSObject {
         // Während die Ablage gezogen wird, steuert das Ziehen (tearTick) alles; schwebt sie,
         // gibt es keinen Rand, nur Maus und Fokus über ihr
         if let drag = tearDrag {
-            if drag.phase == .floating { floatTick(drag) }
+            if drag.phase == .floating {
+                if layoutDirty { floatingSettingsChanged(drag) }
+                floatTick(drag)
+            }
             return
         }
         let now = Date()
@@ -1790,6 +1793,50 @@ extension EdgeController {
         }
         coverCheck = (now, point, covered)
         return covered
+    }
+
+    /// Einstellungen verstellt, während die Ablage schwebt: Sie übernimmt Größe, Symbole und
+    /// Glas gleich dort, wo sie liegt. Bisher blieben Fenster und Klickfläche in der alten
+    /// Größe, während der Inhalt schon die neue hatte, und die Änderungen wurden erst nach dem
+    /// Andocken nachgeholt (Vorschauen am Rand). (Den Rand selbst umzustellen holt sie an den
+    /// neuen Rand, siehe edgeObserver.)
+    func floatingSettingsChanged(_ drag: TearDrag) {
+        layoutDirty = false
+        // Gilt als gesehen: Nach dem Andocken nichts mehr nachholen
+        let sizeChanged = settings.layoutSignature != lastLayoutSignature
+        lastLayoutSignature = settings.layoutSignature
+        lastSizeSignature = settings.sizeSignature
+        lastPeekSignature = settings.peekSignature
+        lastTileIconSize = settings.tileIconSize
+        // Glas ein- oder ausgeschaltet
+        setGlass(settings.detachedGlass)
+        guard sizeChanged, let screen = tearScreen(at: NSPoint(x: drag.body.midX, y: drag.body.midY)) else {
+            redrawContent()
+            return
+        }
+        let size = bodyRect(.expanded, on: screen).size
+        let margin = ShelfMetrics.panelMargin
+        let height = CGFloat(settings.shelfHeight) + 2 * ShelfMetrics.maxFillet + 2 * margin
+        // Um die Mitte herum größer oder kleiner, aber ganz auf dem Bildschirm
+        var body = NSRect(x: drag.body.midX - size.width / 2, y: drag.body.midY - size.height / 2,
+                          width: size.width, height: size.height)
+        let frame = screen.frame, visible = screen.visibleFrame
+        body.origin.x = min(max(body.minX, frame.minX), frame.maxX - body.width)
+        body.origin.y = min(max(body.minY, visible.minY), visible.maxY - body.height)
+        body = body.integral
+        if drag.body.size != body.size || panel.frame.height != height {
+            Diagnostics.shared.record("tear", "float Einstellungen: \(Int(drag.body.width))x\(Int(drag.body.height)) → \(Int(body.width))x\(Int(body.height))")
+            drag.body = body
+            panel.disableScreenUpdatesUntilFlush()
+            var frame = panel.frame
+            frame.size.height = height
+            panel.setFrame(frame, display: false)
+            applyTearFrame(body)
+            syncGlassWindow()
+            panel.contentView?.layoutSubtreeIfNeeded()
+            panel.displayIfNeeded()
+        }
+        redrawContent()
     }
 
     /// Schwebend: statt Rand und Takt nur Maus und Fokus über der Ablage
