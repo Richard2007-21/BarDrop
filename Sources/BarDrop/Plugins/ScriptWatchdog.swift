@@ -64,7 +64,7 @@ enum ScriptWatchdog {
         let stop = flag.shouldStop
         ScriptWatchdog.count(stop: stop)
         if !stop, let setLimit = ScriptWatchdog.setLimit, let group = flag.group {
-            setLimit(group, interval, callback, info)
+            setLimit(group, ScriptWatchdog.interval, ScriptWatchdog.callback, info)
         }
         return stop
     }
