@@ -28,7 +28,6 @@ final class PluginProcess {
     private var running = false
     private var finished = false
     private var status: Int32 = 0
-    private var exitSource: DispatchSourceProcess?
 
     init(executable: URL, arguments: [String], environment: [String: String], directory: URL,
          standardOutput: Pipe, standardError: Pipe) {
@@ -103,33 +102,32 @@ final class PluginProcess {
         running = true
         lock.unlock()
 
-        let source = DispatchSource.makeProcessSource(identifier: child, eventMask: .exit,
-                                                      queue: .global(qos: .userInitiated))
-        source.setEventHandler { [weak self] in self?.reap(blocking: true) }
-        lock.lock(); exitSource = source; lock.unlock()
-        source.resume()
-        // War es schon beendet, bevor die Beobachtung stand, meldet sie es eventuell nicht mehr
-        reap(blocking: false)
+        // Ein eigener Faden wartet auf das Ende. (Eine Beobachtung über Dispatch konnte das
+        // Ende verpassen, wenn das Programm schon fertig war, bevor sie stand.) Er hält das
+        // Objekt, bis das Programm beendet ist.
+        let waiter = Thread { [self] in
+            var raw: Int32 = 0
+            var got: pid_t
+            repeat { got = waitpid(child, &raw, 0) } while got == -1 && errno == EINTR
+            finish(raw: got == child ? raw : 0)
+        }
+        waiter.name = "BarDrop.plugin.wait"
+        waiter.qualityOfService = .userInitiated
+        waiter.start()
     }
 
-    /// Rückgabewert abholen und den Abschluss genau einmal melden
-    private func reap(blocking: Bool) {
+    /// Rückgabewert übernehmen und den Abschluss genau einmal melden
+    private func finish(raw: Int32) {
         lock.lock()
-        guard !finished, pid > 0 else { lock.unlock(); return }
-        var raw: Int32 = 0
-        let got = waitpid(pid, &raw, blocking ? 0 : WNOHANG)
-        guard got == pid || (got == -1 && blocking) else { lock.unlock(); return }
+        guard !finished else { lock.unlock(); return }
         finished = true
         running = false
         // Wie Process: normal beendet → Rückgabewert, durch ein Signal → dessen Nummer
         let signaled = (raw & 0x7f) != 0 && (raw & 0x7f) != 0x7f
         status = signaled ? (raw & 0x7f) : ((raw >> 8) & 0xff)
-        let source = exitSource
-        exitSource = nil
         let handler = terminationHandler
         terminationHandler = nil
         lock.unlock()
-        source?.cancel()
         handler?(self)
     }
 }
