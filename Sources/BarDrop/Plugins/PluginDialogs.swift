@@ -20,60 +20,10 @@ enum PluginDialogs {
         return answer
     }
 
-    /// Zustimmung zum Hinweis des Plugins (`consent`), einmalig
-    static func confirmConsent(_ plugin: InstalledPlugin, manager: PluginManager, ui: ShelfUIModel?) -> Bool {
-        guard let consent = plugin.manifest.consent, !manager.hasConsented(plugin) else { return true }
-        let alert = makeAlert(plugin.manifest)
-        alert.messageText = L("Use “\(plugin.manifest.name.text)”?", "„\(plugin.manifest.name.text)“ verwenden?")
-        alert.informativeText = consent.text
-        alert.addButton(withTitle: L("Agree", "Zustimmen"))
-        alert.addButton(withTitle: L("Cancel", "Abbrechen"))
-        guard run(alert, ui: ui) == .alertFirstButtonReturn else { return false }
-        manager.recordConsent(plugin)
-        return true
-    }
-
-    static func allow(_ permission: PluginPermission, for plugin: InstalledPlugin, ui: ShelfUIModel?) -> Bool {
-        let alert = makeAlert(plugin.manifest)
-        alert.messageText = permission.question(for: plugin.manifest.name.text)
-        alert.informativeText = permission.explanation
-        alert.addButton(withTitle: L("Allow", "Erlauben"))
-        alert.addButton(withTitle: L("Don’t Allow", "Nicht erlauben"))
-        return run(alert, ui: ui) == .alertFirstButtonReturn
-    }
-
-    static func allowDownload(of tool: PluginTool, for plugin: InstalledPlugin, ui: ShelfUIModel?) -> Bool {
-        let alert = makeAlert(plugin.manifest)
-        alert.messageText = L("Download “\(tool.name)”?", "„\(tool.name)“ laden?")
-        alert.informativeText = L("“\(plugin.manifest.name.text)” needs this program.",
-                                  "„\(plugin.manifest.name.text)“ braucht dieses Programm.")
-        alert.accessoryView = grantList(PluginGrant.rows(permissions: [], tools: [tool]))
-        alert.addButton(withTitle: L("Download", "Laden"))
-        alert.addButton(withTitle: L("Cancel", "Abbrechen"))
-        return run(alert, ui: ui) == .alertFirstButtonReturn
-    }
-
-    static func showError(_ message: String, hint: String? = nil, of plugin: InstalledPlugin, ui: ShelfUIModel?) {
-        let alert = makeAlert(plugin.manifest)
-        alert.messageText = L("“\(plugin.manifest.name.text)” didn’t work", "„\(plugin.manifest.name.text)“ hat nicht geklappt")
-        alert.informativeText = String(message.prefix(600))
-        // Tipp des Plugins abgesetzt unter der Meldung, kleiner und grau
-        if let hint {
-            let label = NSTextField(wrappingLabelWithString: hint)
-            label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-            label.textColor = .secondaryLabelColor
-            label.preferredMaxLayoutWidth = 260
-            label.frame = NSRect(x: 0, y: 0, width: 260, height: label.fittingSize.height)
-            alert.accessoryView = label
-        }
-        alert.addButton(withTitle: "OK")
-        run(alert, ui: ui)
-    }
-
     /// Alles, was ein Plugin noch braucht, in **einem** kurzen Fenster: Zustimmung zum
-    /// Hinweis, Rechte und Programme. Für „Automatisch beim Ablegen“, „Erlauben“ in den
-    /// Einstellungen und das Ablegen, wenn noch etwas fehlt. Nach „Erlauben“ fragt beim
-    /// Ablegen niemand mehr.
+    /// Hinweis, Rechte und Programme. Das einzige Erlauben-Fenster: vor dem ersten Lauf
+    /// (von Hand oder automatisch), beim Einschalten, bei „Automatisch beim Ablegen“ und
+    /// „Erlauben“ in den Einstellungen. Danach fragt niemand mehr, auch nicht mitten im Lauf.
     static func authorize(_ plugin: InstalledPlugin, manager: PluginManager, ui: ShelfUIModel?) -> Bool {
         let name = plugin.manifest.name.text
         let consent = manager.hasConsented(plugin) ? nil : plugin.manifest.consent
@@ -94,13 +44,7 @@ enum PluginDialogs {
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
         guard run(alert, ui: ui) == .alertFirstButtonReturn else { return false }
 
-        if consent != nil { manager.recordConsent(plugin) }
-        for permission in permissions { manager.grant(permission, for: plugin) }
-        if !tools.isEmpty {
-            manager.update(plugin.id) { s in
-                for tool in tools where !s.approvedTools.contains(tool.approvalKey) { s.approvedTools.append(tool.approvalKey) }
-            }
-        }
+        manager.grantAll(plugin)
         return true
     }
 
@@ -203,6 +147,8 @@ enum PluginImporter {
                                "Version \(existing.manifest.version) → \(manifest.version)"))
             }
             if let description = manifest.description?.text, !description.isEmpty { lines.append(description) }
+            // Hinweis des Plugins steht gleich hier: „Installieren“ gilt als Zustimmung
+            if let consent = manifest.consent?.text, !consent.isEmpty { lines.append(consent) }
             lines.append(L("Not from the BarDrop catalog. Only install plugins from people you trust.",
                            "Nicht aus dem Katalog von BarDrop. Installier nur Plugins von Menschen, denen du vertraust."))
             alert.informativeText = lines.joined(separator: "\n\n")
@@ -226,6 +172,9 @@ enum PluginImporter {
         }
         do {
             let installed = try manager.install(unpacked, standard: false)
+            // Rechte und Programme standen in der Liste: Wer „Installieren“ klickt, erlaubt sie.
+            // Kein zweites Fenster beim ersten Lauf.
+            manager.grantAll(installed)
             // Plugins einschalten, sonst wäre das neue Plugin nirgends zu sehen
             if !AppSettings.shared.pluginsEnabled { AppSettings.shared.pluginsEnabled = true }
             return installed

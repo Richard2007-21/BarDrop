@@ -14,7 +14,7 @@ Source: `Sources/BarDrop/Plugins/`. When something changes there, this file, its
 * BarDrop **doesn’t come with any plugin**. Plugins are off until the user turns on “Use plugins” in Settings → Plugins, and each plugin is then off on its own.
 * A plugin gets **one item of the shelf** (file, folder or link). Everything it writes to its **output folder** becomes **new items right next to the original**.
 * A plugin is started in three ways: **right-click**, **action bar** or **automatically when dropped**.
-* The script runs in **JavaScriptCore** and sees only the object `bardrop`. Internet, programs and the clipboard need **permissions**, which BarDrop asks for the first time they are used.
+* The script runs in **JavaScriptCore** and sees only the object `bardrop`. Internet, programs and the clipboard need **permissions**, which BarDrop asks for before the first run, in **one** window (when importing, “Install” already counts as allowing).
 
 ## 2. The .bdrop file
 
@@ -146,28 +146,29 @@ BarDrop always stores links itself as `.webloc`.
 
 **Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. The arrows in a plugin’s details change the order. Where the shelf usually shows the number of items, it then shows “Plugin running”.
 
-An automatic plugin only runs if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. Turning on “Automatically when dropped” asks for all of that. If something is missing later, for example because an update of the plugin reset its permissions, BarDrop asks for it at the next drop, once per drop. If you decline, it doesn’t run, and the shelf shows “Not started”. During an automatic run, a plugin never asks.
+A plugin only starts if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. If something is missing, BarDrop asks for all of it **before the start, in one window**: when turning the plugin on, when turning on “Automatically when dropped”, for right-click and action bar, and when dropping (once per drop). If you decline, it doesn’t run, and the shelf shows “Not started”. During an automatic run, a plugin never asks.
 
 **At the same time:** at most three plugins run at once; more wait in the order they were started (their placeholder shows a clock and “Waiting”). The same plugin doesn’t start a second time for the same file while it is still running; the shelf then shows “Already running”.
 
 ## 6. Permissions
 
-| Permission | allows | Dialog |
+| Permission | allows | Line in the window |
 | --- | --- | --- |
 | `network` | `bardrop.fetch`, `bardrop.download` | “Internet access” |
 | `run` | `bardrop.run`, and so `tools` | “Run programs”, as a warning: full access to the Mac |
-| `clipboard` | `bardrop.setClipboard` | “Clipboard” |
+| `clipboard` | `bardrop.setClipboard` | “Clipboard” (counts as granted without asking, like in macOS) |
 
 * A call without the permission in `permissions` fails **immediately** with `Permission “…” is missing in manifest.json`, without asking.
-* Listed but not yet granted: for right-click and action bar, BarDrop asks **once**. “Don’t Allow” makes the call fail (`fetch`, `download`, `run` are rejected, `setClipboard` does nothing) and asks again next time. Automatic runs never ask.
-* Granted permissions apply to **exactly this code**: a SHA-256 over **all files** of the plugin (path and content; only `.DS_Store` doesn’t count), because the script can read other files and run them as code. Any change to any file resets all permissions. Updates from the catalog keep the permissions the plugin still needs.
-* The dialog asks “Allow “…” to access the internet?”, “Allow “…” to run programs?” or “Allow “…” to use the clipboard?”, with “Allow” and “Don’t Allow”.
+* Everything is allowed **at once**: consent, permissions and programs share one window (“Allow “…”?” with one line per permission and program, “Allow” and “Cancel”). It appears when turning a plugin on or before the first run, never during a run. “Cancel” doesn’t start the plugin and asks again next time.
+* When importing a `.bdrop` file, permissions, programs and the notice are already listed in the install window: “Install” or “Update” grants them, and no further window follows.
+* `clipboard` always counts as granted once it is listed in `permissions` (putting text on the clipboard isn’t asked for by macOS either).
+* Granted permissions apply to **exactly this code**: a SHA-256 over **all files** of the plugin (path and content; only `.DS_Store` doesn’t count), because the script can read other files and run them as code. Any change to any file on disk resets all permissions. Updates from the catalog keep the permissions the plugin still needs and only ask for new ones; an import grants the permissions in its list.
 * Settings → Plugins → plugin → Permissions shows “allowed” or “asks first” for each permission. “Allow” asks for all missing permissions and programs right away (for example after an edited script lost its permissions), “Reset” takes all permissions back.
 * There is **no macOS sandbox** around plugins. Without permissions, the script can only use the calls in 9. A program started with `run`, however, has the user’s full rights.
 
 ## 7. tools: programs loaded on demand
 
-BarDrop never ships third-party programs. A plugin can name programs that BarDrop loads on first use:
+BarDrop never ships third-party programs. A plugin can name programs that BarDrop loads on first use (downloading is allowed together with the permissions, see 6):
 
 ```json
 "tools": [
@@ -181,11 +182,11 @@ BarDrop never ships third-party programs. A plugin can name programs that BarDro
 | Key | Required | Meaning |
 | --- | --- | --- |
 | `id` | yes | Name the script starts it by: `bardrop.run("mytool", […])`. Plugins share a program if its download address is the same (see below). |
-| `name` | yes | Shown in the dialog. |
+| `name` | yes | Shown in the allow window. |
 | `url` | yes | `https://`, pointing to **one single executable** for macOS. Archives (ZIP, DMG, PKG) are **not** unpacked. Redirects are followed. |
 | `sha256` | one of both | Checksum of the file. |
 | `checksums` | one of both | `https://` address of a checksum list from the publisher. BarDrop looks for the line `<64 hex characters> <file name>` or `<…> *<file name>`; the file name is the last part of `url`. For addresses pointing to “latest”. |
-| `license` | no | Shown in the dialog. |
+| `license` | no | Shown in the allow window. |
 | `homepage` | no | Stored. |
 | `refreshDays` | no | After this many days, BarDrop loads the file again on next use, without asking again. Without it: never. |
 | `archive` | no | `"zip"`: `url` delivers a ZIP archive. BarDrop checks the checksum **of the archive**, unpacks it and keeps only the file `executable`. Other archive types don’t exist. |
@@ -207,7 +208,7 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin 
 ## 8. Result
 
 * `run(item)` ends without an error (also an `async` `run` whose promise resolves): **success**. The return value isn’t used.
-* `run` throws or its promise is rejected: **failure**. Nothing is added. For right-click and action bar BarDrop shows the message in a dialog: `error.message`, for errors in the code (`TypeError`, `ReferenceError`, `SyntaxError` …) with the type in front and file and line after it (`TypeError: … (main.js:12)`); a message of the plugin’s own, thrown with `throw new Error(…)`, appears exactly as it is; a tip for the user goes into `hint` (`throw { message: "…", hint: "Install … and try again." }`, or `error.hint = "…"` on an `Error`), at most 300 characters, shown smaller below the message and in its own log line, so don’t append it to the message; for automatic runs only briefly “… didn’t work”. Either way, the message appears in Settings under “Last error” (until quitting).
+* `run` throws or its promise is rejected: **failure**. Nothing is added. BarDrop shows **no window**: the placeholder shakes briefly, the shelf shows “Failed”, and the message appears in Settings under “Last error” and in the log: `error.message`, for errors in the code (`TypeError`, `ReferenceError`, `SyntaxError` …) with the type in front and file and line after it (`TypeError: … (main.js:12)`); a message of the plugin’s own, thrown with `throw new Error(…)`, appears exactly as it is; a tip for the user goes into `hint` (`throw { message: "…", hint: "Install … and try again." }`, or `error.hint = "…"` on an `Error`), at most 300 characters, shown below the message and in its own log line, so don’t append it to the message. “Last error” stays until quitting.
 * On success, all **top-level entries** of the output folder are taken, sorted by name, **folders included**. Excluded are names starting with `.` and the extensions `part`, `ytdl`, `tmp`, `download`, `crdownload`. If the folder is empty, only the placeholder disappears.
 * The files are moved into BarDrop’s storage and inserted **right after the original** (in the order the user sees; in a stack, after the original inside the stack). They appear immediately with their preview and are selected. If the original is no longer in the shelf, they are added like newly dropped items.
 * “Replace original” (only with `canReplaceOriginal`, the user’s switch, decided when the run starts): while the plugin runs, its placeholder stands **in the original’s place** and the original itself isn’t shown. Afterwards the result appears exactly there, without a fade; the original is taken **out of the shelf**, never deleted, and ⌘Z brings it back. If the run fails or is canceled, the original is shown again.
@@ -320,7 +321,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 
 1. Import it in BarDrop and turn it on.
 2. Try it with a right-click on a matching item; if it doesn’t appear, `match` doesn’t match.
-3. Errors appear in the dialog and under Settings → Plugins → plugin → “Last error”.
+3. Errors appear under Settings → Plugins → plugin → “Last error” and in the log.
 4. More detail: Settings → Plugins → Log → “Keep a plugin log”, then `bardrop.log`/`console.log` in the script (section 14).
 5. Only then try “Automatically when dropped”.
 
@@ -338,7 +339,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 | `extensions` for links | only matches `webloc` | `links.hosts` or `links.patterns` |
 | global `fetch` | script error | `bardrop.fetch` |
 | running `which` to find a program | doesn’t find everything | `bardrop.findProgram` |
-| tip appended to the error message | shows as one block in the dialog | `throw { message, hint }` |
+| tip appended to the error message | shows as one block under “Last error” | `throw { message, hint }` |
 | `fetch` without checking `status` | error page as result | `if (r.status !== 200) throw new Error(…)` |
 | `run` without checking `code` | failure goes unnoticed | `if (r.code !== 0) throw new Error(r.stderr)` |
 | result outside the output folder | doesn’t appear | always write to `bardrop.outputDirectory` |

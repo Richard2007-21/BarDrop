@@ -325,6 +325,9 @@ final class PluginManager: ObservableObject {
     }
 
     func isGranted(_ permission: PluginPermission, for plugin: InstalledPlugin) -> Bool {
+        // Text in die Zwischenablage legen fragt auch macOS nicht ab: gilt als erteilt,
+        // sobald das Plugin es angibt
+        if permission == .clipboard { return true }
         let s = state(plugin.id)
         return s.grantedFingerprint == plugin.fingerprint && s.granted.contains(permission)
     }
@@ -335,6 +338,28 @@ final class PluginManager: ObservableObject {
             s.grantedFingerprint = plugin.fingerprint
             if !s.granted.contains(permission) { s.granted.append(permission) }
         }
+    }
+
+    /// Alles, was das Plugin angibt, auf einmal erteilen: Zustimmung, Rechte und Programme.
+    /// Nach „Installieren“ (die Liste stand im Fenster) und „Erlauben“.
+    func grantAll(_ plugin: InstalledPlugin) {
+        if plugin.manifest.consent != nil, !hasConsented(plugin) { recordConsent(plugin) }
+        for permission in plugin.manifest.allPermissions where !isGranted(permission, for: plugin) {
+            grant(permission, for: plugin)
+        }
+        let tools = plugin.manifest.tools ?? []
+        if !tools.isEmpty {
+            update(plugin.id) { s in
+                for tool in tools where !s.approvedTools.contains(tool.approvalKey) { s.approvedTools.append(tool.approvalKey) }
+            }
+        }
+    }
+
+    /// Fehlt noch eine Zustimmung, ein Recht oder ein Programm?
+    func isFullyAuthorized(_ plugin: InstalledPlugin) -> Bool {
+        hasConsented(plugin)
+            && plugin.manifest.allPermissions.allSatisfy { isGranted($0, for: plugin) }
+            && (plugin.manifest.tools ?? []).allSatisfy { state(plugin.id).approvedTools.contains($0.approvalKey) }
     }
 
     func revokePermissions(_ id: String) {

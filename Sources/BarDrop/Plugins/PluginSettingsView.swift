@@ -138,7 +138,8 @@ private struct PluginRow: View {
 
     private var enabled: Binding<Bool> {
         Binding(get: { state.enabled }, set: { on in
-            if on, !PluginDialogs.confirmConsent(plugin, manager: manager, ui: nil) { return }
+            // Einschalten: was noch fehlt, gleich hier in einem Fenster, nicht beim ersten Lauf
+            if on, !PluginDialogs.authorize(plugin, manager: manager, ui: nil) { return }
             manager.update(plugin.id) { $0.enabled = on }
         })
     }

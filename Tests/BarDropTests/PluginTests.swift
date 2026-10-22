@@ -171,6 +171,24 @@ final class PluginTests: XCTestCase {
         XCTAssertTrue(manager.plugins.isEmpty)
     }
 
+    /// Ein Erlauben gilt für alles, was das Plugin angibt; die Zwischenablage fragt nie
+    func testGrantAllAuthorizesEverythingAndClipboardNeedsNoQuestion() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, permissions: ["network", "run", "clipboard"], script: "function run(item) {}")
+        XCTAssertTrue(manager.isGranted(.clipboard, for: plugin))
+        XCTAssertFalse(manager.isGranted(.network, for: plugin))
+        XCTAssertFalse(manager.isFullyAuthorized(plugin))
+        manager.grantAll(plugin)
+        XCTAssertTrue(manager.isGranted(.network, for: plugin))
+        XCTAssertTrue(manager.isGranted(.run, for: plugin))
+        XCTAssertTrue(manager.isFullyAuthorized(plugin))
+        // Selbst geändert: Danach fehlt die Erlaubnis wieder (Zwischenablage weiter ohne Frage)
+        try "function run(item) { bardrop.log('x') }".write(to: plugin.scriptURL, atomically: true, encoding: .utf8)
+        let edited = try XCTUnwrap(manager.refreshed(plugin.id))
+        XCTAssertFalse(manager.isFullyAuthorized(edited))
+        XCTAssertTrue(manager.isGranted(.clipboard, for: edited))
+    }
+
     // MARK: Ausführung
 
     private final class Prompter: PluginPrompter {

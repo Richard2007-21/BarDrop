@@ -109,7 +109,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             actions?.announce(L("Already running", "Läuft schon"), duration: 1.6)
             return
         }
-        guard confirmConsent(plugin) else { return }
+        // Fehlt noch etwas, jetzt alles in einem Fenster erfragen, nicht mitten im Lauf
+        guard prepare(plugin) else { return }
         if plugin.manifest.batch == true {
             // Einmal mit allen passenden Objekten; Ergebnis neben dem ersten
             enqueue(PluginJob(plugin: plugin, items: fresh.map { (PluginItem(url: $0.url), $0.id) }, automatic: false))
@@ -140,7 +141,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             // Automatisch nur mit Zustimmung, allen Rechten und erlaubten Programmen. Fehlt
             // etwas (etwa nach einem Update, das die Rechte zurücksetzt), jetzt fragen: Wer
             // gerade abgelegt hat, sitzt vor dem Mac. Je Ablegen nur einmal je Plugin.
-            guard !declined.contains(plugin.id), prepareForDrop(plugin) else {
+            guard !declined.contains(plugin.id), prepare(plugin) else {
                 if !declined.contains(plugin.id) {
                     PluginLog.shared.record(plugin.id, "fehler", "automatisch nicht gestartet: Zustimmung, Rechte oder Programme nicht erteilt")
                 }
@@ -169,15 +170,16 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         }
     }
 
-    /// Zustimmung, Rechte und Programme eines automatischen Plugins: was fehlt, beim
-    /// Ablegen erfragen (ohne Dialoge, etwa in Tests, nur prüfen)
-    private func prepareForDrop(_ plugin: InstalledPlugin) -> Bool {
-        let missingTools = (plugin.manifest.tools ?? []).filter { !manager.state(plugin.id).approvedTools.contains($0.approvalKey) }
-        if readyForAutomatic(plugin) && missingTools.isEmpty { return true }
+    /// Zustimmung, Rechte und Programme vor dem Start: was fehlt, in einem Fenster
+    /// erfragen (ohne Dialoge, etwa in Tests, nur prüfen)
+    private func prepare(_ plugin: InstalledPlugin) -> Bool {
+        if manager.isFullyAuthorized(plugin) { return true }
         guard showsErrorDialogs else { return false }
-        // Alles, was fehlt, in einem Fenster
-        guard PluginDialogs.authorize(plugin, manager: manager, ui: actions?.ui) else { return false }
-        return readyForAutomatic(plugin)
+        guard PluginDialogs.authorize(plugin, manager: manager, ui: actions?.ui) else {
+            PluginLog.shared.record(plugin.id, "recht", "nicht erlaubt")
+            return false
+        }
+        return manager.isFullyAuthorized(plugin)
     }
 
     /// „Original ersetzen“ ist für dieses Plugin an
@@ -270,9 +272,10 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             } else {
                 removeJob(job)
             }
+            // Kein Fenster zum Wegklicken: Meldung und Tipp stehen in den Details des
+            // Plugins (Einstellungen → Plugins) und im Protokoll
             NSSound.beep()
             actions?.announce(L("Failed", "Fehlgeschlagen"), duration: 2.5)
-            if !job.automatic && showsErrorDialogs { showError(error, of: job.plugin) }
         }
     }
 
@@ -447,22 +450,14 @@ final class PluginRunner: ObservableObject, PluginPrompter {
 
     // MARK: Rückfragen
 
-    /// Zustimmung zum Hinweis des Plugins, einmalig
-    func confirmConsent(_ plugin: InstalledPlugin) -> Bool {
-        PluginDialogs.confirmConsent(plugin, manager: manager, ui: actions?.ui)
-    }
+    // Vor dem Start ist alles erteilt (`prepare`). Fehlt mitten im Lauf doch noch etwas
+    // (etwa weil das Plugin gerade geändert wurde), kommt dasselbe eine Fenster.
 
     func allow(_ permission: PluginPermission, for plugin: InstalledPlugin) -> Bool {
-        PluginDialogs.allow(permission, for: plugin, ui: actions?.ui)
+        PluginDialogs.authorize(plugin, manager: manager, ui: actions?.ui)
     }
 
     func allowDownload(of tool: PluginTool, for plugin: InstalledPlugin) -> Bool {
-        PluginDialogs.allowDownload(of: tool, for: plugin, ui: actions?.ui)
-    }
-
-    private func showError(_ error: PluginRunError, of plugin: InstalledPlugin) {
-        DispatchQueue.main.async { [weak self] in
-            PluginDialogs.showError(error.message, hint: error.hint, of: plugin, ui: self?.actions?.ui)
-        }
+        PluginDialogs.authorize(plugin, manager: manager, ui: actions?.ui)
     }
 }

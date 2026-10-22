@@ -14,7 +14,7 @@ Quellcode: `Sources/BarDrop/Plugins/`. Ändert sich dort etwas, wird diese Datei
 * BarDrop **bringt kein Plugin mit**. Plugins sind aus, bis der Nutzer unter Einstellungen → Plugins „Plugins verwenden“ einschaltet, und jedes Plugin ist danach einzeln aus.
 * Ein Plugin bekommt **ein Objekt der Ablage** (Datei, Ordner oder Link). Alles, was es in seinen **Ausgabeordner** schreibt, wird zu **neuen Objekten direkt neben dem Original**.
 * Gestartet wird ein Plugin auf drei Wegen: **Rechtsklick**, **Aktionsleiste** oder **automatisch beim Ablegen**.
-* Das Skript läuft in **JavaScriptCore**. Es sieht nur das Objekt `bardrop`. Internet, Programme und Zwischenablage gibt es nur mit **Rechten**, die BarDrop beim ersten Gebrauch erfragt.
+* Das Skript läuft in **JavaScriptCore**. Es sieht nur das Objekt `bardrop`. Internet, Programme und Zwischenablage gibt es nur mit **Rechten**, die BarDrop vor dem ersten Lauf in **einem** Fenster erfragt (beim Import gilt „Installieren“ schon als Erlauben).
 
 ## 2. Die .bdrop-Datei
 
@@ -146,28 +146,29 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 **Automatisch beim Ablegen (`automatic`):** Je Plugin ein Schalter, standardmäßig aus (Ausnahme 3.1 `automaticByDefault`). Es zählt nur, was der Nutzer selbst in die Ablage legt: Ziehen und ⌘V. Nicht: Bildschirmfotos, Ergebnisse von Aktionen und Plugins, Widerrufen, die Einführung. Für jedes abgelegte Objekt läuft **höchstens ein** Plugin: das erste in der Liste der Einstellungen, das eingeschaltet ist, automatisch läuft und passt. Die Reihenfolge ändern die Pfeile in den Details eines Plugins. Oben in der Ablage, wo sonst die Anzahl steht, steht dann „Plugin läuft“.
 
-Ein automatisches Plugin läuft nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`consent`) gegeben, alle Rechte aus `permissions` erteilt, alle Programme aus `tools` erlaubt. Beim Einschalten von „Automatisch beim Ablegen“ fragt BarDrop all das ab. Fehlt später etwas, etwa weil ein Update des Plugins die Rechte zurückgesetzt hat, fragt BarDrop beim nächsten Ablegen danach, einmal je Ablegen. Lehnt man ab, läuft es nicht, und oben steht „Nicht gestartet“. Während eines automatischen Laufs fragt das Plugin nie.
+Ein Plugin startet nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`consent`) gegeben, alle Rechte aus `permissions` erteilt, alle Programme aus `tools` erlaubt. Fehlt etwas, fragt BarDrop all das **vor dem Start in einem Fenster** ab: beim Einschalten des Plugins, beim Einschalten von „Automatisch beim Ablegen“, bei Rechtsklick und Aktionsleiste und beim Ablegen (einmal je Ablegen). Lehnt man ab, läuft es nicht, und oben steht „Nicht gestartet“. Während eines automatischen Laufs fragt das Plugin nie.
 
 **Gleichzeitig:** Höchstens drei Plugins laufen gleichzeitig, weitere warten in der Reihenfolge, in der sie gestartet wurden (ihr Platzhalter zeigt eine Uhr und „Wartet“). Dasselbe Plugin startet für dieselbe Datei nicht ein zweites Mal, solange es noch läuft; oben erscheint dann „Läuft schon“.
 
 ## 6. Rechte
 
-| Recht | erlaubt | Dialog |
+| Recht | erlaubt | Zeile im Fenster |
 | --- | --- | --- |
 | `network` | `bardrop.fetch`, `bardrop.download` | „Zugriff aufs Internet“ |
 | `run` | `bardrop.run`, also auch `tools` | „Programme ausführen“, als Warnung: vollen Zugriff auf den Mac |
-| `clipboard` | `bardrop.setClipboard` | „Zwischenablage“ |
+| `clipboard` | `bardrop.setClipboard` | „Zwischenablage“ (gilt ohne Frage als erteilt, wie bei macOS) |
 
 * Ein Aufruf ohne das Recht in `permissions` scheitert **sofort** mit dem Fehler `Permission “…” is missing in manifest.json`, ohne Frage.
-* Steht das Recht im Manifest, ist aber noch nicht erteilt: Bei Rechtsklick und Aktionsleiste fragt BarDrop **einmal**. „Nicht erlauben“ lässt den Aufruf scheitern (`fetch`, `download`, `run` werden abgelehnt, `setClipboard` tut nichts) und fragt beim nächsten Lauf erneut. Bei automatischen Läufen fragt BarDrop nie.
-* Erteilte Rechte gelten für **genau diesen Code**: eine SHA-256-Prüfsumme über **alle Dateien** des Plugins (Pfad und Inhalt; nur `.DS_Store` zählt nicht), denn das Skript kann weitere Dateien lesen und als Code ausführen. Jede Änderung an irgendeiner Datei setzt alle Rechte zurück. Aktualisierungen aus dem Katalog behalten Rechte, die das Plugin weiter braucht.
-* Der Dialog fragt „Darf „…“ auf das Internet zugreifen?“, „Darf „…“ Programme ausführen?“ bzw. „Darf „…“ die Zwischenablage verwenden?“, mit „Erlauben“ und „Nicht erlauben“.
+* Erlaubt wird **alles auf einmal**: Zustimmung, Rechte und Programme stehen in einem Fenster („„…“ erlauben?“ mit einer Zeile je Recht und Programm, „Erlauben“ und „Abbrechen“). Es kommt beim Einschalten oder vor dem ersten Lauf, nie mitten im Lauf. „Abbrechen“ startet das Plugin nicht und fragt beim nächsten Mal erneut.
+* Beim Import einer `.bdrop`-Datei stehen Rechte, Programme und Hinweis schon im Installieren-Fenster: „Installieren“ bzw. „Aktualisieren“ erteilt sie, danach kommt kein weiteres Fenster.
+* `clipboard` gilt immer als erteilt, sobald es in `permissions` steht (Text in die Zwischenablage legen fragt auch macOS nicht ab).
+* Erteilte Rechte gelten für **genau diesen Code**: eine SHA-256-Prüfsumme über **alle Dateien** des Plugins (Pfad und Inhalt; nur `.DS_Store` zählt nicht), denn das Skript kann weitere Dateien lesen und als Code ausführen. Jede Änderung an irgendeiner Datei auf der Platte setzt alle Rechte zurück. Aktualisierungen aus dem Katalog behalten Rechte, die das Plugin weiter braucht, und fragen nur nach neuen; ein Import erteilt die Rechte aus seiner Liste.
 * Einstellungen → Plugins → Plugin → Rechte zeigt je Recht „erlaubt“ oder „fragt zuerst“. „Erlauben“ fragt sofort nach allen fehlenden Rechten und Programmen (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat), „Zurücksetzen“ nimmt alle Rechte zurück.
 * Es gibt **keine Sandbox von macOS** um Plugins. Das Skript selbst kann ohne Rechte nur die Aufrufe aus 9 nutzen. Ein mit `run` gestartetes Programm hat aber die vollen Rechte des Benutzers.
 
 ## 7. tools: nachgeladene Programme
 
-BarDrop liefert nie Programme Dritter mit. Ein Plugin kann Programme nennen, die BarDrop beim ersten Gebrauch lädt:
+BarDrop liefert nie Programme Dritter mit. Ein Plugin kann Programme nennen, die BarDrop beim ersten Gebrauch lädt (erlaubt wird das Laden zusammen mit den Rechten, siehe 6):
 
 ```json
 "tools": [
@@ -181,11 +182,11 @@ BarDrop liefert nie Programme Dritter mit. Ein Plugin kann Programme nennen, die
 | Schlüssel | Pflicht | Bedeutung |
 | --- | --- | --- |
 | `id` | ja | Name, unter dem das Skript es startet: `bardrop.run("mytool", […])`. Plugins teilen sich ein Programm, wenn die Download-Adresse gleich ist (siehe unten). |
-| `name` | ja | Anzeige im Dialog. |
+| `name` | ja | Anzeige im Erlauben-Fenster. |
 | `url` | ja | `https://`, zeigt auf **eine einzelne ausführbare Datei** für macOS. Archive (ZIP, DMG, PKG) werden **nicht** entpackt. Umleitungen werden befolgt. |
 | `sha256` | eins von beiden | Prüfsumme der Datei. |
 | `checksums` | eins von beiden | `https://`-Adresse einer Prüfsummenliste des Herausgebers. Gesucht wird die Zeile `<64 Hex-Zeichen> <Dateiname>` oder `<…> *<Dateiname>`; Dateiname ist der letzte Teil von `url`. Für Adressen auf „latest“. |
-| `license` | nein | Erscheint im Dialog. |
+| `license` | nein | Erscheint im Erlauben-Fenster. |
 | `homepage` | nein | Wird gespeichert. |
 | `refreshDays` | nein | Nach so vielen Tagen lädt BarDrop die Datei beim nächsten Gebrauch neu, ohne erneut zu fragen. Ohne Angabe nie. |
 | `archive` | nein | `"zip"`: `url` liefert ein ZIP-Archiv. BarDrop prüft die Prüfsumme **des Archivs**, entpackt es und übernimmt nur die Datei `executable`. Andere Archivarten gibt es nicht. |
@@ -207,7 +208,7 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… laden?“ mit Herkunft und Lizenz
 ## 8. Ergebnis
 
 * `run(item)` endet ohne Fehler (auch ein `async`-`run`, dessen Versprechen erfüllt wird): **Erfolg**. Der Rückgabewert wird nicht verwendet.
-* Wirft `run` einen Fehler oder wird das Versprechen abgelehnt: **Fehlschlag**. Es kommt nichts in die Ablage. Bei Rechtsklick und Aktionsleiste zeigt BarDrop die Meldung in einem Dialog: `error.message`, bei Fehlern im Code (`TypeError`, `ReferenceError`, `SyntaxError` …) mit dem Typ davor und Datei und Zeile dahinter (`TypeError: … (main.js:12)`); eine eigene Meldung mit `throw new Error(…)` erscheint genau so, wie sie ist; ein Tipp für den Nutzer gehört in `hint` (`throw { message: "…", hint: "Installiere … und versuch es noch einmal." }` oder `error.hint = "…"` an einem `Error`), höchstens 300 Zeichen, er steht kleiner unter der Meldung und in einer eigenen Zeile im Protokoll, also nicht an die Meldung anhängen; bei automatischen Läufen nur kurz „… hat nicht geklappt“. In beiden Fällen steht die Meldung in den Einstellungen unter „Letzter Fehler“ (bis zum Beenden).
+* Wirft `run` einen Fehler oder wird das Versprechen abgelehnt: **Fehlschlag**. Es kommt nichts in die Ablage. BarDrop zeigt **kein Fenster**: Der Platzhalter rüttelt kurz, oben steht „Fehlgeschlagen“, und die Meldung steht in den Einstellungen unter „Letzter Fehler“ und im Protokoll: `error.message`, bei Fehlern im Code (`TypeError`, `ReferenceError`, `SyntaxError` …) mit dem Typ davor und Datei und Zeile dahinter (`TypeError: … (main.js:12)`); eine eigene Meldung mit `throw new Error(…)` erscheint genau so, wie sie ist; ein Tipp für den Nutzer gehört in `hint` (`throw { message: "…", hint: "Installiere … und versuch es noch einmal." }` oder `error.hint = "…"` an einem `Error`), höchstens 300 Zeichen, er steht unter der Meldung und in einer eigenen Zeile im Protokoll, also nicht an die Meldung anhängen. „Letzter Fehler“ bleibt bis zum Beenden.
 * Bei Erfolg werden alle **Einträge der obersten Ebene** im Ausgabeordner übernommen, alphabetisch sortiert, **Ordner eingeschlossen**. Ausgenommen sind Namen, die mit `.` beginnen, und die Endungen `part`, `ytdl`, `tmp`, `download`, `crdownload`. Ist der Ordner leer, verschwindet nur der Platzhalter.
 * Die Dateien werden in den Speicher von BarDrop verschoben und **direkt hinter dem Original** eingefügt (in der Reihenfolge, die der Nutzer sieht; liegt das Original in einem Stapel, hinter ihm im Stapel). Sie erscheinen sofort mit Vorschau und sind danach ausgewählt. Liegt das Original nicht mehr in der Ablage, kommen sie dazu wie neu abgelegte Objekte.
 * „Original ersetzen“ (nur mit `canReplaceOriginal`, Schalter des Nutzers, beim Start des Laufs festgelegt): Solange das Plugin läuft, steht sein Platzhalter **an der Stelle des Originals**, das Original selbst ist nicht zu sehen. Danach steht das Ergebnis genau dort, ohne Überblenden; das Original ist **aus der Ablage** genommen, nie gelöscht, ⌘Z holt es zurück. Scheitert der Lauf oder wird er abgebrochen, ist das Original wieder zu sehen.
@@ -320,7 +321,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 
 1. In BarDrop importieren, Plugin einschalten.
 2. Per Rechtsklick an einem passenden Objekt ausprobieren; erscheint es nicht, passt `match` nicht.
-3. Fehler stehen im Dialog und unter Einstellungen → Plugins → Plugin → „Letzter Fehler“.
+3. Fehler stehen unter Einstellungen → Plugins → Plugin → „Letzter Fehler“ und im Protokoll.
 4. Mehr Einzelheiten: Einstellungen → Plugins → Protokoll → „Plugin-Protokoll führen“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
 5. Erst dann „Automatisch beim Ablegen“ ausprobieren.
 
@@ -338,7 +339,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 | `extensions` für Links | passt nur auf `webloc` | `links.hosts` oder `links.patterns` |
 | globales `fetch` | Fehler im Skript | `bardrop.fetch` |
 | `which` starten, um ein Programm zu finden | findet nicht alles | `bardrop.findProgram` |
-| Tipp an die Fehlermeldung gehängt | steht im Dialog als ein Block | `throw { message, hint }` |
+| Tipp an die Fehlermeldung gehängt | steht als ein Block unter „Letzter Fehler“ | `throw { message, hint }` |
 | `fetch` ohne `status`-Prüfung | Fehlerseite als Ergebnis | `if (r.status !== 200) throw new Error(…)` |
 | `run` ohne `code`-Prüfung | Fehlschlag bleibt unbemerkt | `if (r.code !== 0) throw new Error(r.stderr)` |
 | Ergebnis außerhalb des Ausgabeordners | erscheint nicht | immer in `bardrop.outputDirectory` schreiben |
