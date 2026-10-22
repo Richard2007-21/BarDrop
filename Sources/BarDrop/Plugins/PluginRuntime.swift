@@ -126,7 +126,7 @@ final class PluginRuntime {
     private let session = URLSession(configuration: .ephemeral)
 
     private let lock = NSLock()
-    private var processes: [Process] = []
+    private var processes: [PluginProcess] = []
     private var tasks: [URLSessionTask] = []
     private var _cancelled = false
     private var _paused = false
@@ -677,20 +677,15 @@ final class PluginRuntime {
 
     private func launch(_ executable: URL, _ arguments: [String], onOutput: JSValue?,
                         _ resolve: @escaping (Any?) -> Void, _ reject: @escaping (String) -> Void) {
-        let process = Process()
-        process.executableURL = executable
-        process.arguments = arguments
-        process.currentDirectoryURL = outputDirectory
         var environment = ProcessInfo.processInfo.environment
         // Programme dieses Plugins zuerst (so findet z. B. ein Werkzeug eine mitgeladene
         // Laufzeit), dann System und Homebrew
         environment["PATH"] = (tools.folders(for: plugin.manifest.tools ?? []) + Self.searchPaths).joined(separator: ":")
         environment["BARDROP_OUTPUT"] = outputDirectory.path
-        process.environment = environment
         let out = Pipe(), err = Pipe()
-        process.standardOutput = out
-        process.standardError = err
-        process.standardInput = FileHandle.nullDevice
+        // Eigener Start statt Process: Argumente wörtlich (siehe PluginProcess)
+        let process = PluginProcess(executable: executable, arguments: arguments, environment: environment,
+                                    directory: outputDirectory, standardOutput: out, standardError: err)
 
         let collected = OutputCollector()
         let started = Date()
@@ -738,6 +733,8 @@ final class PluginRuntime {
             lock.unlock()
         } catch {
             lock.unlock()
+            out.fileHandleForReading.readabilityHandler = nil
+            err.fileHandleForReading.readabilityHandler = nil
             reject(error.localizedDescription)
         }
     }
@@ -746,7 +743,7 @@ final class PluginRuntime {
 /// Sammelt die Ausgabe eines Programms (höchstens 1 MB je Kanal) und meldet sie
 /// zeilenweise, getrennt nach stdout und stderr. Zeilen enden auch an \r, damit
 /// Fortschrittsanzeigen ankommen. Sehr lange Zeilen werden nach 64 KB weitergereicht.
-private final class OutputCollector {
+final class OutputCollector {
     private let lock = NSLock()
     private var stdout = Data()
     private var stderr = Data()
@@ -769,17 +766,41 @@ private final class OutputCollector {
         pending.append(data)
         var found: [String] = []
         while let index = pending.firstIndex(where: { $0 == 10 || $0 == 13 }) {
-            let line = pending[pending.startIndex..<index]
+            let line = Data(pending[pending.startIndex..<index])
             pending = Data(pending[pending.index(after: index)...])
-            if !line.isEmpty { found.append(String(decoding: line, as: UTF8.self)) }
+            if !line.isEmpty { found += Self.pieces(line, max: maxLine) }
         }
-        if pending.count > maxLine {
-            found.append(String(decoding: pending, as: UTF8.self))
-            pending = Data()
+        // Noch ohne Zeilenende, aber schon zu lang: volle Stücke weiterreichen, den Rest behalten
+        while pending.count > maxLine {
+            let cut = Self.boundary(pending, before: maxLine)
+            found.append(String(decoding: pending.prefix(cut), as: UTF8.self))
+            pending = Data(pending.dropFirst(cut))
         }
         if isErr { pendingErr = pending } else { pendingOut = pending }
         lock.unlock()
         found.forEach(lines)
+    }
+
+    /// Eine Zeile in Stücke von höchstens `max` Bytes, nie mitten in einem Zeichen
+    static func pieces(_ line: Data, max: Int) -> [String] {
+        var rest = line
+        var result: [String] = []
+        while rest.count > max {
+            let cut = boundary(rest, before: max)
+            result.append(String(decoding: rest.prefix(cut), as: UTF8.self))
+            rest = Data(rest.dropFirst(cut))
+        }
+        if !rest.isEmpty { result.append(String(decoding: rest, as: UTF8.self)) }
+        return result
+    }
+
+    /// Schnittstelle bei höchstens `limit` Bytes, an einem Zeichenanfang (UTF-8-Folgebytes
+    /// beginnen mit 10xxxxxx)
+    static func boundary(_ data: Data, before limit: Int) -> Int {
+        var cut = min(limit, data.count)
+        let start = data.startIndex
+        while cut > 0, cut < data.count, data[start + cut] & 0xC0 == 0x80 { cut -= 1 }
+        return cut > 0 ? cut : min(limit, data.count)
     }
 
     func flush(lines: (String) -> Void) {
@@ -826,7 +847,7 @@ enum ProcessTree {
     /// (SIGTERM), nach 3 s hart (SIGKILL). Die Nachkommen werden vorher einmal ermittelt,
     /// so werden auch Unterprogramme erreicht, deren Elternprogramm schon beendet ist.
     /// `done` kommt, wenn nichts mehr läuft (auf einer Hintergrund-Warteschlange).
-    static func terminate(_ processes: [Process], done: @escaping () -> Void) {
+    static func terminate(_ processes: [PluginProcess], done: @escaping () -> Void) {
         let running = processes.filter(\.isRunning)
         guard !running.isEmpty else { return done() }
         let pids: [pid_t] = running.flatMap { process -> [pid_t] in
