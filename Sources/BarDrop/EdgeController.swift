@@ -279,6 +279,12 @@ final class EdgeController: NSObject {
             // aktiv wird) und kein Wechsel zu einer anderen App
             DispatchQueue.main.async {
                 guard !AppActivation.isFrontmost else { return }
+                // Nach vorn kam ein Dienst der Übersicht selbst (Menü „Teilen“, Wiedergabe):
+                // Das gehört noch zur Übersicht und ist kein Wechsel
+                if let front = NSWorkspace.shared.frontmostApplication, Self.belongsToQuickLook(front) {
+                    Diagnostics.shared.record("focus", "quick look service in front, stays open")
+                    return
+                }
                 self?.closeQuickLookAndShelf()
             }
         }
@@ -293,7 +299,54 @@ final class EdgeController: NSObject {
             if event.window === panel || event.window is QLPreviewPanel { return }
             if let level = event.window?.level, level.rawValue >= NSWindow.Level.popUpMenu.rawValue { return }
         }
+        // Klicks in die Übersicht selbst kommen teils über macOS-Dienste außerhalb von BarDrop
+        // (Wiedergabe von Videos und Ton, Knöpfe und Menüs oben): Sie zählen nicht als
+        // Klick daneben. Erst wenn die Übersicht zu ist, schließt die Ablage wie sonst.
+        if clickHitsQuickLook(at: NSEvent.mouseLocation) {
+            Diagnostics.shared.record("focus", "click in quick look, stays open global=\(global)")
+            return
+        }
         closeQuickLookAndShelf()
+    }
+
+    /// Liegt an dieser Stelle die Übersicht, eines ihrer Menüs oder ein Fenster ihrer Dienste?
+    private func clickHitsQuickLook(at point: NSPoint) -> Bool {
+        if QLPreviewPanel.sharedPreviewPanelExists() {
+            let ql = QLPreviewPanel.shared()!
+            if ql.isVisible, ql.frame.insetBy(dx: -2, dy: -2).contains(point) { return true }
+        }
+        // Vorderstes fremdes Fenster an dieser Stelle (Menüs der Übersicht liegen außerhalb ihres Rahmens)
+        let mainHeight = NSScreen.screens.first?.frame.maxY ?? 0
+        let cgPoint = CGPoint(x: point.x, y: mainHeight - point.y)
+        let own = ProcessInfo.processInfo.processIdentifier
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]] else { return false }
+        for info in list {
+            guard (info[kCGWindowAlpha as String] as? Double ?? 0) > 0.05,
+                  let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
+                  bounds.contains(cgPoint),
+                  let pid = info[kCGWindowOwnerPID as String] as? Int32 else { continue }
+            // Eigene Fenster, die den Klick durchlassen (durchsichtige Teile), zählen nicht;
+            // sonst entscheidet das vorderste Fenster an der Stelle
+            if pid == own { continue }
+            if let app = NSRunningApplication(processIdentifier: pid), Self.belongsToQuickLook(app) { return true }
+            let layer = info[kCGWindowLayer as String] as? Int ?? 0
+            // Ein Menü über allem, während die Übersicht offen ist: ihr Menü „Teilen“ oder „Öffnen mit“
+            if layer >= Int(CGWindowLevelForKey(.popUpMenuWindow)), layer < Int(CGWindowLevelForKey(.screenSaverWindow)) {
+                return true
+            }
+            return false
+        }
+        return false
+    }
+
+    /// Dienste von macOS, die Inhalte der Übersicht anzeigen oder ihre Menüs öffnen
+    static func belongsToQuickLook(_ app: NSRunningApplication) -> Bool {
+        let id = (app.bundleIdentifier ?? "").lowercased()
+        let name = (app.localizedName ?? "").lowercased()
+        return id.contains("quicklook") || id.contains("sharingservice") || id.contains("avkit")
+            || name.contains("quick look") || name.contains("quicklook")
     }
 
     private func closeQuickLookAndShelf() {
