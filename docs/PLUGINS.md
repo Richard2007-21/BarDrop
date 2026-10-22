@@ -280,9 +280,20 @@ Every call used with `await` returns a promise.
 
 For `writeFile`, `createLink` and `download`: only the last part of a path counts; `/` and `:` become `-`, line breaks become spaces; spaces at the ends are removed; leading dots are removed; at most 80 characters; empty becomes “Item” (or “Objekt” in German). Programs that write into the output folder themselves aren’t affected.
 
-## 10. Catalog
+## 10. Catalog (gallery)
 
-The catalog is `Plugins/index.json` in this repository (`https://raw.githubusercontent.com/zzuuuiii/BarDrop/main/Plugins/index.json`). It is empty for now.
+The catalog lives on its own branch **`plugin-katalog`** of this repository: `https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/index.json`, with the plugins next to it under `plugins/<id>/<id>-<version>.bdrop`. A push there doesn’t build an app release (a push to `main` would). BarDrop up to Beta 7 still reads the empty `Plugins/index.json` on `main`.
+
+**Add plugins** only with the script, not by hand:
+
+```sh
+python3 scripts/publish_plugin.py MyPlugin/ --category images           # check, pack, add
+python3 scripts/publish_plugin.py MyPlugin/ --push                      # … and upload
+python3 scripts/publish_plugin.py MyPlugin/ --standard                  # installed for everyone
+python3 scripts/publish_plugin.py --remove io.github.name.plugin --push # withdraw
+```
+
+The script checks like `check_plugin.py` (and stops on errors), requires a higher `version` than the catalog has, packs the plugin, removes older versions, computes the checksum and writes the entry. The catalog is checked out as `.katalog/` next to the project (a Git worktree, created the first time, listed in `.gitignore`).
 
 ```json
 {
@@ -292,20 +303,32 @@ The catalog is `Plugins/index.json` in this repository (`https://raw.githubuserc
       "name": { "en": "Name", "de": "Name" },
       "description": { "en": "…", "de": "…" },
       "icon": { "symbol": "link", "color": "#34C759" },
-      "url": "https://raw.githubusercontent.com/zzuuuiii/BarDrop/main/Plugins/plugin.bdrop",
-      "sha256": "checksum of the .bdrop",
+      "url": "https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/plugins/io.github.name.plugin/io.github.name.plugin-1.0.0.bdrop",
+      "sha256": "checksum of the .bdrop", "size": 4812,
+      "category": "links", "author": "Name", "homepage": "https://…",
+      "permissions": ["network"], "tools": ["yt-dlp"], "updated": "2026-10-22",
       "standard": false, "removed": false, "minAppVersion": "1.31.0" }
   ]
 }
 ```
 
-* Checked at most once a day, only while plugins are turned on; right away when turning them on.
+| Key | Meaning |
+| --- | --- |
+| `id`, `version`, `name`, `url`, `sha256` | Required. `id` must equal the manifest `id`, and the checksum must match the file exactly; otherwise nothing is installed. |
+| `description`, `icon`, `author`, `homepage`, `minAppVersion` | from the manifest |
+| `category` | `images`, `links`, `documents`, `text`, `media`, `files` or `other` |
+| `permissions`, `tools` | from the manifest. Before loading, the gallery shows “Works offline”, “Downloads … once, then offline” or “Connects to the internet”, and “Runs programs”. Without `permissions` it shows none of this. |
+| `size` | size of the `.bdrop` in bytes; with `tools`, “+ programs” follows |
+| `updated` | date of this version |
+| `standard`, `removed` | see below |
+
+* Checked at most once a day, only while plugins are turned on; right away when turning them on; when opening Settings → Plugins if the last check is more than an hour old.
 * `standard: true`: installed automatically (turned off), updated silently as soon as `version` is higher, can’t be edited or removed. Without internet it appears as “Not loaded” with “Try Again”.
-* `removed: true`: removed at the next check, standard plugins included.
-* Other entries appear under “More in the catalog” with “Get”.
+* Other entries appear under “More in the catalog” with “Get”. A plugin loaded this way also gets new versions from the catalog silently; permissions it still needs stay, and the allow window asks for new ones at the next start. Importing the same plugin as a file stops catalog updates for it.
+* `removed: true`: standard plugins are removed at the next check; others disappear from the gallery but stay installed.
 * Entries with a `minAppVersion` newer than BarDrop are skipped.
-* The catalog `id` must equal the manifest `id`, and the checksum must match the file exactly; otherwise nothing is installed.
-* Submit with a pull request containing the `.bdrop` and its entry; every plugin is reviewed before it is merged.
+* Settings → Plugins → plugin shows “Internet” (offline or not) for installed plugins, and at the bottom the size on the Mac, including downloaded programs.
+* Submit with a pull request to `plugin-katalog`; every plugin is reviewed before it is merged.
 
 ## 11. Checking before sharing
 

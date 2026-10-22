@@ -40,6 +40,8 @@ struct PluginState: Codable, Equatable {
     /// die selbst nie fragen.
     var approvedTools: [String] = []
     var isStandard = false
+    /// Aus dem Katalog geladen (nicht importiert): bekommt neue Versionen von dort
+    var fromCatalog = false
 
     init() {}
 
@@ -56,6 +58,7 @@ struct PluginState: Codable, Equatable {
         consentedText = try c.decodeIfPresent(String.self, forKey: .consentedText)
         approvedTools = try c.decodeIfPresent([String].self, forKey: .approvedTools) ?? []
         isStandard = try c.decodeIfPresent(Bool.self, forKey: .isStandard) ?? false
+        fromCatalog = try c.decodeIfPresent(Bool.self, forKey: .fromCatalog) ?? false
     }
 }
 
@@ -74,6 +77,19 @@ struct PluginCatalogEntry: Codable, Equatable, Identifiable {
     /// Zurückgezogen: BarDrop entfernt es beim nächsten Abgleich
     var removed: Bool?
     var minAppVersion: String?
+    /// Für die Galerie (alles freiwillig; `scripts/publish_plugin.py` füllt es aus dem Manifest)
+    /// Kategorie: images, links, documents, text, media, files, other
+    var category: String?
+    var author: String?
+    var homepage: String?
+    /// Rechte aus dem Manifest (`network`, `run`, `clipboard`), zum Anzeigen vor dem Laden
+    var permissions: [String]?
+    /// Namen der Programme, die das Plugin lädt
+    var tools: [String]?
+    /// Datum der Veröffentlichung dieser Version, JJJJ-MM-TT
+    var updated: String?
+    /// Größe der .bdrop-Datei in Bytes (ohne nachgeladene Programme)
+    var size: Int?
 }
 
 struct PluginCatalog: Codable, Equatable {
@@ -90,9 +106,10 @@ struct PluginCatalog: Codable, Equatable {
 final class PluginManager: ObservableObject {
     static let shared = PluginManager()
 
-    /// Katalog der Standard-Plugins. Er liegt im Repository von BarDrop und lässt sich
-    /// später in ein eigenes Repository verschieben (nur diese Adresse ändern).
-    static let catalogURL = URL(string: "https://raw.githubusercontent.com/zzuuuiii/BarDrop/main/Plugins/index.json")!
+    /// Katalog (Galerie). Er liegt im Repository von BarDrop auf dem eigenen Zweig
+    /// `plugin-katalog`: Plugins dort einzutragen baut kein Release (ein Push auf `main`
+    /// täte das). Eintragen mit `scripts/publish_plugin.py`.
+    static let catalogURL = URL(string: "https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/index.json")!
 
     /// Installierte Plugins in der eingestellten Reihenfolge (die erste passende läuft
     /// automatisch). Standard-Plugins stehen vor den importierten.
@@ -483,9 +500,11 @@ final class PluginManager: ObservableObject {
 
     /// Gleicht mit dem Katalog ab: Standard-Plugins installieren und still aktualisieren,
     /// zurückgezogene entfernen. Ohne `force` höchstens einmal am Tag.
-    func syncCatalog(force: Bool = false, completion: (() -> Void)? = nil) {
+    /// `maxAge`: so alt darf der letzte Abgleich sein (im Hintergrund ein Tag; beim Öffnen
+    /// der Plugin-Einstellungen kürzer, damit neue Plugins der Galerie bald erscheinen)
+    func syncCatalog(force: Bool = false, maxAge: TimeInterval = 24 * 3600, completion: (() -> Void)? = nil) {
         guard AppSettings.shared.pluginsEnabled, !syncing else { completion?(); return }
-        if !force, let lastSync, Date().timeIntervalSince(lastSync) < 24 * 3600 { completion?(); return }
+        if !force, let lastSync, Date().timeIntervalSince(lastSync) < maxAge { completion?(); return }
         syncing = true
         var request = URLRequest(url: Self.catalogURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
         request.setValue("BarDrop/\(appVersion)", forHTTPHeaderField: "User-Agent")
@@ -529,8 +548,10 @@ final class PluginManager: ObservableObject {
         let live = usable.filter { $0.removed != true }
         catalogExtras = live.filter { $0.standard != true && plugin($0.id) == nil }
         let needed = live.filter { entry in
-            guard entry.standard == true || state(entry.id).isStandard else { return false }
-            guard let installed = plugin(entry.id) else { return true }
+            let standard = entry.standard == true || state(entry.id).isStandard
+            // Aus der Galerie geladene Plugins bekommen neue Versionen ebenfalls
+            guard standard || state(entry.id).fromCatalog else { return false }
+            guard let installed = plugin(entry.id) else { return standard }
             return Updater.isNewer(entry.version, than: installed.manifest.version)
         }
         guard online, !needed.isEmpty else {
@@ -578,6 +599,7 @@ final class PluginManager: ObservableObject {
     func installFromCatalog(_ entry: PluginCatalogEntry, completion: @escaping (Bool) -> Void) {
         download(entry) { [weak self] unpacked in
             guard let self, let unpacked, (try? self.install(unpacked, standard: false)) != nil else { return completion(false) }
+            self.update(entry.id) { $0.fromCatalog = true }
             self.catalogExtras.removeAll { $0.id == entry.id }
             completion(true)
         }

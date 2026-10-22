@@ -55,4 +55,19 @@ final class PluginProcessTests: XCTestCase {
         XCTAssertTrue(parts.allSatisfy { $0.utf8.count <= 64 * 1024 }, "\(parts.map(\.utf8.count))")
         XCTAssertEqual(parts.joined(), long)
     }
+
+    /// Programme bekommen immer eine UTF-8-Umgebung, auch wenn BarDrop ohne LANG startet
+    func testProgramEnvironmentIsUTF8() {
+        let bare = PluginRuntime.utf8Environment(["PATH": "/bin"])
+        XCTAssertEqual(bare["LANG"], "en_US.UTF-8")
+        XCTAssertEqual(bare["LC_CTYPE"], "en_US.UTF-8")
+        let german = PluginRuntime.utf8Environment(["LANG": "de_DE.UTF-8"])
+        XCTAssertEqual(german["LANG"], "de_DE.UTF-8")
+        XCTAssertNil(german["LC_CTYPE"], "LANG mit UTF-8 reicht")
+        let latin = PluginRuntime.utf8Environment(["LANG": "de_DE.ISO8859-1"])
+        XCTAssertEqual(latin["LC_CTYPE"], "en_US.UTF-8")
+        XCTAssertEqual(PluginRuntime.utf8Environment(["LC_ALL": "C"])["LC_ALL"], "en_US.UTF-8")
+        XCTAssertEqual(PluginRuntime.utf8Environment(["LC_ALL": "de_DE.UTF-8"])["LC_ALL"], "de_DE.UTF-8")
+    }
+
 }

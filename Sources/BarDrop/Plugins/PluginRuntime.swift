@@ -837,9 +837,30 @@ final class PluginRuntime {
         return URL(fileURLWithPath: path)
     }
 
+    /// Programme sprechen UTF-8. Aus dem Finder gestartet hat BarDrop kein `LANG`; dann
+    /// gaben Programme wie `pbpaste` Umlaute und Emoji als „?“ aus (Schnittstellen-Test
+    /// „setClipboard und zurücksetzen“, je nachdem, wie BarDrop gestartet wurde).
+    static func utf8Environment(_ base: [String: String]) -> [String: String] {
+        var environment = base
+        func isUTF8(_ key: String) -> Bool {
+            guard let value = environment[key]?.lowercased() else { return false }
+            return value.contains("utf-8") || value.contains("utf8")
+        }
+        // LC_ALL gewinnt vor allem anderen: dann nur, wenn es selbst UTF-8 ist
+        if let all = environment["LC_ALL"], !all.isEmpty {
+            if !isUTF8("LC_ALL") { environment["LC_ALL"] = "en_US.UTF-8" }
+            return environment
+        }
+        if !isUTF8("LC_CTYPE") && !(environment["LC_CTYPE"] == nil && isUTF8("LANG")) {
+            environment["LC_CTYPE"] = "en_US.UTF-8"
+        }
+        if environment["LANG"]?.isEmpty ?? true { environment["LANG"] = "en_US.UTF-8" }
+        return environment
+    }
+
     private func launch(_ executable: URL, _ arguments: [String], onOutput: JSValue?,
                         _ resolve: @escaping (Any?) -> Void, _ reject: @escaping (String) -> Void) {
-        var environment = ProcessInfo.processInfo.environment
+        var environment = Self.utf8Environment(ProcessInfo.processInfo.environment)
         // Programme dieses Plugins zuerst (so findet z. B. ein Werkzeug eine mitgeladene
         // Laufzeit), dann System und Homebrew
         environment["PATH"] = programFolders.joined(separator: ":")

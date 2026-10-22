@@ -313,7 +313,7 @@ def check_script(full_text, m):
     for perm in perms:
         calls = {"network": ("fetch", "download"), "run": ("run",), "clipboard": ("setClipboard",)}[perm] if perm in PERMISSIONS else ()
         if calls and not any(f"bardrop.{c}(" in text for c in calls):
-            hint(f"Recht \"{perm}\" wird im Skript nicht verwendet: weglassen, dann fragt BarDrop nicht danach")
+            hint(f"Recht \"{perm}\" wird im Skript nicht verwendet: weglassen, dann steht es nicht in den Fenstern und der Galerie")
     node = shutil.which("node")
     if node:
         # Als normales Skript übersetzen (wie JSContext.evaluateScript), nicht ausführen.

@@ -55,7 +55,7 @@ struct PluginSettings: View {
         .onAppear {
             // Bearbeitete Skripte erkennen; Katalog abgleichen, wenn es länger her ist
             manager.reload()
-            manager.syncCatalog()
+            manager.syncCatalog(maxAge: 3600)
         }
     }
 
@@ -292,6 +292,16 @@ private struct PluginDetails: View {
                 }
                 divider
             }
+            // Offline oder mit dem Internet: auf einen Blick, ohne die Rechte lesen zu müssen
+            let connectivity = PluginConnectivity(permissions: manifest.allPermissions,
+                                                  tools: (manifest.tools ?? []).map(\.name))
+            SettingsRow(L("Internet", "Internet")) {
+                Label(connectivity.text, systemImage: connectivity.symbol)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            divider
             SettingsRow(L("Works with", "Passt zu")) {
                 Text(PluginSummary.matches(manifest.match))
                     .font(.system(size: 12))
@@ -322,7 +332,9 @@ private struct PluginDetails: View {
             }
             divider
             HStack(spacing: 8) {
-                Text([plugin.manifest.version, plugin.manifest.author].compactMap { $0 }.joined(separator: " · "))
+                // Version, Autor und Platz auf dem Mac (mit geladenen Programmen)
+                Text([plugin.manifest.version, plugin.manifest.author, PluginSize.summary(of: plugin, tools: manager.tools)]
+                        .compactMap { $0 }.joined(separator: " · "))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 8)
@@ -470,7 +482,13 @@ private struct CatalogRow: View {
                 Text(failed ? L("Loading didn’t work", "Laden hat nicht geklappt") : (entry.description?.text ?? entry.version))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                if !failed, let details = CatalogRow.details(entry) {
+                    Text(details)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 8)
             if loading {
@@ -488,6 +506,95 @@ private struct CatalogRow: View {
         }
         .padding(.horizontal, SettingsTheme.rowPadding)
         .frame(minHeight: 52)
+    }
+}
+
+extension CatalogRow {
+    /// Zweite Zeile: zuerst, ob das Plugin offline bleibt, dann Kategorie und Autor
+    static func details(_ entry: PluginCatalogEntry) -> String? {
+        var parts: [String] = []
+        // Nur bekannt, wenn der Katalog die Rechte nennt (ältere Einträge: nichts behaupten)
+        if let permissions = entry.permissions {
+            parts.append(PluginConnectivity(permissions: permissions.compactMap(PluginPermission.init(rawValue:)),
+                                            tools: entry.tools ?? []).text)
+            if permissions.contains(PluginPermission.run.rawValue) { parts.append(L("Runs programs", "Startet Programme")) }
+        }
+        if let size = entry.size {
+            // Programme kommen beim ersten Gebrauch dazu, ihre Größe kennt der Katalog nicht
+            parts.append(PluginSize.text(Int64(size)) + ((entry.tools ?? []).isEmpty ? "" : L(" + programs", " + Programme")))
+        }
+        if let category = entry.category.flatMap(PluginCategory.title) { parts.append(category) }
+        if let author = entry.author, !author.isEmpty { parts.append(author) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// Braucht ein Plugin das Internet? Aus seinen Rechten und Programmen abgeleitet:
+/// Ohne `network` kann das Skript selbst keine Verbindung aufbauen; Programme aus `tools`
+/// werden einmal geladen (ein mit `run` gestartetes Programm könnte trotzdem ins Netz).
+struct PluginConnectivity {
+    let permissions: [PluginPermission]
+    let tools: [String]
+
+    var usesNetwork: Bool { permissions.contains(.network) }
+
+    var text: String {
+        if usesNetwork { return L("Connects to the internet", "Verbindet sich mit dem Internet") }
+        if !tools.isEmpty {
+            return L("Downloads \(tools.joined(separator: ", ")) once, then offline",
+                     "Lädt einmal \(tools.joined(separator: ", ")), dann offline")
+        }
+        return L("Works offline", "Funktioniert offline")
+    }
+
+    var symbol: String {
+        if usesNetwork { return "globe" }
+        return tools.isEmpty ? "wifi.slash" : "arrow.down.circle"
+    }
+}
+
+/// Größe eines Plugins: eigene Dateien und die Programme, die es geladen hat
+enum PluginSize {
+    static func text(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    static func folder(_ url: URL) -> Int64 {
+        let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileSizeKey, .isRegularFileKey]
+        guard let walker = FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys) else { return 0 }
+        var total: Int64 = 0
+        for case let file as URL in walker {
+            guard let v = try? file.resourceValues(forKeys: Set(keys)), v.isRegularFile == true else { continue }
+            total += Int64(v.totalFileAllocatedSize ?? v.fileSize ?? 0)
+        }
+        return total
+    }
+
+    /// „120 KB“ oder „120 KB · Programme 85 MB“
+    static func summary(of plugin: InstalledPlugin, tools: PluginTools) -> String {
+        let own = folder(plugin.directory)
+        let programs = (plugin.manifest.tools ?? []).compactMap { tools.installed($0) }
+            .reduce(Int64(0)) { $0 + folder($1.deletingLastPathComponent()) }
+        guard programs > 0 else { return text(own) }
+        return text(own) + " · " + L("programs ", "Programme ") + text(programs)
+    }
+}
+
+/// Kategorien der Galerie (Werte in index.json)
+enum PluginCategory {
+    static let all = ["images", "links", "documents", "text", "media", "files", "other"]
+
+    static func title(_ key: String) -> String? {
+        switch key {
+        case "images": return L("Images", "Bilder")
+        case "links": return L("Links and web", "Links und Web")
+        case "documents": return L("Documents", "Dokumente")
+        case "text": return L("Text", "Text")
+        case "media": return L("Audio and video", "Audio und Video")
+        case "files": return L("Files", "Dateien")
+        case "other": return L("Other", "Sonstiges")
+        default: return nil
+        }
     }
 }
 

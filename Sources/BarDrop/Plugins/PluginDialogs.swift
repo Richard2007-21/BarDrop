@@ -175,6 +175,8 @@ enum PluginImporter {
             // Rechte und Programme standen in der Liste: Wer „Installieren“ klickt, erlaubt sie.
             // Kein zweites Fenster beim ersten Lauf.
             manager.grantAll(installed)
+            // Von Hand importiert: Updates kommen nicht mehr aus der Galerie
+            manager.update(installed.id) { $0.fromCatalog = false }
             // Plugins einschalten, sonst wäre das neue Plugin nirgends zu sehen
             if !AppSettings.shared.pluginsEnabled { AppSettings.shared.pluginsEnabled = true }
             return installed

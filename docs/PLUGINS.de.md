@@ -280,9 +280,20 @@ Alle Aufrufe mit `await` liefern ein Versprechen.
 
 Für `writeFile`, `createLink` und `download` gilt: nur der letzte Teil eines Pfads zählt; `/` und `:` werden zu `-`, Zeilenumbrüche zu Leerzeichen; Leerzeichen am Rand fallen weg; führende Punkte werden entfernt; höchstens 80 Zeichen; leer wird zu „Item“ bzw. „Objekt“. Programme, die selbst in den Ausgabeordner schreiben, sind davon nicht betroffen.
 
-## 10. Katalog
+## 10. Katalog (Galerie)
 
-Der Katalog ist `Plugins/index.json` in diesem Repository (`https://raw.githubusercontent.com/zzuuuiii/BarDrop/main/Plugins/index.json`). Er ist vorerst leer.
+Der Katalog liegt auf dem eigenen Zweig **`plugin-katalog`** dieses Repositorys: `https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/index.json`, die Plugins daneben unter `plugins/<id>/<id>-<version>.bdrop`. Ein Push dorthin baut kein Release der App (ein Push auf `main` täte das). BarDrop bis Beta 7 liest noch den leeren `Plugins/index.json` auf `main`.
+
+**Eintragen** nur mit dem Skript, nicht von Hand:
+
+```sh
+python3 scripts/publish_plugin.py MeinPlugin/ --category images          # prüfen, packen, eintragen
+python3 scripts/publish_plugin.py MeinPlugin/ --push                     # … und hochladen
+python3 scripts/publish_plugin.py MeinPlugin/ --standard                 # für alle automatisch
+python3 scripts/publish_plugin.py --remove io.github.name.plugin --push  # zurückziehen
+```
+
+Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt eine höhere `version` als im Katalog, packt das Plugin, entfernt ältere Fassungen, rechnet die Prüfsumme und schreibt den Eintrag. Der Katalog liegt dabei als Arbeitsordner `.katalog/` neben dem Projekt (Git-Worktree, beim ersten Mal angelegt, steht in `.gitignore`).
 
 ```json
 {
@@ -292,20 +303,32 @@ Der Katalog ist `Plugins/index.json` in diesem Repository (`https://raw.githubus
       "name": { "en": "Name", "de": "Name" },
       "description": { "en": "…", "de": "…" },
       "icon": { "symbol": "link", "color": "#34C759" },
-      "url": "https://raw.githubusercontent.com/zzuuuiii/BarDrop/main/Plugins/plugin.bdrop",
-      "sha256": "Prüfsumme der .bdrop",
+      "url": "https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/plugins/io.github.name.plugin/io.github.name.plugin-1.0.0.bdrop",
+      "sha256": "Prüfsumme der .bdrop", "size": 4812,
+      "category": "links", "author": "Name", "homepage": "https://…",
+      "permissions": ["network"], "tools": ["yt-dlp"], "updated": "2026-10-22",
       "standard": false, "removed": false, "minAppVersion": "1.31.0" }
   ]
 }
 ```
 
-* Abfrage höchstens einmal am Tag, nur bei eingeschalteten Plugins; beim Einschalten sofort.
+| Schlüssel | Bedeutung |
+| --- | --- |
+| `id`, `version`, `name`, `url`, `sha256` | Pflicht. `id` muss der `id` im Manifest entsprechen, die Prüfsumme der Datei genau stimmen, sonst wird nichts installiert. |
+| `description`, `icon`, `author`, `homepage`, `minAppVersion` | aus dem Manifest |
+| `category` | `images`, `links`, `documents`, `text`, `media`, `files` oder `other` |
+| `permissions`, `tools` | aus dem Manifest. Die Galerie zeigt daraus vor dem Laden „Funktioniert offline“, „Lädt einmal …, dann offline“ oder „Verbindet sich mit dem Internet“ und „Startet Programme“. Fehlt `permissions`, zeigt sie dazu nichts. |
+| `size` | Größe der `.bdrop` in Bytes; mit `tools` steht „+ Programme“ dahinter |
+| `updated` | Datum dieser Version |
+| `standard`, `removed` | siehe unten |
+
+* Abfrage höchstens einmal am Tag, nur bei eingeschalteten Plugins; beim Einschalten sofort; beim Öffnen von Einstellungen → Plugins, wenn die letzte Abfrage über eine Stunde her ist.
 * `standard: true`: wird automatisch installiert (ausgeschaltet), still aktualisiert, sobald `version` höher ist, lässt sich weder bearbeiten noch entfernen. Ohne Internet erscheint es als „Nicht geladen“ mit „Erneut versuchen“.
-* `removed: true`: wird beim nächsten Abgleich entfernt, auch als Standard-Plugin.
-* Andere Einträge erscheinen unter „Mehr im Katalog“ mit „Laden“.
+* Andere Einträge erscheinen unter „Mehr im Katalog“ mit „Laden“. Ein so geladenes Plugin bekommt neue Versionen ebenfalls still aus dem Katalog; Rechte, die es weiter braucht, bleiben, nach neuen fragt das Erlauben-Fenster beim nächsten Start. Wer dasselbe Plugin als Datei importiert, bekommt keine Updates mehr aus dem Katalog.
+* `removed: true`: Standard-Plugins werden beim nächsten Abgleich entfernt; andere verschwinden aus der Galerie, bleiben aber installiert.
 * Einträge mit einer `minAppVersion`, die neuer ist als BarDrop, werden übergangen.
-* Die `id` im Katalog muss der `id` im Manifest entsprechen, die Prüfsumme der Datei genau stimmen, sonst wird nichts installiert.
-* Einreichen per Pull Request mit `.bdrop` und Eintrag; jedes Plugin wird vor dem Aufnehmen geprüft.
+* Einstellungen → Plugins → Plugin zeigt bei installierten Plugins „Internet“ (offline oder nicht) und unten die Größe auf dem Mac, mit geladenen Programmen.
+* Einreichen per Pull Request auf `plugin-katalog`; jedes Plugin wird vor dem Aufnehmen geprüft.
 
 ## 11. Prüfen vor dem Weitergeben
 

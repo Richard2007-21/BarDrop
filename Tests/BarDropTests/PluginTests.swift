@@ -189,6 +189,29 @@ final class PluginTests: XCTestCase {
         XCTAssertTrue(manager.isGranted(.clipboard, for: edited))
     }
 
+    /// Galerie: neue Felder im Katalog und die Angabe offline/Internet
+    func testCatalogGalleryFieldsAndConnectivity() throws {
+        let json = #"""
+        {"schema": 1, "plugins": [
+          {"id": "a.b.c", "version": "1.0.0", "name": {"en": "A"}, "url": "https://x/a.bdrop", "sha256": "00",
+           "size": 4812, "category": "links", "author": "Johann", "permissions": ["network"],
+           "tools": ["yt-dlp"], "updated": "2026-10-22", "future": "unbekannt"},
+          {"id": "d.e.f", "version": "1.0.0", "name": {"en": "D"}, "url": "https://x/d.bdrop", "sha256": "00"}
+        ]}
+        """#
+        let catalog = try JSONDecoder().decode(PluginCatalog.self, from: Data(json.utf8))
+        XCTAssertEqual(catalog.plugins[0].size, 4812)
+        XCTAssertEqual(catalog.plugins[0].category, "links")
+        XCTAssertEqual(catalog.plugins[0].tools, ["yt-dlp"])
+        XCTAssertNil(catalog.plugins[1].permissions, "ältere Einträge ohne Felder bleiben lesbar")
+
+        XCTAssertTrue(PluginConnectivity(permissions: [.network], tools: []).usesNetwork)
+        XCTAssertEqual(PluginConnectivity(permissions: [.clipboard], tools: []).symbol, "wifi.slash")
+        XCTAssertEqual(PluginConnectivity(permissions: [.run], tools: ["ffmpeg"]).symbol, "arrow.down.circle")
+        XCTAssertNotNil(PluginCategory.title("media"))
+        XCTAssertNil(PluginCategory.title("unbekannt"))
+    }
+
     // MARK: Ausführung
 
     private final class Prompter: PluginPrompter {
