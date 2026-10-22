@@ -144,7 +144,7 @@ BarDrop always stores links itself as `.webloc`.
 
 **Action bar (`action`):** Settings → Plugins → plugin → “In the action bar”, or Settings → Actions → Add Action. The action is only visible while the plugin is turned on. Drag onto it: runs for the dragged items; a click doesn’t run it. If nothing matches, BarDrop beeps.
 
-**Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. The arrows in a plugin’s details change the order. Where the shelf usually shows the number of items, it then shows “Plugin running”.
+**Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. Settings → Plugins → “Order” changes the order (shown from two automatic plugins on). Where the shelf usually shows the number of items, it then shows “Plugin running”.
 
 A plugin only starts if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. If something is missing, BarDrop asks for all of it **before the start, in one window**: when turning the plugin on, when turning on “Automatically when dropped”, for right-click and action bar, and when dropping (once per drop). If you decline, it doesn’t run, and the shelf shows “Not started”. During an automatic run, a plugin never asks.
 
@@ -163,7 +163,7 @@ A plugin only starts if it can run **without asking**: consent given (`consent`)
 * When importing a `.bdrop` file, permissions, programs and the notice are already listed in the install window: “Install” or “Update” grants them, and no further window follows.
 * `clipboard` always counts as granted once it is listed in `permissions` (putting text on the clipboard isn’t asked for by macOS either).
 * Granted permissions apply to **exactly this code**: a SHA-256 over **all files** of the plugin (path and content; only `.DS_Store` doesn’t count), because the script can read other files and run them as code. Any change to any file on disk resets all permissions. Updates from the catalog keep the permissions the plugin still needs and only ask for new ones; an import grants the permissions in its list.
-* Settings → Plugins → plugin → Permissions shows “allowed” or “asks first” for each permission. “Allow” asks for all missing permissions and programs right away (for example after an edited script lost its permissions), “Reset” takes all permissions back.
+* If a turned-on plugin is missing something, the list shows “Needs your permission” with “Allow”, which asks for everything missing right away (for example after an edited script lost its permissions). On the plugin’s page, Overview → “May” names the permissions and whether they are allowed; “Reset” takes all permissions back.
 * There is **no macOS sandbox** around plugins. Without permissions, the script can only use the calls in 9. A program started with `run`, however, has the user’s full rights.
 
 ## 7. tools: programs loaded on demand
@@ -203,7 +203,7 @@ Example of a program inside an archive:
   "archive": "zip", "executable": "tool", "license": "MIT", "refreshDays": 30 }
 ```
 
-Sequence: if the file is missing, BarDrop asks (“Download …?” with origin and license). If several things are missing when you turn on “Automatically when dropped” or when you drop something (consent, permissions, programs), BarDrop asks for all of them in **one** window. After “Download” it downloads (the placeholder shows “Downloading …” with percent), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>-<address tag>/<id>` with `meta.json` next to it, so two plugins with the same `id` but different addresses don’t overwrite each other. The permission is stored per plugin **for exactly this address** and then also applies to automatic runs. If an update changes the address, BarDrop asks again. Only an outdated program from the same address (`refreshDays`, new checksum) is downloaded again without asking. If two runs need it at the same time, only one downloads, the other waits. If another plugin has already loaded the same file (same address, and with `sha256` the same checksum, still within `refreshDays`), it is shared, also under a different `id`: nothing is downloaded, the user is still asked once for this plugin. Settings → Plugins → plugin → Programs → “Update” downloads the plugin’s allowed programs again, without asking, for example when a newer version of the program fixes an error. Removing a plugin keeps loaded programs.
+Sequence: if the file is missing, BarDrop asks (“Download …?” with origin and license). If several things are missing when you turn on “Automatically when dropped” or when you drop something (consent, permissions, programs), BarDrop asks for all of them in **one** window. After “Download” it downloads (the placeholder shows “Downloading …” with percent), compares the checksum (on a mismatch the file is deleted and the call fails), makes the file executable (755) and removes the quarantine flag. Location: `~/Library/Application Support/BarDrop/Tools/<id>-<address tag>/<id>` with `meta.json` next to it, so two plugins with the same `id` but different addresses don’t overwrite each other. The permission is stored per plugin **for exactly this address** and then also applies to automatic runs. If an update changes the address, BarDrop asks again. Only an outdated program from the same address (`refreshDays`, new checksum) is downloaded again without asking. If two runs need it at the same time, only one downloads, the other waits. If another plugin has already loaded the same file (same address, and with `sha256` the same checksum, still within `refreshDays`), it is shared, also under a different `id`: nothing is downloaded, the user is still asked once for this plugin. Settings → Plugins → plugin → Overview → Programs → “Update” downloads the plugin’s allowed programs again, without asking, for example when a newer version of the program fixes an error. Removing a plugin keeps loaded programs.
 
 ## 8. Result
 
@@ -231,7 +231,7 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin 
 * Every run has its **own, fresh context**: globals don’t survive a run. Only `settings` persist.
 * The script is first evaluated once as a whole (global definitions), then `run(item, items)` is called. `items` is the list of all items of the run: with `batch` all of them, otherwise just `item`. `function run(item)` keeps working.
 * An error during that first evaluation (e.g. a syntax error) is a failure. So is a missing `run` (“The script has no function run”).
-* Long computations run as long as they need. Once a run ends (“Cancel”, “Stop” in Settings → Plugins, turning the plugin off), BarDrop also ends a script that is still computing, even in an endless loop, within about a quarter of a second. Settings → Plugins shows “Running” with a “Stop” button while a plugin has runs.
+* Long computations run as long as they need. Once a run ends (“Cancel”, “Stop” in Settings → Plugins, turning the plugin off), BarDrop also ends a script that is still computing, even in an endless loop, within about a quarter of a second. While a plugin has runs, the list in Settings → Plugins shows “Running”; the plugin’s page also has “Stop”.
 * The script is loaded as a **classic script**, not a module: no `import`/`export`, no `await` and no `return` outside functions. `function run`, `var run =`, `let run =` and `const run =` all work.
 
 ### 9.2 item
@@ -325,10 +325,10 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
 
 * Checked at most once a day, only while plugins are turned on; right away when turning them on; when opening Settings → Plugins if the last check is more than an hour old.
 * `standard: true`: installed automatically (turned off), updated silently as soon as `version` is higher, can’t be edited or removed. Without internet it appears as “Not loaded” with “Try Again”.
-* Other entries appear under “More in the catalog” with “Get”. A plugin loaded this way also gets new versions from the catalog silently; permissions it still needs stay, and the allow window asks for new ones at the next start. Importing the same plugin as a file stops catalog updates for it.
+* Settings → Plugins → Gallery shows all entries (with a search field from seven on); those not installed with “Get”, installed ones with “Open”. A plugin loaded this way also gets new versions from the catalog silently; permissions it still needs stay, and the allow window asks for new ones at the next start. Importing the same plugin as a file stops catalog updates for it.
 * `removed: true`: standard plugins are removed at the next check; others disappear from the gallery but stay installed.
 * Entries with a `minAppVersion` newer than BarDrop are skipped.
-* Settings → Plugins → plugin shows “Internet” (offline or not) for installed plugins, and at the bottom the size on the Mac, separately: “Plugin 38 KB · Programs 92 MB”.
+* In the list in Settings → Plugins, a gray symbol per plugin shows whether it works offline (crossed-out Wi-Fi), uses the internet (globe) or downloads a program once (down arrow), plus a bolt for “Automatically when dropped”; a line below explains the symbols. A plugin’s page shows “Internet”, “Plugin” (size and version) and “Programs” (size of the downloaded programs) separately under Overview; the total is below the list.
 * Submit with a pull request to `plugin-katalog`; every plugin is reviewed before it is merged.
 
 ## 11. Checking before sharing
@@ -346,7 +346,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 1. Import it in BarDrop and turn it on.
 2. Try it with a right-click on a matching item; if it doesn’t appear, `match` doesn’t match.
 3. Errors appear under Settings → Plugins → plugin → “Last error” and in the log.
-4. More detail: Settings → Plugins → Log → “Keep a plugin log”, then `bardrop.log`/`console.log` in the script (section 14).
+4. More detail: Settings → Plugins → “Log” → “Keep a plugin log”, then `bardrop.log`/`console.log` in the script (section 14).
 5. Only then try “Automatically when dropped”.
 
 ## 12. Common mistakes
@@ -412,7 +412,7 @@ function run(item) {
 
 ## 14. Plugin log
 
-Settings → Plugins → Log → “Keep a plugin log” (off by default). The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`); “Show” opens it, “Clear” deletes both.
+Settings → Plugins → “Log” → “Keep a plugin log” (off by default). The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`); “Show” opens it, “Clear” deletes both.
 
 It is **separate from BarDrop’s diagnostic log**: its own file, its own switch, available in all versions. Plugin events appear only here, not in the diagnostic log. Unlike that one, it names files, addresses and error messages. It stays on the Mac.
 

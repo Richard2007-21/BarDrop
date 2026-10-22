@@ -144,7 +144,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 **Aktionsleiste (`action`):** Einstellungen → Plugins → Plugin → „In der Aktionsleiste“ oder Einstellungen → Aktionen → Aktion hinzufügen. Die Aktion ist nur zu sehen, solange das Plugin eingeschaltet ist. Darauf ziehen: läuft für die gezogenen Objekte; ein Klick führt es nicht aus. Passt nichts, gibt es einen Warnton.
 
-**Automatisch beim Ablegen (`automatic`):** Je Plugin ein Schalter, standardmäßig aus (Ausnahme 3.1 `automaticByDefault`). Es zählt nur, was der Nutzer selbst in die Ablage legt: Ziehen und ⌘V. Nicht: Bildschirmfotos, Ergebnisse von Aktionen und Plugins, Widerrufen, die Einführung. Für jedes abgelegte Objekt läuft **höchstens ein** Plugin: das erste in der Liste der Einstellungen, das eingeschaltet ist, automatisch läuft und passt. Die Reihenfolge ändern die Pfeile in den Details eines Plugins. Oben in der Ablage, wo sonst die Anzahl steht, steht dann „Plugin läuft“.
+**Automatisch beim Ablegen (`automatic`):** Je Plugin ein Schalter, standardmäßig aus (Ausnahme 3.1 `automaticByDefault`). Es zählt nur, was der Nutzer selbst in die Ablage legt: Ziehen und ⌘V. Nicht: Bildschirmfotos, Ergebnisse von Aktionen und Plugins, Widerrufen, die Einführung. Für jedes abgelegte Objekt läuft **höchstens ein** Plugin: das erste in der Liste der Einstellungen, das eingeschaltet ist, automatisch läuft und passt. Die Reihenfolge ändert Einstellungen → Plugins → „Reihenfolge“ (erscheint ab zwei automatischen Plugins). Oben in der Ablage, wo sonst die Anzahl steht, steht dann „Plugin läuft“.
 
 Ein Plugin startet nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`consent`) gegeben, alle Rechte aus `permissions` erteilt, alle Programme aus `tools` erlaubt. Fehlt etwas, fragt BarDrop all das **vor dem Start in einem Fenster** ab: beim Einschalten des Plugins, beim Einschalten von „Automatisch beim Ablegen“, bei Rechtsklick und Aktionsleiste und beim Ablegen (einmal je Ablegen). Lehnt man ab, läuft es nicht, und oben steht „Nicht gestartet“. Während eines automatischen Laufs fragt das Plugin nie.
 
@@ -163,7 +163,7 @@ Ein Plugin startet nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`co
 * Beim Import einer `.bdrop`-Datei stehen Rechte, Programme und Hinweis schon im Installieren-Fenster: „Installieren“ bzw. „Aktualisieren“ erteilt sie, danach kommt kein weiteres Fenster.
 * `clipboard` gilt immer als erteilt, sobald es in `permissions` steht (Text in die Zwischenablage legen fragt auch macOS nicht ab).
 * Erteilte Rechte gelten für **genau diesen Code**: eine SHA-256-Prüfsumme über **alle Dateien** des Plugins (Pfad und Inhalt; nur `.DS_Store` zählt nicht), denn das Skript kann weitere Dateien lesen und als Code ausführen. Jede Änderung an irgendeiner Datei auf der Platte setzt alle Rechte zurück. Aktualisierungen aus dem Katalog behalten Rechte, die das Plugin weiter braucht, und fragen nur nach neuen; ein Import erteilt die Rechte aus seiner Liste.
-* Einstellungen → Plugins → Plugin → Rechte zeigt je Recht „erlaubt“ oder „fragt zuerst“. „Erlauben“ fragt sofort nach allen fehlenden Rechten und Programmen (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat), „Zurücksetzen“ nimmt alle Rechte zurück.
+* Fehlt einem eingeschalteten Plugin etwas, steht in der Liste „Braucht noch deine Erlaubnis“ mit „Erlauben“; das fragt sofort nach allem Fehlenden (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat). Auf der Seite des Plugins nennt Überblick → „Darf“ die Rechte und ob sie erlaubt sind; „Zurücksetzen“ nimmt alle Rechte zurück.
 * Es gibt **keine Sandbox von macOS** um Plugins. Das Skript selbst kann ohne Rechte nur die Aufrufe aus 9 nutzen. Ein mit `run` gestartetes Programm hat aber die vollen Rechte des Benutzers.
 
 ## 7. tools: nachgeladene Programme
@@ -203,7 +203,7 @@ Beispiel für ein Programm im Archiv:
   "archive": "zip", "executable": "tool", "license": "MIT", "refreshDays": 30 }
 ```
 
-Ablauf: Fehlt die Datei, fragt BarDrop („… laden?“ mit Herkunft und Lizenz). Fehlen beim Einschalten von „Automatisch beim Ablegen“ oder beim Ablegen mehrere Dinge (Zustimmung, Rechte, Programme), fragt BarDrop alles in **einem** Fenster. Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“ mit Prozent), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>-<Kennung der Adresse>/<id>` mit `meta.json` daneben; zwei Plugins mit derselben `id`, aber verschiedenen Adressen überschreiben sich also nicht. Die Erlaubnis wird je Plugin **für genau diese Adresse** gespeichert und gilt danach auch für automatische Läufe. Ändert ein Update die Adresse, fragt BarDrop erneut. Ohne Frage neu geladen wird nur ein veraltetes Programm von derselben Adresse (`refreshDays`, neue Prüfsumme). Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Hat ein anderes Plugin dieselbe Datei schon geladen (gleiche Adresse, mit `sha256` auch gleiche Prüfsumme, noch innerhalb von `refreshDays`), wird sie mitbenutzt, auch unter anderer `id`: Es wird nichts geladen, gefragt wird für dieses Plugin trotzdem einmal. Einstellungen → Plugins → Plugin → Programme → „Aktualisieren“ lädt die erlaubten Programme des Plugins ohne Frage neu, etwa wenn eine neuere Fassung des Programms einen Fehler behebt. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
+Ablauf: Fehlt die Datei, fragt BarDrop („… laden?“ mit Herkunft und Lizenz). Fehlen beim Einschalten von „Automatisch beim Ablegen“ oder beim Ablegen mehrere Dinge (Zustimmung, Rechte, Programme), fragt BarDrop alles in **einem** Fenster. Nach „Laden“ wird geladen (der Platzhalter zeigt „Lädt …“ mit Prozent), die Prüfsumme verglichen (passt sie nicht, wird die Datei gelöscht und der Aufruf scheitert), die Datei ausführbar gemacht (755) und die Quarantäne entfernt. Ablage: `~/Library/Application Support/BarDrop/Tools/<id>-<Kennung der Adresse>/<id>` mit `meta.json` daneben; zwei Plugins mit derselben `id`, aber verschiedenen Adressen überschreiben sich also nicht. Die Erlaubnis wird je Plugin **für genau diese Adresse** gespeichert und gilt danach auch für automatische Läufe. Ändert ein Update die Adresse, fragt BarDrop erneut. Ohne Frage neu geladen wird nur ein veraltetes Programm von derselben Adresse (`refreshDays`, neue Prüfsumme). Laden zwei Läufe gleichzeitig, lädt nur einer, der andere wartet. Hat ein anderes Plugin dieselbe Datei schon geladen (gleiche Adresse, mit `sha256` auch gleiche Prüfsumme, noch innerhalb von `refreshDays`), wird sie mitbenutzt, auch unter anderer `id`: Es wird nichts geladen, gefragt wird für dieses Plugin trotzdem einmal. Einstellungen → Plugins → Plugin → Überblick → Programme → „Aktualisieren“ lädt die erlaubten Programme des Plugins ohne Frage neu, etwa wenn eine neuere Fassung des Programms einen Fehler behebt. Beim Entfernen eines Plugins bleiben geladene Programme liegen.
 
 ## 8. Ergebnis
 
@@ -231,7 +231,7 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… laden?“ mit Herkunft und Lizenz
 * Jeder Lauf hat einen **eigenen, frischen Kontext**: Globale Variablen überleben keinen Lauf. Dauerhaftes gibt es nur über `settings`.
 * Das Skript wird zuerst einmal ganz ausgeführt (globale Definitionen), dann wird `run(item, items)` aufgerufen. `items` ist die Liste aller Objekte des Laufs: mit `batch` alle, sonst nur `item`. `function run(item)` funktioniert weiter.
 * Ein Fehler beim ersten Ausführen (z. B. Syntaxfehler) ist ein Fehlschlag. Fehlt `run`, ebenfalls („Im Skript fehlt die Funktion run“).
-* Lange Rechnungen laufen, solange sie brauchen. Ist ein Lauf zu Ende („Abbrechen“, „Beenden“ unter Einstellungen → Plugins, Plugin ausgeschaltet), beendet BarDrop auch ein Skript, das noch rechnet, selbst in einer Endlosschleife, innerhalb etwa einer Viertelsekunde. Einstellungen → Plugins zeigt „Läuft gerade“ mit dem Knopf „Beenden“, solange ein Plugin Läufe hat.
+* Lange Rechnungen laufen, solange sie brauchen. Ist ein Lauf zu Ende („Abbrechen“, „Beenden“ unter Einstellungen → Plugins, Plugin ausgeschaltet), beendet BarDrop auch ein Skript, das noch rechnet, selbst in einer Endlosschleife, innerhalb etwa einer Viertelsekunde. Solange ein Plugin Läufe hat, steht in der Liste unter Einstellungen → Plugins „Läuft gerade“; die Seite des Plugins hat dazu „Beenden“.
 * Das Skript wird als **normales Skript** geladen, nicht als Modul: kein `import`/`export`, kein `await` und kein `return` außerhalb von Funktionen. `function run`, `var run =`, `let run =` und `const run =` funktionieren alle.
 
 ### 9.2 item
@@ -325,10 +325,10 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
 
 * Abfrage höchstens einmal am Tag, nur bei eingeschalteten Plugins; beim Einschalten sofort; beim Öffnen von Einstellungen → Plugins, wenn die letzte Abfrage über eine Stunde her ist.
 * `standard: true`: wird automatisch installiert (ausgeschaltet), still aktualisiert, sobald `version` höher ist, lässt sich weder bearbeiten noch entfernen. Ohne Internet erscheint es als „Nicht geladen“ mit „Erneut versuchen“.
-* Andere Einträge erscheinen unter „Mehr im Katalog“ mit „Laden“. Ein so geladenes Plugin bekommt neue Versionen ebenfalls still aus dem Katalog; Rechte, die es weiter braucht, bleiben, nach neuen fragt das Erlauben-Fenster beim nächsten Start. Wer dasselbe Plugin als Datei importiert, bekommt keine Updates mehr aus dem Katalog.
+* Einstellungen → Plugins → Galerie zeigt alle Einträge (ab sieben mit Suche); noch nicht installierte mit „Laden“, installierte mit „Öffnen“. Ein so geladenes Plugin bekommt neue Versionen ebenfalls still aus dem Katalog; Rechte, die es weiter braucht, bleiben, nach neuen fragt das Erlauben-Fenster beim nächsten Start. Wer dasselbe Plugin als Datei importiert, bekommt keine Updates mehr aus dem Katalog.
 * `removed: true`: Standard-Plugins werden beim nächsten Abgleich entfernt; andere verschwinden aus der Galerie, bleiben aber installiert.
 * Einträge mit einer `minAppVersion`, die neuer ist als BarDrop, werden übergangen.
-* Einstellungen → Plugins → Plugin zeigt bei installierten Plugins „Internet“ (offline oder nicht) und unten die Größe auf dem Mac, getrennt: „Plugin 38 KB · Programme 92 MB“.
+* In der Liste unter Einstellungen → Plugins zeigt je Plugin ein graues Zeichen, ob es offline läuft (durchgestrichenes WLAN), das Internet nutzt (Globus) oder einmal ein Programm lädt (Pfeil nach unten), dazu ein Blitz bei „Automatisch beim Ablegen“; darunter erklärt eine Zeile die Zeichen. Die Seite eines Plugins zeigt unter Überblick „Internet“, „Plugin“ (Größe und Version) und „Programme“ (Größe der geladenen Programme) getrennt; unter der Liste steht die Summe.
 * Einreichen per Pull Request auf `plugin-katalog`; jedes Plugin wird vor dem Aufnehmen geprüft.
 
 ## 11. Prüfen vor dem Weitergeben
@@ -346,7 +346,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 1. In BarDrop importieren, Plugin einschalten.
 2. Per Rechtsklick an einem passenden Objekt ausprobieren; erscheint es nicht, passt `match` nicht.
 3. Fehler stehen unter Einstellungen → Plugins → Plugin → „Letzter Fehler“ und im Protokoll.
-4. Mehr Einzelheiten: Einstellungen → Plugins → Protokoll → „Plugin-Protokoll führen“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
+4. Mehr Einzelheiten: Einstellungen → Plugins → „Protokoll“ → „Plugin-Protokoll führen“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
 5. Erst dann „Automatisch beim Ablegen“ ausprobieren.
 
 ## 12. Häufige Fehler
@@ -412,7 +412,7 @@ function run(item) {
 
 ## 14. Plugin-Protokoll
 
-Einstellungen → Plugins → Protokoll → „Plugin-Protokoll führen“ (standardmäßig aus). Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`); „Zeigen“ öffnet sie, „Leeren“ löscht beide.
+Einstellungen → Plugins → „Protokoll“ → „Plugin-Protokoll führen“ (standardmäßig aus). Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`); „Zeigen“ öffnet sie, „Leeren“ löscht beide.
 
 Es ist **getrennt vom Diagnoseprotokoll** von BarDrop: eigene Datei, eigener Schalter, in allen Versionen verfügbar. Plugin-Ereignisse stehen nur hier, nicht im Diagnoseprotokoll. Anders als dieses nennt es Dateinamen, Adressen und Fehlermeldungen. Es bleibt auf dem Mac.
 

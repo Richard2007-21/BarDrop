@@ -98,7 +98,7 @@ final class ViewSmokeTests: XCTestCase {
          "description": {"en": "Smaller copy of an image", "de": "Kleinere Kopie eines Bildes"},
          "version": "1.2.0", "author": "zzuuuiii", "icon": {"symbol": "photo.on.rectangle", "color": "#FF9500"},
          "match": {"types": ["public.image"], "links": {"hosts": ["example.com"]}},
-         "permissions": ["run"], "canReplaceOriginal": true,
+         "permissions": ["run"], "canReplaceOriginal": true, "triggers": ["menu", "action", "automatic"],
          "settings": [{"key": "size", "type": "choice", "title": {"en": "Size", "de": "Größe"}, "default": "m",
                        "options": [{"value": "s", "title": "S"}, {"value": "m", "title": "M"}, {"value": "l", "title": "L"}]},
                       {"key": "keep", "type": "toggle", "title": {"en": "Keep metadata", "de": "Metadaten behalten"}}]}
@@ -110,14 +110,48 @@ final class ViewSmokeTests: XCTestCase {
         let plugin = try manager.install(try manager.inspect(file), standard: false)
         manager.update(plugin.id) { $0.enabled = true }
 
+        manager.update(plugin.id) { $0.automatic = true }
+        manager.lastErrors[plugin.id] = "Programm nicht gefunden: mytool"
+        // Galerie: ein Eintrag mit Internet, einer mit Programm, einer offline, einer installiert
+        let catalog = try JSONDecoder().decode(PluginCatalog.self, from: Data(#"""
+        {"schema": 1, "plugins": [
+          {"id": "a.text", "version": "1.0.0", "name": {"en": "Text from Image", "de": "Text aus Bild"},
+           "description": {"en": "Reads text from screenshots", "de": "Liest Text aus Bildschirmfotos"},
+           "icon": {"symbol": "text.viewfinder", "color": "#30B0A0"}, "url": "https://x/a.bdrop", "sha256": "00",
+           "size": 14200, "permissions": []},
+          {"id": "b.audio", "version": "1.0.0", "name": {"en": "Video to Audio", "de": "Video zu Audio"},
+           "description": {"en": "Keeps only the sound", "de": "Speichert nur die Tonspur"},
+           "icon": {"symbol": "music.note", "color": "#AF52DE"}, "url": "https://x/b.bdrop", "sha256": "00",
+           "size": 8100, "toolsSize": 61200000, "permissions": ["run"], "tools": ["My Tool"]},
+          {"id": "c.link", "version": "1.0.0", "name": {"en": "Link Preview", "de": "Link-Vorschau"},
+           "description": {"en": "Title and image for a link", "de": "Holt Titel und Bild zum Link"},
+           "icon": {"symbol": "link", "color": "#0A84FF"}, "url": "https://x/c.bdrop", "sha256": "00",
+           "size": 11000, "permissions": ["network"]},
+          {"id": "io.github.test.preview", "version": "1.2.0", "name": {"en": "Make Thumbnail", "de": "Miniatur erstellen"},
+           "description": {"en": "Smaller copy of an image", "de": "Kleinere Kopie eines Bildes"},
+           "icon": {"symbol": "photo.on.rectangle", "color": "#FF9500"}, "url": "https://x/d.bdrop", "sha256": "00",
+           "size": 4000, "permissions": ["run"]}
+        ]}
+        """#.utf8))
+        manager.applyCatalogForPreview(catalog)
+        XCTAssertEqual(manager.catalogEntries.count, 4)
+
         for language in [AppLanguage.english, .german] {
             settings.language = language
             for appearance in [NSAppearance.Name.aqua, .darkAqua] {
-                render(page(PluginSettings(settings: settings, manager: manager, expanded: plugin.id)),
-                       size: CGSize(width: 520, height: 900),
-                       "Plugins Plugin \(language.rawValue) \(appearance == .aqua ? "hell" : "dunkel")", appearance: appearance)
+                let tag = "\(language.rawValue) \(appearance == .aqua ? "hell" : "dunkel")"
+                let size = CGSize(width: 436, height: 900)
+                render(page(PluginSettings(settings: settings, manager: manager, page: .plugin(plugin.id))),
+                       size: size, "Plugins Plugin \(tag)", appearance: appearance)
+                render(page(PluginSettings(settings: settings, manager: manager)),
+                       size: size, "Plugins Liste \(tag)", appearance: appearance)
+                render(page(PluginSettings(settings: settings, manager: manager, tab: .gallery)),
+                       size: size, "Plugins Galerie \(tag)", appearance: appearance)
+                render(page(PluginSettings(settings: settings, manager: manager, page: .order)),
+                       size: size, "Plugins Reihenfolge \(tag)", appearance: appearance)
             }
         }
+        manager.lastErrors[plugin.id] = nil
 
         let store = ShelfStore(baseDirectory: base.appendingPathComponent("shelf"))
         let ui = ShelfUIModel()

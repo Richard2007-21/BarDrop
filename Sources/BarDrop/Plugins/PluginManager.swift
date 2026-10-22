@@ -121,6 +121,8 @@ final class PluginManager: ObservableObject {
     @Published private(set) var missingStandard: [PluginCatalogEntry] = []
     /// Weitere Plugins im Katalog (nicht Standard, noch nicht installiert)
     @Published private(set) var catalogExtras: [PluginCatalogEntry] = []
+    /// Alles, was die Galerie zeigt (auch schon installierte Plugins), in der Reihenfolge des Katalogs
+    @Published private(set) var catalogEntries: [PluginCatalogEntry] = []
     @Published private(set) var syncing = false
     /// Der letzte Abgleich mit dem Katalog ist gescheitert (kein Internet)
     @Published private(set) var syncFailed = false
@@ -400,6 +402,36 @@ final class PluginManager: ObservableObject {
         saveState()
     }
 
+    /// Reihenfolge nur unter den automatischen Plugins (Einstellungen → Plugins →
+    /// Reihenfolge): mit dem nächsten automatischen Plugin darüber bzw. darunter tauschen.
+    /// Standard-Plugins bleiben vor den importierten.
+    func canMoveAutomatic(_ id: String, by offset: Int) -> Bool {
+        let auto = plugins.filter { isAutomatic($0) }
+        guard let i = auto.firstIndex(where: { $0.id == id }), auto.indices.contains(i + offset) else { return false }
+        return auto[i].isStandard == auto[i + offset].isStandard
+    }
+
+    func moveAutomatic(_ id: String, by offset: Int) {
+        guard canMoveAutomatic(id, by: offset) else { return }
+        let auto = plugins.filter { isAutomatic($0) }.map(\.id)
+        guard let i = auto.firstIndex(of: id) else { return }
+        let other = auto[i + offset]
+        var list = plugins
+        guard let from = list.firstIndex(where: { $0.id == id }) else { return }
+        let item = list.remove(at: from)
+        guard let to = list.firstIndex(where: { $0.id == other }) else { return }
+        list.insert(item, at: offset < 0 ? to : to + 1)
+        plugins = list
+        order = list.map(\.id)
+        saveState()
+    }
+
+    /// Katalog ohne Abfrage übernehmen (Vorschaubilder und Tests)
+    func applyCatalogForPreview(_ catalog: PluginCatalog) {
+        cachedCatalog = catalog
+        applyCatalog(catalog, online: false)
+    }
+
     // MARK: Installieren
 
     enum InstallError: Error {
@@ -538,6 +570,7 @@ final class PluginManager: ObservableObject {
         guard let catalog else {
             missingStandard = []
             catalogExtras = []
+            catalogEntries = []
             return completion()
         }
         let usable = catalog.plugins.filter { entry in
@@ -549,6 +582,7 @@ final class PluginManager: ObservableObject {
         }
         let live = usable.filter { $0.removed != true }
         catalogExtras = live.filter { $0.standard != true && plugin($0.id) == nil }
+        catalogEntries = live
         let needed = live.filter { entry in
             let standard = entry.standard == true || state(entry.id).isStandard
             // Aus der Galerie geladene Plugins bekommen neue Versionen ebenfalls
