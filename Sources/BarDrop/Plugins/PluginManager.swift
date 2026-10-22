@@ -246,10 +246,12 @@ final class PluginManager: ObservableObject {
         return plugins.filter { state($0.id).enabled }
     }
 
-    /// Braucht ein eingeschaltetes Plugin diese Adresse als Link? (Beim Hineinziehen aus dem
-    /// Browser kommt oft ein Vorschaubild mit; dann wird trotzdem der Link übernommen.)
+    /// Braucht ein eingeschaltetes Plugin gezielt diese Adresse als Link? (Beim Hineinziehen
+    /// aus dem Browser kommt oft ein Vorschaubild mit; dann wird trotzdem der Link übernommen.)
+    /// Plugins, die jede Adresse annehmen, zählen nicht: Sonst wurde jedes Bild aus dem Web,
+    /// das in einem Link steckt (Google-Bildersuche), zum Link.
     func wantsLink(_ url: URL) -> Bool {
-        activePlugins.contains { PluginMatcher.matchesLink($0.manifest.match, url) }
+        activePlugins.contains { PluginMatcher.specificallyMatchesLink($0.manifest.match, url) }
     }
 
     func isAutomatic(_ plugin: InstalledPlugin) -> Bool {

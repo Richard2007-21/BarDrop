@@ -135,7 +135,7 @@ BarDrop always stores links itself as `.webloc`.
 * `links.patterns`: **links only**. Regular expressions (macOS ICU syntax) on the whole address, **case-insensitive**; a match anywhere is enough. Anchor with `^`. Double every `\` in JSON.
 * A link also matches `extensions: ["webloc"]`.
 
-**Links from the browser:** when a link is dragged together with a preview image (e.g. from a web page), BarDrop normally keeps the image. If the link matches `links` of a **turned-on** plugin, BarDrop keeps the link as `.webloc` instead. This only applies to `links.hosts` and `links.patterns`.
+**Links from the browser:** when a link is dragged together with a preview image (e.g. from a web page), BarDrop normally keeps the image. If the link matches `links` of a **turned-on** plugin, BarDrop keeps the link as `.webloc` instead. This only applies to `links.hosts` and `links.patterns`, and not to rules that accept any address (host `*` or a pattern matching any page): those get links you drag, but an image stays an image.
 
 ## 5. Triggers
 

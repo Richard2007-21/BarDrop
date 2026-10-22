@@ -79,6 +79,22 @@ enum PluginMatcher {
         return matchesHost(link, rules.hosts ?? []) || matchesPattern(link, rules.patterns ?? [])
     }
 
+    /// Passt die Adresse zu einer gezielten Link-Regel? Regeln, die jede Adresse annehmen
+    /// (Domain „*“ oder ein Muster, das auf beliebige Seiten passt), zählen hier nicht: Sie
+    /// sollen ein Bild aus dem Web nicht in einen Link verwandeln, nur weil es in einem Link steckt.
+    static func specificallyMatchesLink(_ match: PluginMatch, _ link: URL) -> Bool {
+        guard let rules = match.links else { return false }
+        let hosts = (rules.hosts ?? []).filter { $0.trimmingCharacters(in: CharacterSet(charactersIn: ". ")) != "*" }
+        let patterns = (rules.patterns ?? []).filter { !isCatchAll($0) }
+        return matchesHost(link, hosts) || matchesPattern(link, patterns)
+    }
+
+    /// Passt das Muster auf beliebige Seiten (geprüft an Adressen, die kein Plugin gezielt meint)?
+    static func isCatchAll(_ pattern: String) -> Bool {
+        let probes = ["https://bardrop-probe.invalid/a/b?c=1", "http://x.invalid/"].compactMap(URL.init(string:))
+        return probes.allSatisfy { matchesPattern($0, [pattern]) }
+    }
+
     static func matches(_ match: PluginMatch, _ item: PluginItem) -> Bool {
         if item.kind == .link, let link = item.link, let rules = match.links {
             if matchesHost(link, rules.hosts ?? []) || matchesPattern(link, rules.patterns ?? []) { return true }

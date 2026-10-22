@@ -371,6 +371,24 @@ final class PluginTests: XCTestCase {
         XCTAssertEqual(result.first?.url.pathExtension, "png")
     }
 
+    /// Plugins, die jede Adresse annehmen, verwandeln Bilder aus dem Web nicht in Links;
+    /// gezielte Regeln (bestimmte Seiten) schon
+    func testCatchAllLinkRulesDoNotClaimDraggedImages() throws {
+        func match(_ json: String) throws -> PluginMatch {
+            try JSONDecoder().decode(PluginMatch.self, from: Data(json.utf8))
+        }
+        let video = URL(string: "https://www.example.com/watch?v=abc")!
+        let search = URL(string: "https://www.google.com/imgres?imgurl=x")!
+        let anyHost = try match(#"{"links": {"hosts": ["*"]}}"#)
+        let anyPattern = try match(#"{"links": {"patterns": ["^https?://"]}}"#)
+        let specific = try match(#"{"links": {"hosts": ["example.com"], "patterns": ["watch\\?v="]}}"#)
+        XCTAssertTrue(PluginMatcher.matchesLink(anyHost, search))
+        XCTAssertFalse(PluginMatcher.specificallyMatchesLink(anyHost, search))
+        XCTAssertFalse(PluginMatcher.specificallyMatchesLink(anyPattern, search))
+        XCTAssertTrue(PluginMatcher.specificallyMatchesLink(specific, video))
+        XCTAssertFalse(PluginMatcher.specificallyMatchesLink(specific, search))
+    }
+
     func testConsoleLogDoesNotFail() throws {
         let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
         let plugin = try installed(manager, script: "function run(item) { console.log('hi', {a: 1}); bardrop.writeFile('ok.txt', 'ok'); }")

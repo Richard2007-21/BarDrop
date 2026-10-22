@@ -135,7 +135,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 * `links.patterns`: gilt **nur für Links**. Reguläre Ausdrücke (ICU-Syntax von macOS), geprüft auf die ganze Adresse, **ohne** Groß- und Kleinschreibung; ein Treffer irgendwo genügt. Mit `^` am Anfang verankern. In JSON jeden `\` doppelt schreiben.
 * Ein Link passt außerdem auf `extensions: ["webloc"]`.
 
-**Links aus dem Browser:** Wird ein Link zusammen mit einem Vorschaubild gezogen (z. B. aus einer Webseite), übernimmt BarDrop normalerweise das Bild. Passt der Link aber zu `links` eines **eingeschalteten** Plugins, übernimmt BarDrop den Link als `.webloc`. Das gilt nur für `links.hosts` und `links.patterns`.
+**Links aus dem Browser:** Wird ein Link zusammen mit einem Vorschaubild gezogen (z. B. aus einer Webseite), übernimmt BarDrop normalerweise das Bild. Passt der Link aber zu `links` eines **eingeschalteten** Plugins, übernimmt BarDrop den Link als `.webloc`. Das gilt nur für `links.hosts` und `links.patterns` und nicht für Regeln, die jede Adresse annehmen (Domain `*` oder ein Muster, das auf jede Seite passt): Solche Plugins bekommen gezogene Links, ein Bild bleibt aber ein Bild.
 
 ## 5. Auslöser
 
