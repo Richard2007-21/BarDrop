@@ -599,4 +599,18 @@ final class ViewSmokeTests: XCTestCase {
                    size: CGSize(width: 420, height: 720), "Symbolgroesse \(Int(size))")
         }
     }
+
+    /// ↑ und ↓ in den Einstellungen: Bereiche in der Reihenfolge der Seitenleiste, an den Enden bleibt es stehen
+    func testSettingsArrowKeysMoveThroughPanes() {
+        let navigation = SettingsNavigation()
+        navigation.pane = .general
+        navigation.move(by: -1)
+        XCTAssertEqual(navigation.pane, .general)
+        navigation.move(by: 1)
+        XCTAssertEqual(navigation.pane, .opening)
+        for _ in 0..<20 { navigation.move(by: 1) }
+        XCTAssertEqual(navigation.pane, .about)
+        navigation.move(by: -1)
+        XCTAssertEqual(navigation.pane, .keyboard)
+    }
 }

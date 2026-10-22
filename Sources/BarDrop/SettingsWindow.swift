@@ -10,7 +10,7 @@ enum SettingsWindowFactory {
     static let size = NSSize(width: 680, height: 700)
 
     static func make(settings: AppSettings, store: ShelfStore, showOnboarding: @escaping () -> Void) -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+        let window = SettingsNSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
@@ -40,10 +40,38 @@ enum SettingsWindowFactory {
     }
 }
 
+/// Fenster der Einstellungen: ↑ und ↓ wechseln den Bereich in der Seitenleiste. Nur Tasten,
+/// die nichts anderes verwendet hat (Textfeld, Regler, Aufnahme des Kurzbefehls), kommen hier an.
+final class SettingsNSWindow: NSWindow {
+    override func keyDown(with event: NSEvent) {
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let step: Int? = switch event.keyCode {
+        case 126: -1    // ↑
+        case 125: 1     // ↓
+        default: nil
+        }
+        guard let step, modifiers.isEmpty else {
+            super.keyDown(with: event)
+            return
+        }
+        SettingsNavigation.shared.move(by: step)
+    }
+}
+
 /// Welcher Bereich der Einstellungen gezeigt wird
 final class SettingsNavigation: ObservableObject {
     static let shared = SettingsNavigation()
     @Published var pane: SettingsPane = .general
+
+    /// Einen Bereich weiter nach oben oder unten, in der Reihenfolge der Seitenleiste; am
+    /// Anfang und Ende bleibt er stehen
+    func move(by step: Int) {
+        let all = SettingsPane.allCases
+        guard let index = all.firstIndex(of: pane) else { return }
+        let next = index + step
+        guard all.indices.contains(next) else { return }
+        pane = all[next]
+    }
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
