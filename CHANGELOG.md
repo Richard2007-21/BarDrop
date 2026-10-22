@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.31.0-beta.8
+* **New: Plugin settings like System Settings.** The list shows each plugin with On or Off. A click opens its own page: the switch at the top, when it runs, its settings, and Info with internet use, size, programs and permissions at the bottom. `‹` in the title bar, `esc` or another click on Plugins in the sidebar goes back. Without installed plugins, the available ones show right away
+* **New: Plugin gallery.** “More Plugins” lists reviewed plugins and shows before loading whether each works offline, downloads a program once or uses the internet, and how big it is. Plugins from the gallery get updates from it
+* **Changed: One window for permissions.** A plugin asks once for everything it needs (notice, permissions, programs) before its first run, never in the middle of it. Installing a `.bdrop` file already allows what its window lists, putting text on the clipboard no longer asks, and a failed run no longer opens a window: the placeholder shakes and the message is on the plugin’s page
+* **Changed:** The plugin log works like the diagnostic log: a note when you turn it on, “Save Log” to keep a copy, and turning it off deletes it
+* **Changed:** A running plugin shows a thin progress bar between the picture and the name, and the icon or preview of the file it is creating. A failed run shakes briefly before it disappears, and a run that ends right away no longer flashes a placeholder
+* **Changed:** While Settings are open, BarDrop shows in the Dock and in `⌘⇥` like any app, so the window behaves like a normal window, also after Control Center. In Settings, `↑` and `↓` move through the sidebar
+* **Changed:** A floating shelf follows changes in Settings right away: size, icon sizes, action names and “Translucent when floating” apply where it is. In light mode, the shelf turns from black straight to light glass when you pull it off
+* **Fixed:** Images dragged from the web, such as from an image search, land in the shelf as images instead of links, and new items appear right away instead of only after a click
+* **Fixed:** Pulling the shelf off the edge quickly no longer leaves pieces of the edge shape on the floating shelf, and without glass it is fully black
+* **Fixed:** Controls in Quick Look (playing videos and sound, the buttons at the top) no longer close Quick Look and the shelf; the shelf closes only after Quick Look
+* **Fixed:** If the display with a floating shelf is unplugged, the shelf goes back to its edge instead of getting stuck on another display
+* **Fixed:** A canceled plugin stops computing, even in an endless loop, instead of keeping the Mac busy until BarDrop quits
+* **Fixed:** Programs started by plugins get their arguments exactly as given and always get UTF-8 text, so accented letters and emoji no longer turn into “?”
+* Plugins: scripts can use `URL`, `URLSearchParams`, `setTimeout`, `setInterval`, `queueMicrotask`, `TextEncoder`/`TextDecoder` and `atob`/`btoa`; new `bardrop.readData` and `bardrop.writeData` for bytes, `bardrop.findProgram` to find programs, `"batch": true` for one run with all selected items, and `throw { message, hint }` for a tip with an error
+* Plugins: plugins share a program another plugin already downloaded from the same address, and “Update” on a plugin’s page downloads its programs again
+* `scripts/publish_plugin.py` checks, packs and adds a plugin to the gallery, including the size of its programs
+
 ## 1.31.0-beta.7
 * **New: Pull the shelf off the edge.** Grab the handle at the top of the open shelf and pull: it stretches like a drop, comes loose with a light tap on the trackpad and floats above all windows. Let go near the left or right edge and it docks there; the edge in Settings follows along. `esc`, the keyboard shortcut or “Back to the Edge” in the right-click menu return it
 * **New: Shortcuts as actions.** Add Action → Shortcut puts any of your shortcuts into the action bar. Drop files on it to run the shortcut with them; files it returns land in the shelf

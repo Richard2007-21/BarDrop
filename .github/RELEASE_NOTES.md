@@ -1,35 +1,35 @@
-* **New: Pull the shelf off the edge.** Grab the handle at the top of the open shelf and pull: it stretches like a drop, comes loose with a light tap on the trackpad and floats above all windows. Let go near the left or right edge and it docks there; the edge in Settings follows along. `esc`, the keyboard shortcut or “Back to the Edge” in the right-click menu return it
-* **New: Shortcuts as actions.** Add Action → Shortcut puts any of your shortcuts into the action bar. Drop files on it to run the shortcut with them; files it returns land in the shelf
-* **New: Unzip right in the shelf.** Right-click a ZIP archive and choose Unzip, or double-click it. Several items become a stack next to the archive, a single item lands on its own
-* **New:** “Translucent when floating” (Settings → Style) turns a floating shelf into dark glass, a little lighter in light mode. Off by default: the floating shelf is deep black like at the edge
-* **New:** Dragging a stack out shows one image with the number of items instead of many single ones
-* **New:** A floating shelf gives a light tap on the trackpad when files can be dropped on it
-* **Changed: Items react like in the Finder.** Only the picture and the name of an item respond to clicks; a click next to them clears the selection or starts a selection rectangle. Rows sit a little closer together
-* **Changed:** The introduction is new and calmer: drop, pointer, take out, actions and keyboard shortcut, step by step. “Open at login” comes at the end and is on by default
-* **Changed:** Hold `⌘` and drag an action to move it, also into the other row. An action dragged out with `⌘` leaves its place empty and slides back in one move if you put it back
-* **Fixed: Everything appears right away.** Images from the web, the first item in an empty shelf and opened folders show up at once instead of only after a click or reopening. Opening a folder no longer freezes the shelf while macOS asks for permission
-* **Fixed:** A right-click works the first time, also right after the shelf opens or when BarDrop isn’t in front
-* **Fixed:** Settings no longer jump to the front by themselves after Control Center, and a floating shelf leaves Control Center open
-* **Fixed:** Switching between left and right no longer flashes the shelf in the middle of the screen
-* **Fixed:** A selection rectangle over many items keeps the upper items selected while you keep dragging
-* New screenshots also arrive after you change where macOS saves them
-* Settings: clearer texts and settings that no longer did anything removed
+* **New: Plugin settings like System Settings.** The list shows each plugin with On or Off. A click opens its own page: the switch at the top, when it runs, its settings, and Info with internet use, size, programs and permissions at the bottom. `‹` in the title bar, `esc` or another click on Plugins in the sidebar goes back. Without installed plugins, the available ones show right away
+* **New: Plugin gallery.** “More Plugins” lists reviewed plugins and shows before loading whether each works offline, downloads a program once or uses the internet, and how big it is. Plugins from the gallery get updates from it
+* **Changed: One window for permissions.** A plugin asks once for everything it needs (notice, permissions, programs) before its first run, never in the middle of it. Installing a `.bdrop` file already allows what its window lists, putting text on the clipboard no longer asks, and a failed run no longer opens a window: the placeholder shakes and the message is on the plugin’s page
+* **Changed:** The plugin log works like the diagnostic log: a note when you turn it on, “Save Log” to keep a copy, and turning it off deletes it
+* **Changed:** A running plugin shows a thin progress bar between the picture and the name, and the icon or preview of the file it is creating. A failed run shakes briefly before it disappears, and a run that ends right away no longer flashes a placeholder
+* **Changed:** While Settings are open, BarDrop shows in the Dock and in `⌘⇥` like any app, so the window behaves like a normal window, also after Control Center. In Settings, `↑` and `↓` move through the sidebar
+* **Changed:** A floating shelf follows changes in Settings right away: size, icon sizes, action names and “Translucent when floating” apply where it is. In light mode, the shelf turns from black straight to light glass when you pull it off
+* **Fixed:** Images dragged from the web, such as from an image search, land in the shelf as images instead of links, and new items appear right away instead of only after a click
+* **Fixed:** Pulling the shelf off the edge quickly no longer leaves pieces of the edge shape on the floating shelf, and without glass it is fully black
+* **Fixed:** Controls in Quick Look (playing videos and sound, the buttons at the top) no longer close Quick Look and the shelf; the shelf closes only after Quick Look
+* **Fixed:** If the display with a floating shelf is unplugged, the shelf goes back to its edge instead of getting stuck on another display
+* **Fixed:** A canceled plugin stops computing, even in an endless loop, instead of keeping the Mac busy until BarDrop quits
+* **Fixed:** Programs started by plugins get their arguments exactly as given and always get UTF-8 text, so accented letters and emoji no longer turn into “?”
+* Plugins: scripts can use `URL`, `URLSearchParams`, `setTimeout`, `setInterval`, `queueMicrotask`, `TextEncoder`/`TextDecoder` and `atob`/`btoa`; new `bardrop.readData` and `bardrop.writeData` for bytes, `bardrop.findProgram` to find programs, `"batch": true` for one run with all selected items, and `throw { message, hint }` for a tip with an error
+* Plugins: plugins share a program another plugin already downloaded from the same address, and “Update” on a plugin’s page downloads its programs again
+* `scripts/publish_plugin.py` checks, packs and adds a plugin to the gallery, including the size of its programs
 
 <!-- de -->
 
-* **Neu: Die Ablage vom Rand ziehen.** Den Griff oben an der offenen Ablage fassen und ziehen: Sie dehnt sich wie ein Tropfen, löst sich mit einem leichten Impuls am Trackpad und schwebt über allen Fenstern. Nahe am linken oder rechten Rand losgelassen, dockt sie dort an; der Rand in den Einstellungen stellt sich mit um. `esc`, der Kurzbefehl oder „Zurück an den Rand“ im Rechtsklickmenü bringen sie zurück
-* **Neu: Kurzbefehle als Aktionen.** Aktion hinzufügen → Kurzbefehl legt jeden deiner Kurzbefehle in die Aktionsleiste. Dateien darauf ziehen führt ihn mit ihnen aus; Dateien, die er zurückgibt, landen in der Ablage
-* **Neu: Direkt in der Ablage entpacken.** Rechtsklick auf ein ZIP-Archiv und Entpacken, oder Doppelklick. Mehrere Objekte werden ein Stapel neben dem Archiv, ein einzelnes landet für sich
-* **Neu:** „Schwebend durchsichtig“ (Einstellungen → Stil) macht eine schwebende Ablage zu dunklem Glas, im hellen Modus etwas heller. Standardmäßig aus: Die schwebende Ablage ist tiefschwarz wie am Rand
-* **Neu:** Ein herausgezogener Stapel zeigt ein Bild mit der Anzahl statt vieler einzelner
-* **Neu:** Eine schwebende Ablage gibt einen leichten Impuls am Trackpad, sobald man Dateien auf ihr ablegen kann
-* **Geändert: Objekte reagieren wie im Finder.** Nur Bild und Name eines Objekts reagieren auf Klicks; ein Klick daneben hebt die Auswahl auf oder beginnt einen Auswahlrahmen. Die Reihen stehen etwas dichter
-* **Geändert:** Die Einführung ist neu und ruhiger: Ablegen, Zeiger, Herausziehen, Aktionen und Kurzbefehl, Schritt für Schritt. „Beim Anmelden öffnen“ kommt am Ende und ist standardmäßig an
-* **Geändert:** Mit gedrückter `⌘`-Taste eine Aktion an eine andere Stelle ziehen, auch in die andere Reihe. Eine mit `⌘` herausgezogene Aktion lässt ihren Platz frei und gleitet in einem Zug zurück, wenn man sie wieder ablegt
-* **Behoben: Alles erscheint sofort.** Bilder aus dem Web, das erste Objekt in einer leeren Ablage und geöffnete Ordner erscheinen gleich, nicht erst nach einem Klick oder erneutem Öffnen. Das Öffnen eines Ordners friert die Ablage nicht mehr ein, während macOS nach der Erlaubnis fragt
-* **Behoben:** Ein Rechtsklick wirkt beim ersten Mal, auch gleich nach dem Öffnen der Ablage oder wenn BarDrop nicht vorn ist
-* **Behoben:** Die Einstellungen springen nach dem Kontrollzentrum nicht mehr von selbst nach vorn, und eine schwebende Ablage lässt das Kontrollzentrum offen
-* **Behoben:** Beim Wechsel zwischen links und rechts blitzt die Ablage nicht mehr in der Mitte des Bildschirms auf
-* **Behoben:** Ein Auswahlrahmen über viele Objekte behält beim Weiterziehen auch die oberen in der Auswahl
-* Neue Bildschirmfotos kommen auch an, nachdem man den Speicherort in macOS geändert hat
-* Einstellungen: klarere Texte, und Einstellungen ohne Wirkung sind entfernt
+* **Neu: Plugin-Einstellungen wie die Systemeinstellungen.** Die Liste zeigt jedes Plugin mit Ein oder Aus. Ein Klick öffnet seine eigene Seite: oben der Schalter, dann wann es läuft, seine Einstellungen und ganz unten die Info mit Internet, Größe, Programmen und Rechten. `‹` in der Titelleiste, `esc` oder ein erneuter Klick auf Plugins in der Seitenleiste führen zurück. Ohne installierte Plugins erscheinen gleich die verfügbaren
+* **Neu: Plugin-Galerie.** „Weitere Plugins“ listet geprüfte Plugins und zeigt vor dem Laden, ob eines offline läuft, einmal ein Programm lädt oder das Internet nutzt, und wie groß es ist. Plugins aus der Galerie bekommen Updates von dort
+* **Geändert: Ein Fenster für die Rechte.** Ein Plugin fragt einmal vor dem ersten Lauf nach allem, was es braucht (Hinweis, Rechte, Programme), nie mitten im Lauf. Das Installieren einer `.bdrop`-Datei erlaubt schon, was ihr Fenster nennt, Text in die Zwischenablage legen fragt nicht mehr, und ein gescheiterter Lauf öffnet kein Fenster mehr: Der Platzhalter rüttelt, die Meldung steht auf der Seite des Plugins
+* **Geändert:** Das Plugin-Protokoll funktioniert wie das Diagnoseprotokoll: ein Hinweis beim Einschalten, „Protokoll sichern“ für eine Kopie, Ausschalten löscht es
+* **Geändert:** Ein laufendes Plugin zeigt einen schmalen Balken zwischen Bild und Name und das Symbol oder die Vorschau der Datei, die gerade entsteht. Ein gescheiterter Lauf rüttelt kurz, bevor er verschwindet, und ein Lauf, der sofort endet, blitzt nicht mehr als Platzhalter auf
+* **Geändert:** Solange die Einstellungen offen sind, erscheint BarDrop im Dock und bei `⌘⇥` wie jede App, sodass sich das Fenster wie ein normales Fenster verhält, auch nach dem Kontrollzentrum. In den Einstellungen wechseln `↑` und `↓` den Bereich in der Seitenleiste
+* **Geändert:** Eine schwebende Ablage übernimmt Änderungen in den Einstellungen sofort: Größe, Symbolgrößen, Namen der Aktionen und „Schwebend durchsichtig“ gelten dort, wo sie ist. Im hellen Modus wird die Ablage beim Abziehen direkt von Schwarz zu hellem Glas
+* **Behoben:** Bilder aus dem Web, etwa aus einer Bildersuche, landen als Bilder in der Ablage statt als Links, und neue Objekte erscheinen sofort statt erst nach einem Klick
+* **Behoben:** Schnelles Abziehen der Ablage hinterlässt keine Reste der Randform mehr auf der schwebenden Ablage, und ohne Glas ist sie ganz schwarz
+* **Behoben:** Bedienelemente in Quick Look (Videos und Ton abspielen, die Knöpfe oben) schließen Quick Look und die Ablage nicht mehr; die Ablage schließt erst nach Quick Look
+* **Behoben:** Wird der Bildschirm mit einer schwebenden Ablage abgesteckt, geht sie zurück an ihren Rand, statt auf einem anderen Bildschirm hängen zu bleiben
+* **Behoben:** Ein abgebrochenes Plugin hört auf zu rechnen, auch in einer Endlosschleife, statt den Mac bis zum Beenden von BarDrop zu beschäftigen
+* **Behoben:** Programme, die Plugins starten, bekommen ihre Argumente genau so, wie übergeben, und immer Text in UTF-8; Buchstaben wie „ä“ und Emoji werden nicht mehr zu „?“
+* Plugins: Skripte können `URL`, `URLSearchParams`, `setTimeout`, `setInterval`, `queueMicrotask`, `TextEncoder`/`TextDecoder` und `atob`/`btoa` nutzen; neu sind `bardrop.readData` und `bardrop.writeData` für Bytes, `bardrop.findProgram` zum Finden von Programmen, `"batch": true` für einen Lauf mit allen ausgewählten Objekten und `throw { message, hint }` für einen Tipp zum Fehler
+* Plugins: Plugins teilen sich ein Programm, das ein anderes Plugin schon von derselben Adresse geladen hat, und „Aktualisieren“ auf der Seite eines Plugins lädt seine Programme neu
+* `scripts/publish_plugin.py` prüft und packt ein Plugin und trägt es in die Galerie ein, samt Größe seiner Programme

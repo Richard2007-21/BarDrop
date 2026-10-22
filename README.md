@@ -100,9 +100,9 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 * Hold `⌘` and drag an action to move it, also into the other row; optionally pin a folder or app by dragging it onto the shelf, and remove an action by dragging it out with `⌘`
 
 **Plugins** (optional, off by default)
-* Your own steps as `.bdrop` files: in the right-click menu, in the action bar, or automatically when you drop a matching file type or link
-* Written in JavaScript, with permissions that are asked on first use; results appear right next to the original
-* BarDrop doesn’t come with any plugin. How to write one: [docs/PLUGINS.md](docs/PLUGINS.md)
+* Small add-ons that teach BarDrop new things: in the right-click menu, in the action bar, or automatically when you drop a matching file type or link
+* Get them from the gallery in Settings or install a `.bdrop` file; each plugin shows whether it works offline and how big it is, and asks once for its permissions before its first run
+* Written in JavaScript; results appear right next to the original. BarDrop doesn’t come with any plugin. How to write and publish one: [docs/PLUGINS.md](docs/PLUGINS.md)
 
 **Settings**
 * A short introduction on first launch: dropping, opening with the pointer, dragging back out, actions and the shortcut
@@ -177,7 +177,7 @@ The shelf stores its contents in `shelf.json`. So that an update never loses ite
 | `Diagnostics.swift`, `FocusDiagnostics.swift`, `FramePacer.swift`, `ShelfSnapshots.swift` | Diagnostic log (beta versions): events, smoothness, and pictures of the shelf only if you create the folder `Bilder` yourself |
 | `Plugins/` | Plugins: installing, permissions, running |
 | `Tests/` | Automated tests |
-| `scripts/` | Build, DMG, app icon, preview |
+| `scripts/` | Build, DMG, app icon, preview, checking and publishing plugins |
 
 </details>
 

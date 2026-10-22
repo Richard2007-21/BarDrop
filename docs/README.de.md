@@ -100,9 +100,9 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 * Mit gedrückter `⌘`-Taste eine Aktion an eine andere Stelle ziehen, auch in die andere Reihe; auf Wunsch Ordner und Apps per Ziehen auf die Ablage anheften und Aktionen mit `⌘` herausziehen, um sie zu entfernen
 
 **Plugins** (optional, standardmäßig aus)
-* Eigene Schritte als `.bdrop`-Dateien: im Rechtsklick-Menü, in der Aktionsleiste oder automatisch beim Ablegen passender Dateitypen und Links
-* In JavaScript geschrieben, mit Rechten, die beim ersten Gebrauch erfragt werden; Ergebnisse erscheinen direkt neben dem Original
-* BarDrop bringt selbst kein Plugin mit. So schreibst du eins: [PLUGINS.de.md](PLUGINS.de.md)
+* Kleine Erweiterungen, die BarDrop Neues beibringen: im Rechtsklick-Menü, in der Aktionsleiste oder automatisch beim Ablegen passender Dateitypen und Links
+* Aus der Galerie in den Einstellungen oder als `.bdrop`-Datei; jedes Plugin zeigt, ob es offline läuft und wie groß es ist, und fragt einmal vor dem ersten Lauf nach seinen Rechten
+* In JavaScript geschrieben; Ergebnisse erscheinen direkt neben dem Original. BarDrop bringt selbst kein Plugin mit. So schreibst und veröffentlichst du eins: [PLUGINS.de.md](PLUGINS.de.md)
 
 **Einstellungen**
 * Kurze Einführung beim ersten Start: Ablegen, Öffnen mit dem Zeiger, wieder Herausziehen, Aktionen und Kurzbefehl
@@ -177,7 +177,7 @@ Die Ablage speichert ihren Inhalt in `shelf.json`. Damit ein Update nie Einträg
 | `Diagnostics.swift`, `FocusDiagnostics.swift`, `FramePacer.swift`, `ShelfSnapshots.swift` | Diagnoseprotokoll (Beta-Versionen): Abläufe, Flüssigkeit, und Bilder der Ablage nur, wenn man den Ordner `Bilder` selbst anlegt |
 | `Plugins/` | Plugins: installieren, Rechte, ausführen |
 | `Tests/` | Automatische Tests |
-| `scripts/` | Bauen, DMG, App-Symbol, Vorschau |
+| `scripts/` | Bauen, DMG, App-Symbol, Vorschau, Plugins prüfen und veröffentlichen |
 
 </details>
 
