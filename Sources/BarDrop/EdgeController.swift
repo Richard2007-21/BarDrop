@@ -1551,6 +1551,10 @@ extension EdgeController {
     }
 
     private func detachTear(_ drag: TearDrag) {
+        // Die Form der angedockten Ablage ist ab jetzt ganz weg. Beim Dehnen geht sie nur nach
+        // und nach; reißt die Ablage schon beim ersten Schritt (schnell gezogen), blieb sie
+        // sonst stehen: Bögen zum Rand hingen an der schwebenden Ablage
+        setTear(gap: ui.tear?.gap ?? 0, side: ui.tear?.side ?? drag.origin, dock: 0)
         setGlass(true)
         drag.phase = .free
         drag.detachStarted = Date()

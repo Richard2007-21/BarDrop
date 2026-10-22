@@ -103,7 +103,11 @@ struct TearGoo: View, Animatable {
             // Ein gemeinsamer Schatten für beide Formen: Während der Überblendung lagen sonst
             // zwei Schatten übereinander, und er wurde kurz dunkler (im Video nachgemessen)
             ZStack {
-                if glass < 0.999 || attach > 0.01 {
+                if glass < 0.001 {
+                    // Ohne Glas ganz schwarz, ohne Verlauf: Die weiche Front ließ sonst an den
+                    // Ecken der fernen Seite etwas durchscheinen
+                    solid.opacity(1 - gooOut)
+                } else if glass < 0.999 || attach > 0.01 {
                     // Das Schwarz zieht sich zum Rand hin zurück, als bliebe es dort hängen (beim
                     // Andocken kommt es von dort wieder)
                     solid.mask { darkness(attach: attach) }
