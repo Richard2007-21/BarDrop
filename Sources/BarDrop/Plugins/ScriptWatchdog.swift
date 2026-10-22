@@ -19,6 +19,8 @@ enum ScriptWatchdog {
     final class StopFlag: @unchecked Sendable {
         private let lock = NSLock()
         private var stop = false
+        /// Gruppe (virtuelle Maschine) des Skripts, für das Neustellen des Zeitgebers
+        fileprivate var group: JSContextGroupRef?
         var shouldStop: Bool { lock.lock(); defer { lock.unlock() }; return stop }
         func set() { lock.lock(); stop = true; lock.unlock() }
     }
@@ -48,13 +50,22 @@ enum ScriptWatchdog {
     @discardableResult
     static func install(on context: JSContext, flag: StopFlag) -> Bool {
         guard let setLimit, let group = JSContextGetGroup(context.jsGlobalContextRef) else { return false }
-        let callback: ShouldTerminate = { _, info in
-            guard let info else { return false }
-            let stop = Unmanaged<StopFlag>.fromOpaque(info).takeUnretainedValue().shouldStop
-            ScriptWatchdog.count(stop: stop)
-            return stop
-        }
+        flag.group = group
         setLimit(group, interval, callback, Unmanaged.passUnretained(flag).toOpaque())
         return true
+    }
+
+    /// Antwort an JavaScriptCore. Bei „weiterrechnen“ wird der Zeitgeber neu gestellt: Laut
+    /// Test fragte JavaScriptCore sonst nach zwei Antworten „weiter“ nie wieder nach, und ein
+    /// später abgebrochenes Skript lief weiter.
+    private static let callback: ShouldTerminate = { _, info in
+        guard let info else { return false }
+        let flag = Unmanaged<StopFlag>.fromOpaque(info).takeUnretainedValue()
+        let stop = flag.shouldStop
+        ScriptWatchdog.count(stop: stop)
+        if !stop, let setLimit = ScriptWatchdog.setLimit, let group = flag.group {
+            setLimit(group, interval, callback, info)
+        }
+        return stop
     }
 }
