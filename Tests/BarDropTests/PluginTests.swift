@@ -183,6 +183,135 @@ final class PluginTests: XCTestCase {
         func allowDownload(of tool: PluginTool, for plugin: InstalledPlugin) -> Bool { answer }
     }
 
+    /// Ein Lauf für mehrere Objekte (wie bei `batch`)
+    private func run(_ plugin: InstalledPlugin, onAll inputs: [URL]) -> Result<[URL], PluginRunError> {
+        let job = PluginJob(plugin: plugin, items: inputs.map { (PluginItem(url: $0), UUID()) }, automatic: false)
+        let runtime = PluginRuntime(job: job, workDirectory: base.appendingPathComponent("work-\(UUID().uuidString)"),
+                                    tools: PluginTools(directory: base.appendingPathComponent("tools")),
+                                    prompter: nil, settingsValues: [:], granted: [],
+                                    onGrant: { _ in }, onNotify: { _ in })
+        let done = expectation(description: "Plugin")
+        var result: Result<[URL], PluginRunError> = .failure(.cancelled)
+        runtime.start { r in
+            result = r
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 15)
+        return result
+    }
+
+    /// Ergebnis eines Laufs, das als JSON in out.json geschrieben wurde
+    private func outputJSON(_ result: Result<[URL], PluginRunError>, file: StaticString = #filePath, line: UInt = #line) throws -> [String: Any] {
+        let urls = try result.get()
+        let url = try XCTUnwrap(urls.first { $0.lastPathComponent == "out.json" }, file: file, line: line)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any], file: file, line: line)
+    }
+
+    /// URL, URLSearchParams, setTimeout, TextEncoder/TextDecoder, atob/btoa (PluginPrelude)
+    func testPreludeProvidesWebBasics() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, script: #"""
+        async function run(item) {
+          const u = new URL('../b/c?x=1&y=a+b#frag', 'https://User@Example.COM:443/a/z');
+          u.searchParams.append('ä', 'ö & ü');
+          u.searchParams.delete('x');
+          const order = [];
+          await new Promise(function (done) {
+            setTimeout(function (v) { order.push(v); done(); }, 20, 'late');
+            queueMicrotask(function () { order.push('micro'); });
+            const cancelled = setTimeout(function () { order.push('never'); }, 5);
+            clearTimeout(cancelled);
+          });
+          const bytes = new TextEncoder().encode('äö🎉');
+          bardrop.writeFile('out.json', JSON.stringify({
+            href: u.href, host: u.host, hostname: u.hostname, port: u.port, origin: u.origin,
+            pathname: u.pathname, search: u.search, hash: u.hash, y: u.searchParams.get('y'),
+            params: new URLSearchParams({ q: 'a b', r: "x!'()~" }).toString(),
+            relative: new URL('/p?q', 'https://example.com/x/y').href,
+            mailto: new URL('mailto:hi@example.com').href,
+            invalid: URL.canParse('nicht gültig'),
+            order: order,
+            bytes: Array.from(bytes),
+            text: new TextDecoder().decode(bytes),
+            broken: new TextDecoder().decode(new Uint8Array([0x61, 0xff, 0x62])),
+            b64: btoa('hi!'), back: atob('aGkh')
+          }));
+        }
+        """#)
+        let out = try outputJSON(run(plugin, on: makeFile("a.txt")))
+        XCTAssertEqual(out["href"] as? String, "https://User@example.com/b/c?y=a+b&%C3%A4=%C3%B6+%26+%C3%BC#frag")
+        XCTAssertEqual(out["host"] as? String, "example.com")
+        XCTAssertEqual(out["port"] as? String, "")
+        XCTAssertEqual(out["origin"] as? String, "https://example.com")
+        XCTAssertEqual(out["pathname"] as? String, "/b/c")
+        XCTAssertEqual(out["hash"] as? String, "#frag")
+        XCTAssertEqual(out["y"] as? String, "a b")
+        XCTAssertEqual(out["params"] as? String, "q=a+b&r=x%21%27%28%29%7E")
+        XCTAssertEqual(out["relative"] as? String, "https://example.com/p?q")
+        XCTAssertEqual(out["mailto"] as? String, "mailto:hi@example.com")
+        XCTAssertEqual(out["invalid"] as? Bool, false)
+        XCTAssertEqual(out["order"] as? [String], ["micro", "late"])
+        XCTAssertEqual(out["bytes"] as? [Int], Array("äö🎉".utf8).map(Int.init))
+        XCTAssertEqual(out["text"] as? String, "äö🎉")
+        XCTAssertEqual(out["broken"] as? String, "a\u{FFFD}b")
+        XCTAssertEqual(out["b64"] as? String, "aGkh")
+        XCTAssertEqual(out["back"] as? String, "hi!")
+    }
+
+    /// Binärdaten: readData liefert Bytes, writeData schreibt sie unverändert
+    func testReadAndWriteBinaryData() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, script: #"""
+        function run(item) {
+          const input = bardrop.readData(item.path);
+          const all = new Uint8Array(256);
+          for (let i = 0; i < 256; i++) all[i] = i;
+          bardrop.writeData('all.bin', all);
+          bardrop.writeData('copy.bin', input.buffer);
+          bardrop.writeData('list.bin', [0, 255, 7]);
+          bardrop.writeData('b64.bin', 'AP8H');
+          let failed = false;
+          try { bardrop.writeData('x.bin', {}); } catch (e) { failed = true; }
+          bardrop.writeFile('out.json', JSON.stringify({ size: input.length, first: input[0], failed: failed }));
+        }
+        """#)
+        let input = makeFile("in.txt", "äbc")
+        let result = run(plugin, on: input)
+        let urls = try result.get()
+        func data(_ name: String) throws -> Data { try Data(contentsOf: XCTUnwrap(urls.first { $0.lastPathComponent == name })) }
+        XCTAssertEqual(try data("all.bin"), Data((0...255).map(UInt8.init)))
+        XCTAssertEqual(try data("copy.bin"), try Data(contentsOf: input))
+        XCTAssertEqual(try data("list.bin"), Data([0, 255, 7]))
+        XCTAssertEqual(try data("b64.bin"), Data([0, 255, 7]))
+        let out = try outputJSON(result)
+        XCTAssertEqual(out["size"] as? Int, 4)
+        XCTAssertEqual(out["first"] as? Int, 0xC3)
+        XCTAssertEqual(out["failed"] as? Bool, true)
+    }
+
+    /// `batch`: ein Lauf mit allen Objekten; alle dürfen gelesen werden
+    func testBatchRunGetsAllItems() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, script: #"""
+        function run(item, items) {
+          bardrop.writeFile('out.json', JSON.stringify({
+            first: item.name, names: items.map(function (i) { return i.name; }),
+            texts: items.map(function (i) { return bardrop.readFile(i.path); })
+          }));
+        }
+        """#)
+        let out = try outputJSON(run(plugin, onAll: [makeFile("a.txt", "A"), makeFile("b.txt", "B")]))
+        XCTAssertEqual(out["first"] as? String, "a.txt")
+        XCTAssertEqual(out["names"] as? [String], ["a.txt", "b.txt"])
+        XCTAssertEqual(out["texts"] as? [String], ["A", "B"])
+        // Ohne batch: items enthält nur das eine Objekt
+        let single = try outputJSON(run(plugin, on: makeFile("c.txt", "C")))
+        XCTAssertEqual(single["names"] as? [String], ["c.txt"])
+        // Manifest-Schlüssel
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: Data(manifestJSON(extra: #", "batch": true"#).utf8))
+        XCTAssertEqual(manifest.batch, true)
+    }
+
     private func run(_ plugin: InstalledPlugin, on input: URL, automatic: Bool = false,
                      granted: Set<PluginPermission> = [], prompter: Prompter? = nil,
                      timeout: TimeInterval = 15, while running: ((PluginJob) -> Void)? = nil) -> Result<[URL], PluginRunError> {

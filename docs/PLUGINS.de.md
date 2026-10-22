@@ -58,7 +58,8 @@ Unbekannte Schlüssel werden ignoriert. Ein Schlüssel mit falschem Typ (z. B. Z
 | `permissions` | Liste | nein | Teilmenge von `"network"`, `"run"`, `"clipboard"`, siehe 6. Ein **unbekannter** Wert lässt das ganze Plugin ablehnen. |
 | `tools` | Liste | nein | Programme, die BarDrop nachlädt, siehe 7. Verlangt das Recht `run`. |
 | `settings` | Liste | nein | Einstellungen des Plugins, siehe 3.3. |
-| `canReplaceOriginal` | Wahrheitswert | nein | Zeigt den Schalter „Original ersetzen“ (Standard aus), siehe 8. |
+| `canReplaceOriginal` | Wahrheitswert | nein | Zeigt den Schalter „Original ersetzen“ (Standard aus), siehe 8. Wirkt nicht zusammen mit `batch`. |
+| `batch` | Wahrheitswert | nein | Bei mehreren Objekten **einmal** mit allen laufen statt je Objekt: `run(item, items)`, siehe 9.2. Das Ergebnis erscheint neben dem ersten Objekt. Gilt auch für zusammen abgelegte Objekte bei „Automatisch beim Ablegen“. |
 | `consent` | Text (3.2) | nein | Hinweis, dem der Nutzer **einmal** zustimmen muss, bevor das Plugin eingeschaltet werden oder laufen kann. Ändert ein Update den Text, fragt BarDrop erneut. |
 
 ### 3.2 Texte in zwei Sprachen
@@ -139,7 +140,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 ## 5. Auslöser
 
-**Rechtsklick (`menu`):** Passende, eingeschaltete Plugins erscheinen unter den gewohnten Einträgen, nach einer Trennlinie, mit ihrem Symbol und `actionTitle`. Bis zu drei direkt, ab vier gesammelt im Untermenü „Plugins“. Bei mehreren ausgewählten Objekten erscheint ein Plugin, wenn es zu mindestens einem passt; es läuft dann für jedes passende Objekt einmal.
+**Rechtsklick (`menu`):** Passende, eingeschaltete Plugins erscheinen unter den gewohnten Einträgen, nach einer Trennlinie, mit ihrem Symbol und `actionTitle`. Bis zu drei direkt, ab vier gesammelt im Untermenü „Plugins“. Bei mehreren ausgewählten Objekten erscheint ein Plugin, wenn es zu mindestens einem passt; es läuft dann für jedes passende Objekt einmal, mit `batch` einmal mit allen.
 
 **Aktionsleiste (`action`):** Einstellungen → Plugins → Plugin → „In der Aktionsleiste“ oder Einstellungen → Aktionen → Aktion hinzufügen. Die Aktion ist nur zu sehen, solange das Plugin eingeschaltet ist. Darauf ziehen: läuft für die gezogenen Objekte; ein Klick führt es nicht aus. Passt nichts, gibt es einen Warnton.
 
@@ -223,10 +224,11 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… laden?“ mit Herkunft und Lizenz
 ### 9.1 Umgebung
 
 * JavaScriptCore von macOS, also die Sprache JavaScript mit `async`/`await`, `Promise`, `JSON`, `RegExp`, `Map`, `Set` usw.
-* **Nicht vorhanden:** DOM, `window`, `URL`, `URLSearchParams`, `setTimeout`/`setInterval` (statt dessen `bardrop.sleep`), globales `fetch` (statt dessen `bardrop.fetch`), `XMLHttpRequest`, `require`, `import`, Node-Module, Dateizugriff außer über `bardrop`.
+* **Zusätzlich vorhanden, von BarDrop bereitgestellt:** `URL` und `URLSearchParams` (wie im Browser), `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`, `queueMicrotask`, `TextEncoder`/`TextDecoder` (nur UTF-8), `atob`/`btoa`. Ein Fehler in einem Zeitgeber lässt den Lauf scheitern.
+* **Nicht vorhanden:** DOM, `window`, globales `fetch` (statt dessen `bardrop.fetch`), `XMLHttpRequest`, `require`, `import`, Node-Module, `structuredClone`, Dateizugriff außer über `bardrop`.
 * `console.log`, `console.info`, `console.warn`, `console.error` gibt es; sie schreiben wie `bardrop.log` ins Plugin-Protokoll. `console` nicht mit `let`/`const` neu anlegen.
 * Jeder Lauf hat einen **eigenen, frischen Kontext**: Globale Variablen überleben keinen Lauf. Dauerhaftes gibt es nur über `settings`.
-* Das Skript wird zuerst einmal ganz ausgeführt (globale Definitionen), dann wird `run(item)` aufgerufen.
+* Das Skript wird zuerst einmal ganz ausgeführt (globale Definitionen), dann wird `run(item, items)` aufgerufen. `items` ist die Liste aller Objekte des Laufs: mit `batch` alle, sonst nur `item`. `function run(item)` funktioniert weiter.
 * Ein Fehler beim ersten Ausführen (z. B. Syntaxfehler) ist ein Fehlschlag. Fehlt `run`, ebenfalls („Im Skript fehlt die Funktion run“).
 * Endlosschleifen lassen sich nicht hart stoppen: „Abbrechen“ entfernt den Platzhalter sofort und gibt den Platz frei, das Skript selbst rechnet aber im Hintergrund weiter, bis BarDrop beendet wird.
 * Das Skript wird als **normales Skript** geladen, nicht als Modul: kein `import`/`export`, kein `await` und kein `return` außerhalb von Funktionen. `function run`, `var run =`, `let run =` und `const run =` funktionieren alle.
@@ -243,6 +245,8 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… laden?“ mit Herkunft und Lizenz
 | `url` | Text | nur bei Links: die Adresse |
 | `size` | Zahl | Größe in Byte, nicht bei Ordnern |
 
+Jeder Eintrag in `items` hat dieselben Felder.
+
 ### 9.3 bardrop
 
 Alle Aufrufe mit `await` liefern ein Versprechen.
@@ -253,7 +257,9 @@ Alle Aufrufe mit `await` liefern ein Versprechen.
 | `bardrop.pluginDirectory` | | Pfad des eigenen Plugin-Ordners (Text), mit `manifest.json`, Skript und weiteren Dateien. Für `bardrop.readFile(bardrop.pluginDirectory + "/vorlage.txt")`. |
 | `bardrop.writeFile(name, text)` | | Schreibt `text` als UTF-8 in den Ausgabeordner (andere Werte werden wie mit `String()` zu Text, Objekte also zu `[object Object]`: vorher `JSON.stringify` verwenden). `name` muss Text sein, `text` darf nicht `undefined` oder `null` sein, sonst Fehler. Liefert den Pfad. Der Name wird bereinigt (siehe 9.4); gibt es ihn schon, heißt die Datei `Name 2.txt` usw. |
 | `bardrop.createLink(url, title)` | | Legt `<title>.webloc` im Ausgabeordner an (ohne `title`: die Domain). Nur `http`- und `https`-Adressen. Liefert den Pfad. Ungültige Adresse: Fehler. |
-| `bardrop.readFile(path)` | | Liest eine Datei als Text (UTF-8, ungültige Bytes werden ersetzt), höchstens 20 MB. Ein Pfad ohne `/` am Anfang gilt relativ zum Ausgabeordner; eigene Dateien also mit `bardrop.pluginDirectory`. Erlaubt nur: `item.path` selbst, Dateien im Ausgabeordner, Dateien im eigenen Plugin-Ordner. Sonst Fehler. Binärdaten lassen sich so nicht lesen; dafür `bardrop.run`. |
+| `bardrop.readFile(path)` | | Liest eine Datei als Text (UTF-8, ungültige Bytes werden ersetzt), höchstens 20 MB. Ein Pfad ohne `/` am Anfang gilt relativ zum Ausgabeordner; eigene Dateien also mit `bardrop.pluginDirectory`. Erlaubt nur: die Pfade von `item` und `items`, Dateien im Ausgabeordner, Dateien im eigenen Plugin-Ordner. Sonst Fehler. Für Binärdaten `bardrop.readData`. |
+| `bardrop.readData(path)` | | Wie `readFile`, mit denselben Regeln und derselben Grenze, liefert die Bytes aber als `Uint8Array`. |
+| `bardrop.writeData(name, data)` | | Wie `writeFile`, schreibt aber Bytes unverändert: `data` ist ein `Uint8Array` (oder ein anderes typisiertes Array), ein `ArrayBuffer`, eine Liste von Zahlen 0 bis 255 oder Base64-Text. Sonst Fehler. Liefert den Pfad. |
 | `bardrop.progress(anteil, label)` | | `anteil` 0 bis 1 (wird begrenzt); keine Zahl (z. B. `null`) heißt „ohne Fortschritt“. `label` optional, höchstens 60 Zeichen, ersetzt den Namen unter dem Platzhalter. Die Anzeige erneuert sich höchstens alle 100 ms. |
 | `bardrop.notify(text)` | | Kurze Meldung oben in der Ablage, etwa 2 Sekunden. Höchstens 40 Zeichen; die Zeile ist schmal, voll zu sehen sind bei Standardgröße etwa 20. |
 | `bardrop.isCancelled()` | | `true`, wenn der Nutzer abgebrochen hat. In langen Schleifen abfragen. |

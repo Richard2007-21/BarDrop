@@ -38,10 +38,10 @@ TRIGGERS = {"menu", "action", "automatic"}
 SETTING_TYPES = {"toggle", "choice", "text"}
 KNOWN_KEYS = {"schema", "id", "name", "description", "version", "author", "homepage", "icon", "actionTitle",
               "minAppVersion", "script", "match", "triggers", "automaticByDefault", "permissions", "tools",
-              "settings", "canReplaceOriginal", "consent"}
+              "settings", "canReplaceOriginal", "batch", "consent"}
 API = {"writeFile", "createLink", "readFile", "progress", "notify", "isCancelled", "sleep", "log", "fetch",
        "download", "run", "setClipboard", "settings", "language", "appVersion", "outputDirectory",
-       "pluginDirectory", "plugin"}
+       "pluginDirectory", "plugin", "readData", "writeData"}
 
 errors, hints = [], []
 
@@ -253,6 +253,11 @@ def check_manifest(m, files):
             error(f"Programm \"{tid}\": mit {{arch}} gibt es je Mac eine andere Datei, also \"checksums\" statt \"sha256\"")
         if "run" not in permissions:
             error(f"Programm \"{tid}\" lässt sich nur mit dem Recht \"run\" starten")
+    for flag in ("automaticByDefault", "canReplaceOriginal", "batch"):
+        if flag in m and not isinstance(m[flag], bool):
+            error(f"\"{flag}\" muss true oder false sein")
+    if m.get("batch") and m.get("canReplaceOriginal"):
+        hint("\"canReplaceOriginal\" wirkt nicht zusammen mit \"batch\": Bei mehreren Objekten gibt es kein einzelnes Original")
     if m.get("automaticByDefault") and (({"network", "run"} & set(permissions)) or tools):
         hint("\"automaticByDefault\" gilt nicht für Plugins mit network, run oder tools: der Nutzer schaltet es selbst ein")
 

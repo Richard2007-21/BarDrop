@@ -58,7 +58,8 @@ Unknown keys are ignored. A key with the wrong type (for example a number instea
 | `permissions` | list | no | Subset of `"network"`, `"run"`, `"clipboard"`, see 6. An **unknown** value rejects the whole plugin. |
 | `tools` | list | no | Programs BarDrop loads, see 7. Requires the `run` permission. |
 | `settings` | list | no | The plugin’s settings, see 3.3. |
-| `canReplaceOriginal` | boolean | no | Shows a “Replace original” switch (off by default), see 8. |
+| `canReplaceOriginal` | boolean | no | Shows a “Replace original” switch (off by default), see 8. Has no effect together with `batch`. |
+| `batch` | boolean | no | With several items, run **once** with all of them instead of once per item: `run(item, items)`, see 9.2. The result appears next to the first item. Also for items dropped together with “Automatically when dropped”. |
 | `consent` | text (3.2) | no | A note the user has to agree to **once** before the plugin can be turned on or run. If an update changes the text, BarDrop asks again. |
 
 ### 3.2 Text in two languages
@@ -139,7 +140,7 @@ BarDrop always stores links itself as `.webloc`.
 
 ## 5. Triggers
 
-**Right-click (`menu`):** matching, turned-on plugins appear below the usual entries after a separator, with their icon and `actionTitle`. Up to three directly, from four on in a “Plugins” submenu. With several items selected, a plugin appears if it matches at least one; it then runs once for every matching item.
+**Right-click (`menu`):** matching, turned-on plugins appear below the usual entries after a separator, with their icon and `actionTitle`. Up to three directly, from four on in a “Plugins” submenu. With several items selected, a plugin appears if it matches at least one; it then runs once for every matching item, or once with all of them with `batch`.
 
 **Action bar (`action`):** Settings → Plugins → plugin → “In the action bar”, or Settings → Actions → Add Action. The action is only visible while the plugin is turned on. Drag onto it: runs for the dragged items; a click doesn’t run it. If nothing matches, BarDrop beeps.
 
@@ -223,10 +224,11 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin 
 ### 9.1 Environment
 
 * macOS’s JavaScriptCore: the JavaScript language with `async`/`await`, `Promise`, `JSON`, `RegExp`, `Map`, `Set` and so on.
-* **Not available:** DOM, `window`, `URL`, `URLSearchParams`, `setTimeout`/`setInterval` (use `bardrop.sleep`), global `fetch` (use `bardrop.fetch`), `XMLHttpRequest`, `require`, `import`, Node modules, file access other than through `bardrop`.
+* **Also available, provided by BarDrop:** `URL` and `URLSearchParams` (as in browsers), `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`, `queueMicrotask`, `TextEncoder`/`TextDecoder` (UTF-8 only), `atob`/`btoa`. An error in a timer callback makes the run fail.
+* **Not available:** DOM, `window`, global `fetch` (use `bardrop.fetch`), `XMLHttpRequest`, `require`, `import`, Node modules, `structuredClone`, file access other than through `bardrop`.
 * `console.log`, `console.info`, `console.warn`, `console.error` exist; they write like `bardrop.log` to the plugin log. Don’t redeclare `console` with `let`/`const`.
 * Every run has its **own, fresh context**: globals don’t survive a run. Only `settings` persist.
-* The script is first evaluated once as a whole (global definitions), then `run(item)` is called.
+* The script is first evaluated once as a whole (global definitions), then `run(item, items)` is called. `items` is the list of all items of the run: with `batch` all of them, otherwise just `item`. `function run(item)` keeps working.
 * An error during that first evaluation (e.g. a syntax error) is a failure. So is a missing `run` (“The script has no function run”).
 * Endless loops can’t be stopped hard: “Cancel” removes the placeholder at once and frees the slot, but the script itself keeps computing in the background until BarDrop quits.
 * The script is loaded as a **classic script**, not a module: no `import`/`export`, no `await` and no `return` outside functions. `function run`, `var run =`, `let run =` and `const run =` all work.
@@ -243,6 +245,8 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin 
 | `url` | text | links only: the address |
 | `size` | number | Size in bytes, not for folders |
 
+Every entry of `items` has the same fields.
+
 ### 9.3 bardrop
 
 Every call used with `await` returns a promise.
@@ -253,7 +257,9 @@ Every call used with `await` returns a promise.
 | `bardrop.pluginDirectory` | | Path of the plugin’s own folder (text), with `manifest.json`, the script and other files. For `bardrop.readFile(bardrop.pluginDirectory + "/template.txt")`. |
 | `bardrop.writeFile(name, text)` | | Writes `text` as UTF-8 to the output folder (other values become text as with `String()`, so objects become `[object Object]`: use `JSON.stringify` first). `name` must be text, `text` must not be `undefined` or `null`, otherwise error. Returns the path. The name is cleaned (9.4); if it exists, the file becomes `Name 2.txt` etc. |
 | `bardrop.createLink(url, title)` | | Creates `<title>.webloc` in the output folder (without `title`: the domain). Only `http` and `https` addresses. Returns the path. Invalid address: error. |
-| `bardrop.readFile(path)` | | Reads a file as text (UTF-8, invalid bytes replaced), at most 20 MB. A path that doesn’t start with `/` is relative to the output folder; for the plugin’s own files use `bardrop.pluginDirectory`. Allowed only: `item.path` itself, files in the output folder, files in the plugin’s own folder. Otherwise error. Binary data can’t be read this way; use `bardrop.run`. |
+| `bardrop.readFile(path)` | | Reads a file as text (UTF-8, invalid bytes replaced), at most 20 MB. A path that doesn’t start with `/` is relative to the output folder; for the plugin’s own files use `bardrop.pluginDirectory`. Allowed only: the paths of `item` and `items`, files in the output folder, files in the plugin’s own folder. Otherwise error. For binary data use `bardrop.readData`. |
+| `bardrop.readData(path)` | | Like `readFile`, same rules and limit, but returns the bytes as a `Uint8Array`. |
+| `bardrop.writeData(name, data)` | | Like `writeFile`, but writes bytes unchanged: `data` is a `Uint8Array` (or another typed array), an `ArrayBuffer`, a list of numbers 0–255 or Base64 text. Anything else: error. Returns the path. |
 | `bardrop.progress(fraction, label)` | | `fraction` 0 to 1 (clamped); not a number (e.g. `null`) means “no progress”. `label` optional, at most 60 characters, replaces the name under the placeholder. The display updates at most every 100 ms. |
 | `bardrop.notify(text)` | | Short note at the top of the shelf, about 2 seconds. At most 40 characters; the line is narrow, at the default size about 20 are fully visible. |
 | `bardrop.isCancelled()` | | `true` once the user canceled. Check it in long loops. |

@@ -83,12 +83,17 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             return
         }
         // Läuft dasselbe Plugin schon für eine Datei, nicht ein zweites Mal starten
-        let fresh = matching.filter { file in !jobs.contains { $0.anchorFileID == file.id && $0.plugin.id == plugin.id } }
+        let fresh = matching.filter { file in !jobs.contains { $0.fileIDs.contains(file.id) && $0.plugin.id == plugin.id } }
         guard !fresh.isEmpty else {
             actions?.announce(L("Already running", "Läuft schon"), duration: 1.6)
             return
         }
         guard confirmConsent(plugin) else { return }
+        if plugin.manifest.batch == true {
+            // Einmal mit allen passenden Objekten; Ergebnis neben dem ersten
+            enqueue(PluginJob(plugin: plugin, items: fresh.map { (PluginItem(url: $0.url), $0.id) }, automatic: false))
+            return
+        }
         let replaces = replacesOriginal(plugin)
         for file in fresh {
             enqueue(PluginJob(plugin: plugin, item: PluginItem(url: file.url), anchorFileID: file.id, automatic: false,
@@ -106,6 +111,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         var started: [String: Int] = [:]
         var blocked = false
         var declined: Set<String> = []
+        // Plugins mit `batch`: alles, was zusammen abgelegt wurde, in einem Lauf
+        var batches: [(plugin: InstalledPlugin, items: [(item: PluginItem, fileID: UUID)])] = []
         for file in files {
             let item = PluginItem(url: file.url)
             guard let plugin = automatic.first(where: { PluginMatcher.matches($0.manifest.match, item) }) else { continue }
@@ -120,9 +127,20 @@ final class PluginRunner: ObservableObject, PluginPrompter {
                 blocked = true
                 continue
             }
+            started[plugin.manifest.title, default: 0] += 1
+            if plugin.manifest.batch == true {
+                if let index = batches.firstIndex(where: { $0.plugin.id == plugin.id }) {
+                    batches[index].items.append((item, file.id))
+                } else {
+                    batches.append((plugin, [(item, file.id)]))
+                }
+                continue
+            }
             enqueue(PluginJob(plugin: plugin, item: item, anchorFileID: file.id, automatic: true,
                               replacesOriginal: replacesOriginal(plugin)))
-            started[plugin.manifest.title, default: 0] += 1
+        }
+        for batch in batches {
+            enqueue(PluginJob(plugin: batch.plugin, items: batch.items, automatic: true))
         }
         // Gestartet: keine eigene Meldung, oben steht gleich „Plugin läuft“
         if started.isEmpty && blocked {
@@ -143,7 +161,8 @@ final class PluginRunner: ObservableObject, PluginPrompter {
 
     /// „Original ersetzen“ ist für dieses Plugin an
     func replacesOriginal(_ plugin: InstalledPlugin) -> Bool {
-        plugin.manifest.canReplaceOriginal == true && manager.state(plugin.id).replaceOriginal
+        // Bei `batch` gibt es kein einzelnes Original, das ersetzt würde
+        plugin.manifest.canReplaceOriginal == true && plugin.manifest.batch != true && manager.state(plugin.id).replaceOriginal
     }
 
     /// Platzhalter, der an der Stelle dieser Datei steht (sie selbst ist dann nicht zu sehen)
@@ -186,7 +205,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         // Der Arbeitsordner bleibt, bis alle gestarteten Programme beendet sind
         runtime.onStopped = { try? FileManager.default.removeItem(at: work) }
         PluginLog.shared.record(plugin.id, "start",
-                                "\(plugin.manifest.version) \(job.automatic ? "automatisch" : "von Hand")\(job.replacesOriginal ? ", ersetzt Original" : "") · \(job.item.kind.rawValue) „\(job.item.url.lastPathComponent)“\(job.item.link.map { " " + $0.absoluteString } ?? "")")
+                                "\(plugin.manifest.version) \(job.automatic ? "automatisch" : "von Hand")\(job.replacesOriginal ? ", ersetzt Original" : "") · \(job.item.kind.rawValue) „\(job.item.url.lastPathComponent)“\(job.item.link.map { " " + $0.absoluteString } ?? "")\(job.items.count > 1 ? " und \(job.items.count - 1) weitere" : "")")
         runtime.start { [weak self] result in
             self?.finished(job, result: result, workDirectory: work)
         }

@@ -278,6 +278,8 @@ struct PluginManifest: Codable, Hashable {
     var settings: [PluginSettingSpec]?
     /// Plugin kann das Original ersetzen (Schalter in seinen Einstellungen, standardmäßig aus)
     var canReplaceOriginal: Bool?
+    /// Bei mehreren Objekten einmal mit allen laufen (`run(item, items)`), statt je Objekt
+    var batch: Bool?
     /// Hinweis, dem der Nutzer beim Einschalten zustimmen muss (z. B. rechtliche Grenzen)
     var consent: LocalizedText?
 
@@ -289,7 +291,7 @@ struct PluginManifest: Codable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case schema, id, name, description, version, author, homepage, icon, actionTitle, minAppVersion,
-             script, match, triggers, automaticByDefault, permissions, tools, settings, canReplaceOriginal, consent
+             script, match, triggers, automaticByDefault, permissions, tools, settings, canReplaceOriginal, batch, consent
     }
 
     init(id: String, name: LocalizedText, version: String, match: PluginMatch) {
@@ -322,6 +324,7 @@ struct PluginManifest: Codable, Hashable {
         tools = try c.decodeIfPresent([PluginTool].self, forKey: .tools)
         settings = try c.decodeIfPresent([PluginSettingSpec].self, forKey: .settings)
         canReplaceOriginal = try c.decodeIfPresent(Bool.self, forKey: .canReplaceOriginal)
+        batch = try c.decodeIfPresent(Bool.self, forKey: .batch)
         consent = try c.decodeIfPresent(LocalizedText.self, forKey: .consent)
     }
 
@@ -345,6 +348,7 @@ struct PluginManifest: Codable, Hashable {
         try c.encodeIfPresent(tools, forKey: .tools)
         try c.encodeIfPresent(settings, forKey: .settings)
         try c.encodeIfPresent(canReplaceOriginal, forKey: .canReplaceOriginal)
+        try c.encodeIfPresent(batch, forKey: .batch)
         try c.encodeIfPresent(consent, forKey: .consent)
     }
 

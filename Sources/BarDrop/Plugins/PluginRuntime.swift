@@ -15,6 +15,10 @@ final class PluginJob: ObservableObject, Identifiable {
     let id = UUID()
     let plugin: InstalledPlugin
     let item: PluginItem
+    /// Alle Objekte des Laufs: bei `batch` mehrere, sonst nur `item`
+    let items: [PluginItem]
+    /// Dateien der Ablage, für die der Lauf ist (die erste ist `anchorFileID`)
+    let fileIDs: [UUID]
     /// Datei der Ablage, neben der das Ergebnis erscheint
     let anchorFileID: UUID
     let automatic: Bool
@@ -34,9 +38,17 @@ final class PluginJob: ObservableObject, Identifiable {
     private var lastPublished = Date.distantPast
 
     init(plugin: InstalledPlugin, item: PluginItem, anchorFileID: UUID, automatic: Bool, replacesOriginal: Bool = false) {
+        self.init(plugin: plugin, items: [(item, anchorFileID)], automatic: automatic, replacesOriginal: replacesOriginal)
+    }
+
+    /// Ein Lauf für mehrere Objekte (`batch`); das Ergebnis erscheint neben dem ersten
+    init(plugin: InstalledPlugin, items: [(item: PluginItem, fileID: UUID)], automatic: Bool, replacesOriginal: Bool = false) {
+        precondition(!items.isEmpty)
         self.plugin = plugin
-        self.item = item
-        self.anchorFileID = anchorFileID
+        self.item = items[0].item
+        self.items = items.map(\.item)
+        self.fileIDs = items.map(\.fileID)
+        self.anchorFileID = items[0].fileID
         self.automatic = automatic
         self.replacesOriginal = replacesOriginal
     }
@@ -184,6 +196,8 @@ final class PluginRuntime {
                        error: function () { bardrop.log('error: ' + line(arguments)); } };
             })();
             """)
+            // URL, setTimeout, TextEncoder, Binärdaten & Co. (siehe PluginPrelude)
+            context.evaluateScript(PluginPrelude.source, withSourceURL: URL(string: "bardrop-prelude.js"))
             context.evaluateScript(plugin.script, withSourceURL: plugin.scriptURL)
             guard !isFinished else { return }
             // Als Name prüfen, nicht als Eigenschaft des globalen Objekts: `const run = …`
@@ -191,14 +205,15 @@ final class PluginRuntime {
             guard context.evaluateScript("typeof run === 'function'")?.toBool() == true else {
                 return finish(.failure(.script(L("The script has no function “run”.", "Im Skript fehlt die Funktion „run“."))))
             }
+            // Zweites Argument: alle Objekte des Laufs (bei `batch` mehrere, sonst nur `item`)
             let bootstrap = """
-            (function (item) {
-              return Promise.resolve().then(function () { return run(item); })
+            (function (item, items) {
+              return Promise.resolve().then(function () { return run(item, items); })
                 .then(function () { __bardropDone(); },
                       function (e) { __bardropFail(e); });
             })
             """
-            context.evaluateScript(bootstrap)?.call(withArguments: [job.item.scriptValue])
+            context.evaluateScript(bootstrap)?.call(withArguments: [job.item.scriptValue, job.items.map(\.scriptValue)])
         }
     }
 
@@ -370,27 +385,47 @@ final class PluginRuntime {
 
         let readFile: @convention(block) (JSValue) -> JSValue = { [weak self] path in
             guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
-            // Ohne „/“ am Anfang: relativ zum Ausgabeordner
-            guard path.isString else {
-                ctx.exception = JSValue(newErrorFromMessage: L("readFile needs a path.", "readFile braucht einen Pfad."), in: ctx)
-                return JSValue(undefinedIn: ctx)
-            }
-            let raw = path.toString() ?? ""
-            let url = (raw.hasPrefix("/") ? URL(fileURLWithPath: raw)
-                       : self.outputDirectory.appendingPathComponent(raw)).standardizedFileURL
-            guard self.mayRead(url) else {
-                ctx.exception = JSValue(newErrorFromMessage: L("The plugin may only read the item itself, its output folder and its own files.", "Das Plugin darf nur das Objekt selbst, seinen Ausgabeordner und seine eigenen Dateien lesen."), in: ctx)
-                return JSValue(undefinedIn: ctx)
-            }
-            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-            guard size <= 20 * 1024 * 1024, let data = try? Data(contentsOf: url) else {
-                ctx.exception = JSValue(newErrorFromMessage: L("The file can’t be read (missing or larger than 20 MB).", "Die Datei lässt sich nicht lesen (fehlt oder ist größer als 20 MB)."), in: ctx)
-                return JSValue(undefinedIn: ctx)
-            }
+            guard let data = self.readAllowed(path, call: "readFile", in: ctx) else { return JSValue(undefinedIn: ctx) }
             let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
             return JSValue(object: text, in: ctx)
         }
         set("readFile", readFile)
+
+        // Binärdaten: Swift reicht Base64 weiter, das Vorspiel macht daraus Uint8Array (PluginPrelude)
+        let readData: @convention(block) (JSValue) -> JSValue = { [weak self] path in
+            guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
+            guard let data = self.readAllowed(path, call: "readData", in: ctx) else { return JSValue(undefinedIn: ctx) }
+            return JSValue(object: data.base64EncodedString(), in: ctx)
+        }
+        context.setObject(readData, forKeyedSubscript: "__bardropReadData" as NSString)
+
+        let writeData: @convention(block) (JSValue, JSValue) -> JSValue = { [weak self] name, base64 in
+            guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
+            guard name.isString, base64.isString,
+                  let data = Data(base64Encoded: base64.toString(), options: .ignoreUnknownCharacters) else {
+                ctx.exception = JSValue(newErrorFromMessage: L("writeData needs a name and data.", "writeData braucht einen Namen und Daten."), in: ctx)
+                return JSValue(undefinedIn: ctx)
+            }
+            let target = self.newOutputURL(name.toString())
+            do {
+                try data.write(to: target, options: .atomic)
+                return JSValue(object: target.path, in: ctx)
+            } catch {
+                ctx.exception = JSValue(newErrorFromMessage: error.localizedDescription, in: ctx)
+                return JSValue(undefinedIn: ctx)
+            }
+        }
+        context.setObject(writeData, forKeyedSubscript: "__bardropWriteData" as NSString)
+
+        // Adressen zerlegen für `URL` im Vorspiel: Foundation kennt die Regeln
+        let parseURL: @convention(block) (JSValue, JSValue) -> JSValue = { input, base in
+            guard let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
+            guard let parts = PluginRuntime.urlParts(input.toString() ?? "", base: base.isString ? base.toString() : nil) else {
+                return JSValue(nullIn: ctx)
+            }
+            return JSValue(object: parts, in: ctx)
+        }
+        context.setObject(parseURL, forKeyedSubscript: "__bardropParseURL" as NSString)
 
         let clipboard: @convention(block) (JSValue) -> Void = { [weak self] text in
             guard let self, self.require(.clipboard) else { return }
@@ -498,10 +533,57 @@ final class PluginRuntime {
         return allowed
     }
 
+    /// Datei für readFile und readData: Pfad prüfen, höchstens 20 MB. Sonst ein Fehler im Skript.
+    private func readAllowed(_ path: JSValue, call: String, in ctx: JSContext) -> Data? {
+        // Ohne „/“ am Anfang: relativ zum Ausgabeordner
+        guard path.isString else {
+            ctx.exception = JSValue(newErrorFromMessage: L("\(call) needs a path.", "\(call) braucht einen Pfad."), in: ctx)
+            return nil
+        }
+        let raw = path.toString() ?? ""
+        let url = (raw.hasPrefix("/") ? URL(fileURLWithPath: raw)
+                   : outputDirectory.appendingPathComponent(raw)).standardizedFileURL
+        guard mayRead(url) else {
+            ctx.exception = JSValue(newErrorFromMessage: L("The plugin may only read the items themselves, its output folder and its own files.", "Das Plugin darf nur die Objekte selbst, seinen Ausgabeordner und seine eigenen Dateien lesen."), in: ctx)
+            return nil
+        }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        guard size <= 20 * 1024 * 1024, let data = try? Data(contentsOf: url) else {
+            ctx.exception = JSValue(newErrorFromMessage: L("The file can’t be read (missing or larger than 20 MB).", "Die Datei lässt sich nicht lesen (fehlt oder ist größer als 20 MB)."), in: ctx)
+            return nil
+        }
+        return data
+    }
+
+    /// Teile einer Adresse wie bei `URL` im Browser (protocol mit „:“, search mit „?“ …),
+    /// relativ zu `base`, wenn angegeben. nil: keine gültige absolute Adresse.
+    static func urlParts(_ input: String, base: String?) -> [String: String]? {
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolved: URL?
+        if let base {
+            guard let baseURL = URL(string: base.trimmingCharacters(in: .whitespacesAndNewlines)), baseURL.scheme != nil else { return nil }
+            resolved = URL(string: text, relativeTo: baseURL)?.absoluteURL
+        } else {
+            resolved = URL(string: text)
+        }
+        guard let url = resolved, let scheme = url.scheme, !scheme.isEmpty,
+              let c = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return nil }
+        return [
+            "protocol": scheme.lowercased() + ":",
+            "username": c.percentEncodedUser ?? "",
+            "password": c.percentEncodedPassword ?? "",
+            "hostname": (c.percentEncodedHost ?? "").lowercased(),
+            "port": c.port.map(String.init) ?? "",
+            "pathname": c.percentEncodedPath,
+            "search": c.percentEncodedQuery.map { $0.isEmpty ? "" : "?" + $0 } ?? "",
+            "hash": c.percentEncodedFragment.map { $0.isEmpty ? "" : "#" + $0 } ?? ""
+        ]
+    }
+
     private func mayRead(_ url: URL) -> Bool {
         let path = url.path
         let roots = [outputDirectory.standardizedFileURL.path, plugin.directory.standardizedFileURL.path]
-        return path == job.item.url.standardizedFileURL.path || roots.contains { path.hasPrefix($0 + "/") }
+        return job.items.contains { path == $0.url.standardizedFileURL.path } || roots.contains { path.hasPrefix($0 + "/") }
     }
 
     /// Neuer Name im Ausgabeordner, ohne etwas zu überschreiben
