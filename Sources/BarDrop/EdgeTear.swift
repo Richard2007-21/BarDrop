@@ -15,6 +15,10 @@ enum EdgeTear {
     /// Zusätzliche dunkle Tönung über dem Glas der losgelösten Ablage: im hellen
     /// Erscheinungsbild weniger (mittelgrau, weiße Schrift bleibt lesbar)
     static func glassDarken(light: Bool) -> Double { light ? 0.3 : 0.5 }
+    /// Hell: Das helle Glas ist schon ganz da, bevor sich das Schwarz zurückzieht. Kamen
+    /// beide gleichzeitig, sah die Ablage dazwischen kurz dunkelgrau und durchsichtig aus;
+    /// so geht das Schwarz direkt in Weiß über (beim Andocken umgekehrt)
+    static func lightCover(_ glass: Double) -> Double { max(0, min(1, glass * 2.5)) }
     /// Bis zu diesem Abstand zum Rand zieht er die Ablage wieder an
     static let attachZone: CGFloat = 70
     /// Dehnen bis zum Lösen: höchstens so weit (pt) folgt die Ablage, und so schnell wird es
@@ -94,7 +98,7 @@ struct TearGoo: View, Animatable {
                 // hier nur die eigene dunkle Tönung darüber
                 bodyShape
                     .fill(light ? Color.white.opacity(0.6) : Color.black.opacity(EdgeTear.glassDarken(light: false)))
-                    .opacity(glass)
+                    .opacity(light ? EdgeTear.lightCover(glass) : glass)
             }
             // Überblendung zur angedockten Form: erst kommt sie dazu, dann geht die
             // verschmelzende Form; so gibt es keinen Moment, in dem es durchscheint
@@ -158,18 +162,20 @@ struct TearGoo: View, Animatable {
             let fromEdge: (CGFloat) -> CGPoint = { x in
                 CGPoint(x: fromLeft ? body.minX + x : body.maxX - x, y: 0)
             }
-            let softness = 0.7                      // Breite des Übergangs (Anteil der Breite)
+            // Breite des Übergangs (Anteil der Breite): schmal, sonst lag vor der Front eine
+            // breite, neblige Kante, die vor allem auf hellem Glas auffiel
+            let softness = 0.28
             let bulge = 0.3                         // wie weit die Mitte vorausläuft
             let travel = 1 + bulge + softness       // bis auch die Ecken ganz frei sind
             let front = travel * (1 - glass) - softness
             // Verbindung zum Rand: an der Randseite so dunkel wie die Verbindung, weich auslaufend
             let link = min(1, attach * 1.4)
-            // Streifen von 4 pt auf ganzen Punkten, ohne Überlappung und ohne Kantenglättung:
+            // Streifen von 2 pt auf ganzen Punkten, ohne Überlappung und ohne Kantenglättung:
             // Überlappende Ränder wurden doppelt dunkel und zeigten sich als Streifen
-            let rowHeight: CGFloat = 4
+            let rowHeight: CGFloat = 2
             let rows = Int((size.height / rowHeight).rounded(.up))
             context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 6))
+            layer.addFilter(.blur(radius: 4))
             for row in 0..<rows {
                 let y0 = CGFloat(row) * rowHeight
                 let y1 = y0 + rowHeight

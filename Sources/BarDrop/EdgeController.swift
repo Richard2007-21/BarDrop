@@ -1615,7 +1615,9 @@ extension EdgeController {
             if tear.side == .left { body.origin.x += cut }
         }
         window.follow(panel, body: body)
-        window.show(CGFloat(ui.tearGlass), duration: duration)
+        // Hell kommt das Glas vor dem Rückzug des Schwarz (siehe EdgeTear.lightCover)
+        let amount = ui.systemLight ? EdgeTear.lightCover(ui.tearGlass) : ui.tearGlass
+        window.show(CGFloat(amount), duration: duration)
     }
 
     /// Glas ganz weg (angedockt, abgebrochen)
