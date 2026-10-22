@@ -137,8 +137,15 @@ enum Thumbnails {
                     if let error {
                         // Für die schnelle Stufe hat Quick Look oft nichts zwischengespeichert: normal
                         let harmless = type == .lowQualityThumbnail && (error as NSError).code == 2
+                        // Links, Dateien ohne Endung & Co.: Quick Look hat für diese Art Datei kein
+                        // Bild, gezeigt wird ihr Symbol. Auch normal, kein Fehler
+                        let noPreviewKind = (error as NSError).domain == QLThumbnailError.errorDomain
+                            && (error as NSError).code == QLThumbnailError.Code.generationFailed.rawValue
+                            && !ThumbnailView.expectsPreview(url)
                         if harmless {
                             Diagnostics.shared.record("thumb", base + " (normal: keine schnelle Vorschau zwischengespeichert)")
+                        } else if noPreviewKind {
+                            Diagnostics.shared.record("thumb", base + " (normal: für diese Art Datei gibt es kein Vorschaubild, Symbol)")
                         } else {
                             Diagnostics.shared.failure("thumb", "Vorschau " + base, error)
                         }
@@ -152,7 +159,7 @@ enum Thumbnails {
                 // geladen sein
                 if type == .thumbnail, image == nil, let error = error as NSError?,
                    error.domain == QLThumbnailError.errorDomain {
-                    if error.code == QLThumbnailError.generationFailed.rawValue {
+                    if error.code == QLThumbnailError.Code.generationFailed.rawValue {
                         unavailable[k] = .distantFuture
                     } else if error.code == QLThumbnailError.noCloudThumbnail.rawValue {
                         unavailable[k] = Date().addingTimeInterval(cloudRetry)

@@ -250,6 +250,16 @@ private struct PluginDetails: View {
                 PluginSettingRow(spec: spec, plugin: plugin, manager: manager)
                 divider
             }
+            if let count = manager.runningCounts[plugin.id], count > 0 {
+                SettingsRow(L("Running", "Läuft gerade"),
+                            subtitle: count == 1 ? L("1 run", "1 Lauf") : L("\(count) runs", "\(count) Läufe")) {
+                    Button(L("Stop", "Beenden")) { manager.stopRuns?(plugin.id) }
+                        .buttonStyle(KlackButtonStyle())
+                        .help(L("Ends all runs of this plugin, also a script that is stuck.",
+                                "Beendet alle Läufe dieses Plugins, auch ein Skript, das hängt."))
+                }
+                divider
+            }
             if let error = manager.lastErrors[plugin.id] {
                 SettingsRow(L("Last error", "Letzter Fehler"), subtitle: error) {
                     Button(L("Copy", "Kopieren")) {

@@ -518,6 +518,38 @@ final class PluginTests: XCTestCase {
         XCTAssertFalse(PluginMatcher.specificallyMatchesLink(specific, search))
     }
 
+    /// Abbrechen beendet auch ein Skript in einer Endlosschleife (ScriptWatchdog)
+    func testCancelStopsEndlessLoop() throws {
+        try XCTSkipUnless(ScriptWatchdog.isAvailable, "Wächter von JavaScriptCore fehlt auf diesem System")
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, script: "function run(item) { var n = 0; while (true) { n++; } }")
+        let before = PluginRuntime.busyScripts
+        let job = PluginJob(plugin: plugin, item: PluginItem(url: makeFile("a.txt")), anchorFileID: UUID(), automatic: false)
+        let runtime = PluginRuntime(job: job, workDirectory: base.appendingPathComponent("work-\(UUID().uuidString)"),
+                                    tools: PluginTools(directory: base.appendingPathComponent("tools")),
+                                    prompter: nil, settingsValues: [:], granted: [],
+                                    onGrant: { _ in }, onNotify: { _ in })
+        let done = expectation(description: "Ende")
+        var result: Result<[URL], PluginRunError>?
+        runtime.start { r in
+            result = r
+            done.fulfill()
+        }
+        // Rechnet
+        let deadline = Date().addingTimeInterval(5)
+        while PluginRuntime.busyScripts <= before, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+        XCTAssertEqual(PluginRuntime.busyScripts, before + 1)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        XCTAssertEqual(PluginRuntime.busyScripts, before + 1, "Ein gewollter Lauf darf lange rechnen")
+        runtime.cancel()
+        wait(for: [done], timeout: 5)
+        if case .failure(.cancelled) = result {} else { XCTFail("Abbrechen erwartet, nicht \(String(describing: result))") }
+        // Und hört wirklich auf
+        let stop = Date().addingTimeInterval(3)
+        while PluginRuntime.busyScripts > before, Date() < stop { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+        XCTAssertEqual(PluginRuntime.busyScripts, before, "Das Skript rechnet nach dem Abbrechen weiter")
+    }
+
     func testConsoleLogDoesNotFail() throws {
         let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
         let plugin = try installed(manager, script: "function run(item) { console.log('hi', {a: 1}); bardrop.writeFile('ok.txt', 'ok'); }")

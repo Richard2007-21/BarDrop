@@ -138,6 +138,14 @@ final class PluginRuntime {
     private let session = URLSession(configuration: .ephemeral)
 
     private let lock = NSLock()
+    /// Nach dem Ende des Laufs (auch Abbrechen) beendet der Wächter das Skript, selbst
+    /// mitten in einer Endlosschleife (siehe ScriptWatchdog)
+    private let stopFlag = ScriptWatchdog.StopFlag()
+    /// Skripte, die gerade rechnen (nicht nur auf etwas warten), über alle Läufe; für Tests
+    private static let busyLock = NSLock()
+    private static var _busyScripts = 0
+    static var busyScripts: Int { busyLock.lock(); defer { busyLock.unlock() }; return _busyScripts }
+    private static func changeBusy(_ delta: Int) { busyLock.lock(); _busyScripts += delta; busyLock.unlock() }
     private var processes: [PluginProcess] = []
     private var tasks: [URLSessionTask] = []
     private var _cancelled = false
@@ -175,11 +183,14 @@ final class PluginRuntime {
         lock.lock(); self.completion = completion; lock.unlock()
         try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         queue.async { [self] in
+            Self.changeBusy(1)
+            defer { Self.changeBusy(-1) }
             let vm = JSVirtualMachine()
             guard let context = JSContext(virtualMachine: vm) else {
                 return finish(.failure(.script("JavaScriptCore")))
             }
             self.context = context
+            ScriptWatchdog.install(on: context, flag: stopFlag)
             context.name = plugin.manifest.name.text(for: .english)
             context.exceptionHandler = { [weak self] _, exception in
                 self?.finish(.failure(.script(PluginRuntime.describe(exception))))
@@ -241,6 +252,8 @@ final class PluginRuntime {
         lock.lock()
         guard let completion else { lock.unlock(); return }
         self.completion = nil
+        // Rechnet das Skript noch (etwa in einer Endlosschleife), beendet der Wächter es jetzt
+        stopFlag.set()
         let cancelled = _cancelled
         let running = processes
         processes = []

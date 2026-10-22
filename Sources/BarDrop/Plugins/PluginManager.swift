@@ -109,6 +109,10 @@ final class PluginManager: ObservableObject {
     @Published private(set) var broken: [String: String] = [:]
     /// Letzter Fehler je Plugin (nur bis zum Beenden), sichtbar in den Einstellungen
     @Published var lastErrors: [String: String] = [:]
+    /// Laufende und wartende Läufe je Plugin (für „Läuft gerade“ in den Einstellungen)
+    @Published var runningCounts: [String: Int] = [:]
+    /// Beendet alle Läufe eines Plugins (gesetzt von der Ablage, die sie startet)
+    var stopRuns: ((String) -> Void)?
 
     let baseDirectory: URL
     private var pluginsDirectory: URL { baseDirectory.appendingPathComponent("Plugins", isDirectory: true) }

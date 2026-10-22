@@ -8,7 +8,12 @@ import SwiftUI
 /// Laufende Plugins erscheinen als Platzhalter direkt neben dem Original. Ist ein Plugin
 /// fertig, liegt das Ergebnis an genau dieser Stelle und ist sofort mit Vorschau zu sehen.
 final class PluginRunner: ObservableObject, PluginPrompter {
-    @Published private(set) var jobs: [PluginJob] = []
+    @Published private(set) var jobs: [PluginJob] = [] {
+        didSet {
+            let counts = Dictionary(jobs.map { ($0.plugin.id, 1) }, uniquingKeysWith: +)
+            if manager.runningCounts != counts { manager.runningCounts = counts }
+        }
+    }
 
     private let manager: PluginManager
     private weak var actions: ShelfActions?
@@ -28,6 +33,14 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     init(manager: PluginManager = .shared, actions: ShelfActions) {
         self.manager = manager
         self.actions = actions
+        // „Beenden“ in den Einstellungen: alle Läufe dieses Plugins abbrechen
+        manager.stopRuns = { [weak self] id in
+            guard let self else { return }
+            for job in self.jobs where job.plugin.id == id {
+                PluginLog.shared.record(id, "abbruch", "in den Einstellungen beendet")
+                self.cancel(job)
+            }
+        }
         // Ausgeschaltet oder entfernt: laufende und wartende Aufträge des Plugins abbrechen
         manager.objectWillChange
             .merge(with: AppSettings.shared.$pluginsEnabled.map { _ in () }.eraseToAnyPublisher())

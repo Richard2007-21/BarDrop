@@ -230,7 +230,7 @@ Ablauf: Fehlt die Datei, fragt BarDrop („… laden?“ mit Herkunft und Lizenz
 * Jeder Lauf hat einen **eigenen, frischen Kontext**: Globale Variablen überleben keinen Lauf. Dauerhaftes gibt es nur über `settings`.
 * Das Skript wird zuerst einmal ganz ausgeführt (globale Definitionen), dann wird `run(item, items)` aufgerufen. `items` ist die Liste aller Objekte des Laufs: mit `batch` alle, sonst nur `item`. `function run(item)` funktioniert weiter.
 * Ein Fehler beim ersten Ausführen (z. B. Syntaxfehler) ist ein Fehlschlag. Fehlt `run`, ebenfalls („Im Skript fehlt die Funktion run“).
-* Endlosschleifen lassen sich nicht hart stoppen: „Abbrechen“ entfernt den Platzhalter sofort und gibt den Platz frei, das Skript selbst rechnet aber im Hintergrund weiter, bis BarDrop beendet wird.
+* Lange Rechnungen laufen, solange sie brauchen. Ist ein Lauf zu Ende („Abbrechen“, „Beenden“ unter Einstellungen → Plugins, Plugin ausgeschaltet), beendet BarDrop auch ein Skript, das noch rechnet, selbst in einer Endlosschleife, innerhalb etwa einer Viertelsekunde. Einstellungen → Plugins zeigt „Läuft gerade“ mit dem Knopf „Beenden“, solange ein Plugin Läufe hat.
 * Das Skript wird als **normales Skript** geladen, nicht als Modul: kein `import`/`export`, kein `await` und kein `return` außerhalb von Funktionen. `function run`, `var run =`, `let run =` und `const run =` funktionieren alle.
 
 ### 9.2 item

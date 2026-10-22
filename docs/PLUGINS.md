@@ -230,7 +230,7 @@ Sequence: if the file is missing, BarDrop asks (“Download …?” with origin 
 * Every run has its **own, fresh context**: globals don’t survive a run. Only `settings` persist.
 * The script is first evaluated once as a whole (global definitions), then `run(item, items)` is called. `items` is the list of all items of the run: with `batch` all of them, otherwise just `item`. `function run(item)` keeps working.
 * An error during that first evaluation (e.g. a syntax error) is a failure. So is a missing `run` (“The script has no function run”).
-* Endless loops can’t be stopped hard: “Cancel” removes the placeholder at once and frees the slot, but the script itself keeps computing in the background until BarDrop quits.
+* Long computations run as long as they need. Once a run ends (“Cancel”, “Stop” in Settings → Plugins, turning the plugin off), BarDrop also ends a script that is still computing, even in an endless loop, within about a quarter of a second. Settings → Plugins shows “Running” with a “Stop” button while a plugin has runs.
 * The script is loaded as a **classic script**, not a module: no `import`/`export`, no `await` and no `return` outside functions. `function run`, `var run =`, `let run =` and `const run =` all work.
 
 ### 9.2 item
