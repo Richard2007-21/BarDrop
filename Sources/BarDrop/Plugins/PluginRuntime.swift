@@ -37,7 +37,7 @@ final class PluginJob: ObservableObject, Identifiable {
     /// Letzte Meldung an die Oberfläche (höchstens alle 100 ms, sonst zeichnet die Ablage zu oft)
     private var lastPublished = Date.distantPast
 
-    init(plugin: InstalledPlugin, item: PluginItem, anchorFileID: UUID, automatic: Bool, replacesOriginal: Bool = false) {
+    convenience init(plugin: InstalledPlugin, item: PluginItem, anchorFileID: UUID, automatic: Bool, replacesOriginal: Bool = false) {
         self.init(plugin: plugin, items: [(item, anchorFileID)], automatic: automatic, replacesOriginal: replacesOriginal)
     }
 
