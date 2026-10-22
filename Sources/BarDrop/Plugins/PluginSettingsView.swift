@@ -2,39 +2,83 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Unterseiten von Einstellungen → Plugins. Die Liste ist die Startseite; ein Plugin, die
-/// Reihenfolge und das Protokoll öffnen sich als eigene Seite mit „‹ Plugins“ zurück.
+/// Unterseiten von Einstellungen → Plugins, wie in den Systemeinstellungen von macOS:
+/// Die Liste ist die Startseite; jede Unterseite zeigt oben in der Titelzeile einen
+/// Zurück-Knopf und ihren eigenen Titel (`PluginPageHeader`).
 enum PluginPage: Hashable {
     case list
     case plugin(String)
-    case order
-    case log
-}
-
-/// Reiter der Startseite
-enum PluginTab: Hashable {
-    case installed
+    case permissions(String)
     case gallery
+    case order
+
+    /// Wohin „Zurück“ führt
+    var parent: PluginPage {
+        switch self {
+        case .permissions(let id): return .plugin(id)
+        default: return .list
+        }
+    }
+
+    func title(_ manager: PluginManager) -> String {
+        switch self {
+        case .list: return SettingsPane.plugins.title
+        case .plugin(let id): return manager.plugin(id)?.manifest.name.text ?? SettingsPane.plugins.title
+        case .permissions: return L("Permissions", "Rechte")
+        case .gallery: return L("More Plugins", "Weitere Plugins")
+        case .order: return L("Order When Dropped", "Reihenfolge beim Ablegen")
+        }
+    }
 }
 
-/// Einstellungen → Plugins: oben der Hauptschalter, darunter zwei Reiter. „Installiert“
-/// zeigt je Plugin eine ruhige Zeile (Symbol, Name, Zustand, graue Zeichen für offline,
-/// Internet, Programm und automatisch, Schalter); ein Klick öffnet seine Seite.
-/// „Galerie“ zeigt die geprüften Plugins aus dem Katalog mit „Laden“.
+/// Titelzeile einer Unterseite: runder Zurück-Knopf und der Titel der Seite (statt des
+/// Symbols und „Plugins“). Esc führt ebenfalls zurück.
+struct PluginPageHeader: View {
+    @ObservedObject var navigation: SettingsNavigation
+    @ObservedObject var manager: PluginManager = .shared
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { navigation.pluginPage = navigation.pluginPage.parent }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Color.primary.opacity(hovering ? 0.12 : 0.07)))
+                    .overlay(Circle().strokeBorder(SettingsTheme.separator, lineWidth: 0.5))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .keyboardShortcut(.cancelAction)
+            .help(L("Back", "Zurück"))
+            .accessibilityLabel(L("Back", "Zurück"))
+            Text(navigation.pluginPage.title(manager))
+                .font(.system(size: 17, weight: .semibold))
+                .lineLimit(1)
+        }
+    }
+}
+
+/// Einstellungen → Plugins. Startseite: Hauptschalter, die installierten Plugins (Zeile mit
+/// „Ein“/„Aus“ und Pfeil), „Plugin importieren“, „Weitere Plugins“ und das Protokoll.
 struct PluginSettings: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject private var manager: PluginManager
-    @State private var page: PluginPage
-    @State private var tab: PluginTab
+    @ObservedObject private var navigation: SettingsNavigation
     @State private var importFrame: CGRect = .zero
 
-    /// `manager`, `tab` und `page` nur für Tests und Vorschaubilder
-    init(settings: AppSettings, manager: PluginManager = .shared, tab: PluginTab = .installed, page: PluginPage = .list) {
+    /// `manager` und `navigation` nur für Tests und Vorschaubilder
+    init(settings: AppSettings, manager: PluginManager = .shared, navigation: SettingsNavigation = .shared) {
         self.settings = settings
         self.manager = manager
-        _tab = State(initialValue: tab)
-        _page = State(initialValue: page)
+        self.navigation = navigation
     }
+
+    private var page: PluginPage { navigation.pluginPage }
 
     var body: some View {
         SettingsPage {
@@ -43,17 +87,24 @@ struct PluginSettings: View {
                 start
             case .plugin(let id):
                 if let plugin = manager.plugin(id) {
-                    PluginPageView(plugin: plugin, manager: manager, settings: settings, back: back)
+                    PluginPageView(plugin: plugin, manager: manager, settings: settings, open: open)
                 } else {
                     // Entfernt oder nicht mehr lesbar: zurück zur Liste
-                    start.onAppear { page = .list }
+                    start.onAppear { navigation.pluginPage = .list }
                 }
+            case .permissions(let id):
+                if let plugin = manager.plugin(id) {
+                    PluginPermissionsPage(plugin: plugin, manager: manager)
+                } else {
+                    start.onAppear { navigation.pluginPage = .list }
+                }
+            case .gallery:
+                GalleryPage(manager: manager) { id in open(.plugin(id)) }
             case .order:
-                PluginOrderPage(manager: manager, back: back)
-            case .log:
-                PluginLogPage(settings: settings, back: back)
+                PluginOrderPage(manager: manager)
             }
         }
+        .id(page)
         .onAppear {
             // Bearbeitete Skripte erkennen; Katalog abgleichen, wenn es länger her ist
             manager.reload()
@@ -62,122 +113,27 @@ struct PluginSettings: View {
     }
 
     private func open(_ next: PluginPage) {
-        withAnimation(.easeInOut(duration: 0.18)) { page = next }
+        withAnimation(.easeInOut(duration: 0.18)) { navigation.pluginPage = next }
     }
-
-    private func back() { open(.list) }
 
     // MARK: Startseite
 
     @ViewBuilder
     private var start: some View {
         SettingsSection(note: settings.pluginsEnabled ? nil
-                        : L("Plugins add their own entries to the right-click menu and the action bar, or run when you drop matching items. When you turn this on, BarDrop loads the standard plugins from its gallery; they stay off until you turn them on.",
-                            "Plugins ergänzen eigene Einträge im Rechtsklick-Menü und in der Aktionsleiste oder laufen beim Ablegen passender Objekte. Beim Einschalten lädt BarDrop die Standard-Plugins aus seiner Galerie; sie bleiben aus, bis du sie einschaltest.")) {
+                        : L("Plugins add entries to the right-click menu and the action bar, or run when you drop matching items.",
+                            "Plugins ergänzen Einträge im Rechtsklick-Menü und in der Aktionsleiste oder laufen beim Ablegen passender Objekte.")) {
             ToggleRow(L("Use plugins", "Plugins verwenden"), isOn: $settings.pluginsEnabled)
         }
 
         if settings.pluginsEnabled {
-            HStack {
-                Spacer(minLength: 0)
-                SegmentedValue(selection: $tab, options: [(.installed, L("Installed", "Installiert")),
-                                                          (.gallery, L("Gallery", "Galerie"))])
-                Spacer(minLength: 0)
-            }
-            .padding(.top, -6)
-
-            switch tab {
-            case .installed:
-                InstalledList(manager: manager, settings: settings, importFrame: $importFrame, open: open)
-            case .gallery:
-                GalleryList(manager: manager) { id in
-                    tab = .installed
-                    open(.plugin(id))
-                }
-            }
-        }
-    }
-}
-
-/// „‹ Plugins“ oben auf einer Unterseite
-private struct BackLink: View {
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 3) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(L("Plugins", "Plugins"))
-                    .font(.system(size: 13.5))
-            }
-            .foregroundStyle(Color(nsColor: .controlAccentColor).opacity(hovering ? 0.8 : 1))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .keyboardShortcut(.cancelAction)
-        .padding(.leading, 4)
-        .padding(.bottom, -8)
-    }
-}
-
-/// Graues Zeichen für eine Eigenschaft eines Plugins, mit Erklärung beim Darüberfahren
-private struct TraitSymbol: View {
-    let symbol: String
-    let help: String
-
-    var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(.secondary)
-            .frame(width: 16)
-            .help(help)
-            .accessibilityLabel(help)
-    }
-}
-
-// MARK: Installiert
-
-private struct InstalledList: View {
-    @ObservedObject var manager: PluginManager
-    @ObservedObject var settings: AppSettings
-    @Binding var importFrame: CGRect
-    let open: (PluginPage) -> Void
-    @State private var totals: PluginSize.Totals?
-
-    private var automaticCount: Int { manager.plugins.filter { manager.isAutomatic($0) }.count }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if manager.plugins.isEmpty && manager.missingStandard.isEmpty && manager.broken.isEmpty {
-                SettingsCard {
-                    HStack(spacing: 10) {
-                        Image(systemName: "puzzlepiece.extension")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 26)
-                        Text(manager.syncFailed
-                             ? L("The gallery couldn’t be loaded. Check your internet connection.",
-                                 "Die Galerie ließ sich nicht laden. Prüf deine Internetverbindung.")
-                             : L("No plugins installed yet. Find some in the gallery.",
-                                 "Noch keine Plugins installiert. Welche findest du in der Galerie."))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 8)
-                        if manager.syncing {
-                            ProgressView().controlSize(.small)
-                        } else if manager.syncFailed {
-                            Button(L("Try Again", "Erneut versuchen")) { manager.syncCatalog(force: true) }
-                                .buttonStyle(KlackButtonStyle())
+            VStack(alignment: .leading, spacing: 10) {
+                SettingsSection(L("Installed", "Installiert")) {
+                    if manager.plugins.isEmpty && manager.missingStandard.isEmpty && manager.broken.isEmpty {
+                        SettingsRow(L("No plugins installed", "Keine Plugins installiert")) {
+                            if manager.syncing { ProgressView().controlSize(.small) }
                         }
                     }
-                    .padding(.horizontal, SettingsTheme.rowPadding)
-                    .frame(minHeight: SettingsTheme.rowHeight)
-                }
-            } else {
-                SettingsCard {
                     ForEach(manager.plugins) { plugin in
                         InstalledRow(plugin: plugin, manager: manager) { open(.plugin(plugin.id)) }
                     }
@@ -188,65 +144,83 @@ private struct InstalledList: View {
                         BrokenPluginRow(id: id, message: manager.broken[id] ?? "", manager: manager)
                     }
                 }
-                legend
-            }
-
-            AddListRow(title: L("Import Plugin", "Plugin importieren"), frame: $importFrame) {
-                PluginImporter.chooseAndImport()
-            }
-            .padding(.top, 6)
-            SectionNote(L("Or double-click a .bdrop file. Plugins that aren’t from the gallery show a warning first.",
-                          "Oder eine .bdrop-Datei doppelklicken. Plugins, die nicht aus der Galerie stammen, zeigen vorher eine Warnung."))
-                .padding(.horizontal, 8)
-
-            HStack(spacing: 8) {
-                if let totals, !manager.plugins.isEmpty {
-                    Text(totals.text(count: manager.plugins.count))
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                AddListRow(title: L("Import Plugin", "Plugin importieren"), frame: $importFrame) {
+                    PluginImporter.chooseAndImport()
                 }
-                Spacer(minLength: 8)
-                if automaticCount > 1 {
-                    Button(L("Order", "Reihenfolge")) { open(.order) }
-                        .buttonStyle(KlackButtonStyle())
-                        .help(L("Which automatic plugin runs when several match", "Welches automatische Plugin läuft, wenn mehrere passen"))
+            }
+
+            SettingsCard {
+                NavigationRow(L("More Plugins", "Weitere Plugins"),
+                              value: manager.catalogExtras.isEmpty ? nil
+                                  : L("\(manager.catalogExtras.count) new", "\(manager.catalogExtras.count) neu")) {
+                    open(.gallery)
                 }
-                Button(L("Log", "Protokoll")) { open(.log) }
-                    .buttonStyle(KlackButtonStyle())
+                if manager.plugins.filter({ manager.isAutomatic($0) }).count > 1 {
+                    NavigationRow(L("Order When Dropped", "Reihenfolge beim Ablegen")) { open(.order) }
+                }
             }
-            .padding(.top, 10)
-            .padding(.horizontal, 4)
-        }
-        .onAppear { totals = PluginSize.totals(manager.plugins, tools: manager.tools) }
-        .onChange(of: manager.plugins) { _, plugins in totals = PluginSize.totals(plugins, tools: manager.tools) }
-    }
 
-    /// Was die grauen Zeichen bedeuten, nur für die, die gerade vorkommen
-    @ViewBuilder
-    private var legend: some View {
-        let kinds = Set(manager.plugins.map { PluginConnectivity(manifest: $0.manifest).symbol })
-        let automatic = manager.plugins.contains { manager.isAutomatic($0) }
-        HStack(spacing: 14) {
-            ForEach(PluginConnectivity.legend.filter { kinds.contains($0.symbol) }, id: \.self) { item in
-                legendItem(item.symbol, item.text)
+            SettingsSection(L("Log", "Protokoll")) {
+                ToggleRow(L("Keep a plugin log", "Plugin-Protokoll führen"),
+                          info: L("Its own file on this Mac, separate from the diagnostic log. It records which plugin runs and when, what works and what fails: permissions, downloaded and started programs, internet requests and the plugin’s own log lines.",
+                                  "Eine eigene Datei auf diesem Mac, getrennt vom Diagnoseprotokoll. Sie hält fest, welches Plugin wann läuft, was klappt und was fehlschlägt: Rechte, geladene und gestartete Programme, Anfragen ins Internet und eigene Zeilen des Plugins."),
+                          isOn: $settings.pluginLogEnabled)
+                SettingsRow(L("Log file", "Protokolldatei")) {
+                    HStack(spacing: 6) {
+                        Button(L("Show", "Zeigen")) { PluginLog.shared.reveal() }
+                            .buttonStyle(KlackButtonStyle())
+                        Button(L("Clear", "Leeren")) { PluginLog.shared.clear() }
+                            .buttonStyle(KlackButtonStyle())
+                    }
+                }
             }
-            if automatic { legendItem("bolt", L("automatic", "automatisch")) }
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 8)
-    }
-
-    private func legendItem(_ symbol: String, _ text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: symbol).font(.system(size: 10, weight: .medium))
-            Text(text).font(.system(size: 11))
-        }
-        .foregroundStyle(.secondary)
     }
 }
 
-/// Eine Zeile je installiertem Plugin. Ein Klick (außer auf den Schalter) öffnet seine Seite.
+/// Zeile, die zu einer Unterseite führt: Bezeichnung, rechts grau ein Wert und der Pfeil
+private struct NavigationRow: View {
+    let title: String
+    var value: String?
+    let action: () -> Void
+    @State private var hovering = false
+
+    init(_ title: String, value: String? = nil, action: @escaping () -> Void) {
+        self.title = title
+        self.value = value
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                if let value {
+                    Text(value)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, SettingsTheme.rowPadding)
+            .frame(minHeight: SettingsTheme.rowHeight)
+            .background(Color.primary.opacity(hovering ? 0.03 : 0))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+// MARK: Installiert
+
+/// Eine Zeile je Plugin: Symbol, Name, darunter die Beschreibung oder was gerade ansteht;
+/// rechts „Ein“ oder „Aus“ und der Pfeil. Ein Klick öffnet die Seite des Plugins.
 private struct InstalledRow: View {
     let plugin: InstalledPlugin
     @ObservedObject var manager: PluginManager
@@ -255,79 +229,53 @@ private struct InstalledRow: View {
 
     private var state: PluginState { manager.state(plugin.id) }
     private var running: Int { manager.runningCounts[plugin.id] ?? 0 }
-    private var needsAllow: Bool { state.enabled && !manager.isFullyAuthorized(plugin) }
-
-    private var enabled: Binding<Bool> {
-        Binding(get: { state.enabled }, set: { on in
-            // Einschalten: was noch fehlt, gleich hier in einem Fenster, nicht beim ersten Lauf
-            if on, !PluginDialogs.authorize(plugin, manager: manager, ui: nil) { return }
-            manager.update(plugin.id) { $0.enabled = on }
-        })
-    }
 
     /// Zustand vor der Beschreibung: läuft, braucht Erlaubnis, hat nicht geklappt
     private var subtitle: (String, Color) {
-        if running > 0 {
-            return (running == 1 ? L("Running", "Läuft gerade") : L("Running \(running) times", "Läuft \(running)-mal"),
-                    Color(nsColor: .controlAccentColor))
+        if running > 0 { return (L("Running", "Läuft gerade"), Color(nsColor: .controlAccentColor)) }
+        if state.enabled && !manager.isFullyAuthorized(plugin) {
+            return (L("Needs your permission", "Braucht deine Erlaubnis"), .orange)
         }
-        if needsAllow { return (L("Needs your permission", "Braucht noch deine Erlaubnis"), .orange) }
         if manager.lastErrors[plugin.id] != nil { return (L("Last run didn’t work", "Letzter Lauf hat nicht geklappt"), .orange) }
         if let description = plugin.manifest.description?.text, !description.isEmpty { return (description, .secondary) }
         return (L("Version \(plugin.manifest.version)", "Version \(plugin.manifest.version)"), .secondary)
     }
 
     var body: some View {
-        let connectivity = PluginConnectivity(manifest: plugin.manifest)
-        HStack(spacing: 10) {
-            Button(action: open) {
-                HStack(spacing: 10) {
-                    PluginIconView(icon: plugin.manifest.icon, size: 26)
-                        .opacity(state.enabled ? 1 : 0.55)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(plugin.manifest.name.text)
-                            .font(.system(size: 13.5))
-                            .lineLimit(1)
-                        Text(subtitle.0)
-                            .font(.system(size: 11))
-                            .foregroundStyle(subtitle.1)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                    HStack(spacing: 6) {
-                        if manager.isAutomatic(plugin) {
-                            TraitSymbol(symbol: "bolt", help: L("Runs automatically when dropped", "Läuft automatisch beim Ablegen"))
-                        }
-                        TraitSymbol(symbol: connectivity.symbol, help: connectivity.text)
-                    }
+        Button(action: open) {
+            HStack(spacing: 10) {
+                PluginIconView(icon: plugin.manifest.icon, size: 26)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(plugin.manifest.name.text)
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text(subtitle.0)
+                        .font(.system(size: 11))
+                        .foregroundStyle(subtitle.1)
+                        .lineLimit(1)
                 }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            // „Erlauben“ steht auf der Seite des Plugins; hier nur der gelbe Hinweis, damit
-            // der Name nicht abgeschnitten wird
-            KlackSwitch(isOn: enabled)
-            Button(action: open) {
+                Spacer(minLength: 8)
+                Text(state.enabled ? L("On", "Ein") : L("Off", "Aus"))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.tertiary)
-                    .frame(width: 14, height: 30)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L("Open \(plugin.manifest.name.text)", "\(plugin.manifest.name.text) öffnen"))
+            .padding(.horizontal, SettingsTheme.rowPadding)
+            .frame(minHeight: 52)
+            .background(Color.primary.opacity(hovering ? 0.03 : 0))
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, SettingsTheme.rowPadding)
-        .frame(minHeight: 52)
-        .background(Color.primary.opacity(hovering ? 0.03 : 0))
+        .buttonStyle(.plain)
         .onHover { hovering = $0 }
     }
 }
 
-// MARK: Galerie
+// MARK: Weitere Plugins (Galerie)
 
-private struct GalleryList: View {
+private struct GalleryPage: View {
     @ObservedObject var manager: PluginManager
     let open: (String) -> Void
     @State private var query = ""
@@ -343,73 +291,45 @@ private struct GalleryList: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Suche erst, wenn es etwas zu suchen gibt
-            if manager.catalogEntries.count > 6 {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    TextField(L("Search", "Suchen"), text: $query)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                }
-                .padding(.horizontal, 9)
-                .frame(height: 28)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(SettingsTheme.segmentTrough))
-                .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(SettingsTheme.separator, lineWidth: 1))
-            }
-
-            if manager.catalogEntries.isEmpty {
-                SettingsCard {
-                    HStack(spacing: 10) {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 17))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 26)
-                        Text(manager.syncFailed
-                             ? L("The gallery couldn’t be loaded. Check your internet connection.",
-                                 "Die Galerie ließ sich nicht laden. Prüf deine Internetverbindung.")
-                             : manager.syncing ? L("Loading the gallery", "Galerie wird geladen")
-                             : L("No plugins in the gallery yet.", "Noch keine Plugins in der Galerie."))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 8)
-                        if manager.syncing {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Button(L("Try Again", "Erneut versuchen")) { manager.syncCatalog(force: true) }
-                                .buttonStyle(KlackButtonStyle())
-                        }
-                    }
-                    .padding(.horizontal, SettingsTheme.rowPadding)
-                    .frame(minHeight: SettingsTheme.rowHeight)
-                }
-            } else if entries.isEmpty {
-                SectionNote(L("Nothing found.", "Nichts gefunden."))
-                    .padding(.horizontal, 8)
-            } else {
-                SettingsCard {
-                    ForEach(entries) { entry in
-                        GalleryRow(entry: entry, manager: manager) { open(entry.id) }
-                    }
-                }
-            }
-
-            HStack(spacing: 8) {
-                Text(L("Every plugin here has been reviewed.", "Alle Plugins hier sind geprüft."))
-                    .font(.system(size: 11.5))
+        // Suche erst, wenn es etwas zu suchen gibt
+        if manager.catalogEntries.count > 6 {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                Spacer(minLength: 8)
-                Button(L("Submit Plugin", "Plugin einreichen")) {
-                    if let url = URL(string: "https://github.com/zzuuuiii/BarDrop/blob/main/docs/PLUGINS.md") {
-                        NSWorkspace.shared.open(url)
+                TextField(L("Search", "Suchen"), text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+            }
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(SettingsTheme.segmentTrough))
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(SettingsTheme.separator, lineWidth: 1))
+        }
+
+        if manager.catalogEntries.isEmpty {
+            SettingsCard {
+                if manager.syncFailed {
+                    SettingsRow(L("Couldn’t load", "Ließ sich nicht laden"),
+                                subtitle: L("Check your internet connection.", "Prüf deine Internetverbindung.")) {
+                        Button(L("Try Again", "Erneut versuchen")) { manager.syncCatalog(force: true) }
+                            .buttonStyle(KlackButtonStyle())
+                    }
+                } else {
+                    SettingsRow(L("No plugins available yet", "Noch keine Plugins verfügbar")) {
+                        if manager.syncing { ProgressView().controlSize(.small) }
                     }
                 }
-                .buttonStyle(KlackButtonStyle())
             }
-            .padding(.top, 10)
-            .padding(.horizontal, 4)
+        } else if entries.isEmpty {
+            SectionNote(L("Nothing found.", "Nichts gefunden."))
+                .padding(.horizontal, 8)
+        } else {
+            SettingsCard {
+                ForEach(entries) { entry in
+                    GalleryRow(entry: entry, manager: manager) { open(entry.id) }
+                }
+            }
         }
     }
 }
@@ -479,11 +399,13 @@ private struct GalleryRow: View {
 
 // MARK: Seite eines Plugins
 
+/// Wie eine Seite der Systemeinstellungen: oben Symbol, Name und Schalter, darunter was
+/// ansteht, dann das Bedienen (Wann es läuft, Einstellungen), ganz unten die Info.
 private struct PluginPageView: View {
     let plugin: InstalledPlugin
     @ObservedObject var manager: PluginManager
     @ObservedObject var settings: AppSettings
-    let back: () -> Void
+    let open: (PluginPage) -> Void
     @State private var sizes: PluginSize.Parts?
 
     private var state: PluginState { manager.state(plugin.id) }
@@ -492,6 +414,7 @@ private struct PluginPageView: View {
 
     private var enabled: Binding<Bool> {
         Binding(get: { state.enabled }, set: { on in
+            // Einschalten: was noch fehlt, gleich hier in einem Fenster, nicht beim ersten Lauf
             if on, !PluginDialogs.authorize(plugin, manager: manager, ui: nil) { return }
             manager.update(plugin.id) { $0.enabled = on }
         })
@@ -521,77 +444,62 @@ private struct PluginPageView: View {
                 })
     }
 
-    var body: some View {
-        let connectivity = PluginConnectivity(manifest: manifest)
-        BackLink(action: back)
+    private var hasTriggers: Bool {
+        manifest.allTriggers.contains(.action) || manifest.allTriggers.contains(.automatic) || manifest.canReplaceOriginal == true
+    }
 
-        HStack(spacing: 12) {
-            PluginIconView(icon: manifest.icon, size: 40)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(manifest.name.text)
-                        .font(.system(size: 16, weight: .semibold))
-                        .lineLimit(1)
-                    if plugin.isStandard { Badge(L("Standard", "Standard")) }
+    var body: some View {
+        // Kopf: Symbol, Name, Beschreibung und der Schalter
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsCard {
+                HStack(spacing: 12) {
+                    PluginIconView(icon: manifest.icon, size: 36)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(manifest.name.text)
+                            .font(.system(size: 14, weight: .semibold))
+                            .lineLimit(1)
+                        Text(state.enabled ? L("On", "Ein") : L("Off", "Aus"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    KlackSwitch(isOn: enabled)
                 }
-                if let description = manifest.description?.text, !description.isEmpty {
-                    Text(description)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
+                .padding(.horizontal, SettingsTheme.rowPadding)
+                .frame(minHeight: 60)
             }
-            Spacer(minLength: 8)
-            KlackSwitch(isOn: enabled)
+            if let description = manifest.description?.text, !description.isEmpty {
+                SectionNote(description)
+                    .padding(.horizontal, 8)
+            }
         }
-        .padding(.horizontal, 4)
 
         // Was gerade ansteht: läuft, Erlaubnis fehlt, letzter Fehler
         if running > 0 || !manager.isFullyAuthorized(plugin) || manager.lastErrors[plugin.id] != nil {
             SettingsCard {
                 if running > 0 {
-                    HStack(spacing: 10) {
-                        ProgressView().controlSize(.small).frame(width: 18)
-                        Text(running == 1 ? L("Running", "Läuft gerade") : L("Running \(running) times", "Läuft \(running)-mal"))
-                            .font(.system(size: 13.5))
-                        Spacer(minLength: 8)
-                        Button(L("Stop", "Beenden")) { manager.stopRuns?(plugin.id) }
-                            .buttonStyle(KlackButtonStyle())
-                            .help(L("Ends all runs of this plugin, also a script that is stuck.",
-                                    "Beendet alle Läufe dieses Plugins, auch ein Skript, das hängt."))
+                    SettingsRow(L("Running", "Läuft gerade")) {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Button(L("Stop", "Beenden")) { manager.stopRuns?(plugin.id) }
+                                .buttonStyle(KlackButtonStyle())
+                                .help(L("Ends all runs of this plugin, also a script that is stuck.",
+                                        "Beendet alle Läufe dieses Plugins, auch ein Skript, das hängt."))
+                        }
                     }
-                    .padding(.horizontal, SettingsTheme.rowPadding)
-                    .frame(minHeight: SettingsTheme.rowHeight)
                 }
                 if !manager.isFullyAuthorized(plugin) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "hand.raised")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.orange)
-                            .frame(width: 18)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(L("Needs your permission", "Braucht noch deine Erlaubnis"))
-                                .font(.system(size: 13.5))
-                            Text(connectivity.text)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 8)
+                    SettingsRow(L("Needs your permission", "Braucht deine Erlaubnis"),
+                                subtitle: L("Asked once for everything, then never during a run.",
+                                            "Wird einmal für alles gefragt, nie mitten im Lauf.")) {
                         Button(L("Allow", "Erlauben")) { _ = PluginDialogs.authorize(plugin, manager: manager, ui: nil) }
                             .buttonStyle(KlackButtonStyle(prominent: true))
                     }
-                    .padding(.horizontal, SettingsTheme.rowPadding)
-                    .frame(minHeight: 52)
                 }
                 if let error = manager.lastErrors[plugin.id] {
                     HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.orange)
-                            .frame(width: 18)
-                            .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(L("Last error", "Letzter Fehler"))
+                            Text(L("Last run didn’t work", "Letzter Lauf hat nicht geklappt"))
                                 .font(.system(size: 13.5))
                             Text(error)
                                 .font(.system(size: 11))
@@ -607,65 +515,30 @@ private struct PluginPageView: View {
                         .buttonStyle(KlackButtonStyle())
                     }
                     .padding(.horizontal, SettingsTheme.rowPadding)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 11)
                 }
             }
         }
 
-        SettingsSection(L("Overview", "Überblick")) {
-            InfoRow(symbol: connectivity.symbol, title: L("Internet", "Internet"), value: connectivity.text)
-            InfoRow(symbol: "puzzlepiece.extension", title: L("Plugin", "Plugin"),
-                    value: [sizes.map { PluginSize.text($0.own) }, L("Version \(manifest.version)", "Version \(manifest.version)")]
-                        .compactMap { $0 }.joined(separator: " · "))
-            if let tools = manifest.tools, !tools.isEmpty {
-                InfoRow(symbol: "terminal", title: tools.count == 1 ? L("Program", "Programm") : L("Programs", "Programme"),
-                        value: programsValue(tools)) {
-                    if tools.contains(where: { state.approvedTools.contains($0.approvalKey) }) {
-                        Button(L("Update", "Aktualisieren")) { manager.refreshTools(of: plugin) }
-                            .buttonStyle(KlackButtonStyle())
-                            .disabled(manager.toolRefresh[plugin.id] == .running)
-                            .help(L("Downloads the plugin’s programs again, for example when a newer version fixes an error.",
-                                    "Lädt die Programme des Plugins neu, etwa wenn eine neuere Fassung einen Fehler behebt."))
-                    }
+        if hasTriggers {
+            SettingsSection(L("When it runs", "Wann es läuft"),
+                            info: L("It’s always in the right-click menu of matching items.",
+                                    "Im Rechtsklick-Menü passender Objekte steht es immer.")) {
+                if manifest.allTriggers.contains(.action) {
+                    ToggleRow(L("In the action bar", "In der Aktionsleiste"), isOn: inActionBar)
                 }
-            }
-            InfoRow(symbol: "tray.and.arrow.down", title: L("Works with", "Passt zu"), value: PluginSummary.matches(manifest.match))
-            if !manifest.allPermissions.isEmpty {
-                // Ob erlaubt, zeigt der Hinweis oben; „Zurücksetzen“ nur, wenn etwas erlaubt ist
-                InfoRow(symbol: "lock", title: L("May", "Darf"),
-                        value: manifest.allPermissions.map(\.title).joined(separator: ", ")) {
-                    if !state.granted.isEmpty {
-                        Button(L("Reset", "Zurücksetzen")) { manager.revokePermissions(plugin.id) }
-                            .buttonStyle(KlackButtonStyle())
-                            .help(L("Takes back all permissions; the plugin asks again before its next run.",
-                                    "Nimmt alle Rechte zurück; das Plugin fragt vor dem nächsten Lauf erneut."))
-                    }
+                if manifest.allTriggers.contains(.automatic) {
+                    ToggleRow(L("Automatically when dropped", "Automatisch beim Ablegen"),
+                              info: L("Runs as soon as you drop a matching item.",
+                                      "Läuft, sobald du ein passendes Objekt ablegst."),
+                              isOn: automatic)
                 }
-            }
-        }
-
-        SettingsSection(L("When it runs", "Wann es läuft")) {
-            if manifest.allTriggers.contains(.menu) {
-                SettingsRow(L("In the right-click menu", "Im Rechtsklick-Menü")) {
-                    Text(L("always", "immer"))
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(.secondary)
+                if manifest.canReplaceOriginal == true {
+                    ToggleRow(L("Replace original", "Original ersetzen"),
+                              info: L("The result takes the place of the original in the shelf. The original file itself stays where it is; ⌘Z brings it back.",
+                                      "Das Ergebnis nimmt den Platz des Originals in der Ablage ein. Die Originaldatei bleibt, wo sie ist; ⌘Z holt sie zurück."),
+                              isOn: replace)
                 }
-            }
-            if manifest.allTriggers.contains(.action) {
-                ToggleRow(L("In the action bar", "In der Aktionsleiste"), isOn: inActionBar)
-            }
-            if manifest.allTriggers.contains(.automatic) {
-                ToggleRow(L("Automatically when dropped", "Automatisch beim Ablegen"),
-                          info: L("Runs as soon as you drop a matching item. If several automatic plugins match, the first one in Order runs.",
-                                  "Läuft, sobald du ein passendes Objekt ablegst. Passen mehrere automatische Plugins, läuft das erste unter „Reihenfolge“."),
-                          isOn: automatic)
-            }
-            if manifest.canReplaceOriginal == true {
-                ToggleRow(L("Replace original", "Original ersetzen"),
-                          info: L("The result takes the place of the original in the shelf. The original file itself stays where it is; ⌘Z brings it back into the shelf.",
-                                  "Das Ergebnis nimmt den Platz des Originals in der Ablage ein. Die Originaldatei selbst bleibt, wo sie ist; ⌘Z holt sie zurück in die Ablage."),
-                          isOn: replace)
             }
         }
 
@@ -677,14 +550,41 @@ private struct PluginPageView: View {
             }
         }
 
+        SettingsSection(L("Info", "Info")) {
+            InfoValueRow(L("Internet", "Internet"), PluginConnectivity(manifest: manifest).answer)
+            InfoValueRow(L("Works with", "Passt zu"), PluginSummary.matches(manifest.match))
+            InfoValueRow(L("Version", "Version"), manifest.version)
+            if let author = manifest.author, !author.isEmpty {
+                InfoValueRow(L("Developer", "Entwickler"), author)
+            }
+            InfoValueRow(L("Size", "Größe"), sizes.map { PluginSize.text($0.own) } ?? "")
+            if let tools = manifest.tools, !tools.isEmpty {
+                SettingsRow(tools.count == 1 ? L("Program", "Programm") : L("Programs", "Programme")) {
+                    HStack(spacing: 8) {
+                        Text(programsValue(tools))
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                        if tools.contains(where: { state.approvedTools.contains($0.approvalKey) }) {
+                            Button(L("Update", "Aktualisieren")) { manager.refreshTools(of: plugin) }
+                                .buttonStyle(KlackButtonStyle())
+                                .disabled(manager.toolRefresh[plugin.id] == .running)
+                                .help(L("Downloads the plugin’s programs again, for example when a newer version fixes an error.",
+                                        "Lädt die Programme des Plugins neu, etwa wenn eine neuere Fassung einen Fehler behebt."))
+                        }
+                    }
+                }
+            }
+            if !manifest.allPermissions.isEmpty || !(manifest.tools ?? []).isEmpty {
+                NavigationRow(L("Permissions", "Rechte"),
+                              value: manager.isFullyAuthorized(plugin) ? L("Allowed", "Erlaubt") : L("Not allowed", "Nicht erlaubt")) {
+                    open(.permissions(plugin.id))
+                }
+            }
+        }
+
         HStack(spacing: 8) {
-            Text([manifest.author, plugin.isStandard ? L("Standard plugin", "Standard-Plugin") : nil]
-                    .compactMap { $0 }.joined(separator: " · "))
-                .font(.system(size: 11.5))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
             Spacer(minLength: 8)
-            Button(L("Script", "Skript")) { ScriptViewer.show(plugin) }
+            Button(L("Show Script", "Skript zeigen")) { ScriptViewer.show(plugin) }
                 .buttonStyle(KlackButtonStyle())
             if !plugin.isStandard {
                 Button(L("Remove", "Entfernen")) { confirmRemove() }
@@ -696,18 +596,15 @@ private struct PluginPageView: View {
         .onChange(of: manager.toolRefresh[plugin.id]) { _, _ in sizes = PluginSize.parts(of: plugin, tools: manager.tools) }
     }
 
-    /// „2 · 92 MB“, „noch nicht geladen“ oder der Stand nach „Aktualisieren“
+    /// „92 MB“, „noch nicht geladen“ oder der Stand nach „Aktualisieren“
     private func programsValue(_ tools: [PluginTool]) -> String {
         switch manager.toolRefresh[plugin.id] {
         case .running: return L("updating", "wird aktualisiert")
         case .failed(let message): return message
         default: break
         }
-        guard let sizes, let programs = sizes.programs else {
-            return L("not downloaded yet", "noch nicht geladen")
-        }
-        let size = PluginSize.text(programs)
-        return tools.count == 1 ? size : "\(tools.count) · " + size
+        guard let sizes, let programs = sizes.programs else { return L("not downloaded yet", "noch nicht geladen") }
+        return PluginSize.text(programs)
     }
 
     private func confirmRemove() {
@@ -719,50 +616,88 @@ private struct PluginPageView: View {
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
         alert.buttons.first?.hasDestructiveAction = true
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        back()
+        open(.list)
         withAnimation(.spring(response: 0.3, dampingFraction: 0.88)) { manager.remove(plugin.id) }
     }
 }
 
-/// Zeile im Überblick: graues Zeichen, Bezeichnung, Wert rechts, optional ein Knopf
-private struct InfoRow<Trailing: View>: View {
-    let symbol: String
+/// Info-Zeile: Bezeichnung links, Wert rechts in Grau (lange Werte brechen um)
+private struct InfoValueRow: View {
     let title: String
     let value: String
-    let trailing: Trailing
 
-    init(symbol: String, title: String, value: String, @ViewBuilder trailing: () -> Trailing) {
-        self.symbol = symbol
+    init(_ title: String, _ value: String) {
         self.title = title
         self.value = value
-        self.trailing = trailing()
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title)
                 .font(.system(size: 13.5))
                 .layoutPriority(1)
             Spacer(minLength: 12)
             Text(value)
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
-                .lineLimit(2)
-            trailing
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, SettingsTheme.rowPadding)
-        .frame(minHeight: 40)
+        .padding(.vertical, 12)
+        .frame(minHeight: SettingsTheme.rowHeight)
     }
 }
 
-extension InfoRow where Trailing == EmptyView {
-    init(symbol: String, title: String, value: String) {
-        self.init(symbol: symbol, title: title, value: value) { EmptyView() }
+// MARK: Rechte
+
+/// Was das Plugin darf und lädt, je Zeile mit Stand; darunter Erlauben bzw. Zurücksetzen
+private struct PluginPermissionsPage: View {
+    let plugin: InstalledPlugin
+    @ObservedObject var manager: PluginManager
+
+    private var state: PluginState { manager.state(plugin.id) }
+
+    var body: some View {
+        let manifest = plugin.manifest
+        SettingsSection(note: L("The plugin asks once for everything it needs, before its first run. Changing its files takes the permissions back.",
+                                "Das Plugin fragt einmal vor dem ersten Lauf nach allem, was es braucht. Wird seine Datei geändert, gelten die Rechte nicht mehr.")) {
+            if manifest.consent != nil {
+                SettingsRow(L("Notice", "Hinweis"), subtitle: manifest.consent?.text) {
+                    status(manager.hasConsented(plugin), allowed: L("Agreed", "Zugestimmt"))
+                }
+            }
+            ForEach(manifest.allPermissions) { permission in
+                SettingsRow(permission.title, subtitle: permission.explanation) {
+                    status(manager.isGranted(permission, for: plugin))
+                }
+            }
+            ForEach(manifest.tools ?? [], id: \.approvalKey) { tool in
+                SettingsRow(L("Downloads “\(tool.name)”", "Lädt „\(tool.name)“"),
+                            subtitle: [URL(string: tool.resolvedURL)?.host, tool.license].compactMap { $0 }.joined(separator: " · ")) {
+                    status(state.approvedTools.contains(tool.approvalKey))
+                }
+            }
+        }
+
+        HStack(spacing: 8) {
+            Spacer(minLength: 8)
+            if !state.granted.isEmpty || !state.approvedTools.isEmpty {
+                Button(L("Reset", "Zurücksetzen")) { manager.revokePermissions(plugin.id) }
+                    .buttonStyle(KlackButtonStyle())
+            }
+            if !manager.isFullyAuthorized(plugin) {
+                Button(L("Allow", "Erlauben")) { _ = PluginDialogs.authorize(plugin, manager: manager, ui: nil) }
+                    .buttonStyle(KlackButtonStyle(prominent: true))
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func status(_ granted: Bool, allowed: String = L("Allowed", "Erlaubt")) -> some View {
+        Text(granted ? allowed : L("Not yet", "Noch nicht"))
+            .font(.system(size: 13))
+            .foregroundStyle(.secondary)
     }
 }
 
@@ -771,23 +706,16 @@ extension InfoRow where Trailing == EmptyView {
 /// Welches automatische Plugin läuft, wenn mehrere zum selben Objekt passen: das oberste
 private struct PluginOrderPage: View {
     @ObservedObject var manager: PluginManager
-    let back: () -> Void
 
     var body: some View {
         let automatic = manager.plugins.filter { manager.isAutomatic($0) }
-        BackLink(action: back)
-        SettingsSection(L("Automatically when dropped", "Automatisch beim Ablegen"),
-                        note: L("If several plugins match the same item, only the top one runs. Standard plugins stay above your own.",
+        SettingsSection(note: L("If several plugins match the same item, only the top one runs. Standard plugins stay above your own.",
                                 "Passen mehrere Plugins zum selben Objekt, läuft nur das oberste. Standard-Plugins bleiben über deinen eigenen.")) {
             if automatic.isEmpty {
-                SettingsRow(L("No plugin runs automatically yet.", "Noch kein Plugin läuft automatisch.")) { EmptyView() }
+                SettingsRow(L("No plugin runs automatically", "Kein Plugin läuft automatisch")) { EmptyView() }
             }
-            ForEach(Array(automatic.enumerated()), id: \.element.id) { index, plugin in
+            ForEach(automatic) { plugin in
                 HStack(spacing: 10) {
-                    Text("\(index + 1)")
-                        .font(.system(size: 12, weight: .medium).monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(width: 14)
                     PluginIconView(icon: plugin.manifest.icon, size: 22)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(plugin.manifest.name.text)
@@ -814,33 +742,6 @@ private struct PluginOrderPage: View {
                 }
                 .padding(.horizontal, SettingsTheme.rowPadding)
                 .frame(minHeight: 50)
-            }
-        }
-    }
-}
-
-// MARK: Protokoll
-
-private struct PluginLogPage: View {
-    @ObservedObject var settings: AppSettings
-    let back: () -> Void
-
-    var body: some View {
-        BackLink(action: back)
-        SettingsSection(L("Log", "Protokoll"),
-                        note: L("Its own file, separate from the diagnostic log of BarDrop. It names files and error messages and stays on this Mac.",
-                                "Eine eigene Datei, getrennt vom Diagnoseprotokoll von BarDrop. Sie nennt Dateinamen und Fehlermeldungen und bleibt auf diesem Mac.")) {
-            ToggleRow(L("Keep a plugin log", "Plugin-Protokoll führen"),
-                      info: L("Records which plugin runs and when, what works and what fails: permissions, downloaded programs, started programs with their result, internet requests and the plugin’s own log lines.",
-                              "Hält fest, welches Plugin wann läuft, was klappt und was fehlschlägt: Rechte, geladene Programme, gestartete Programme mit ihrem Ergebnis, Anfragen ins Internet und eigene Zeilen des Plugins."),
-                      isOn: $settings.pluginLogEnabled)
-            SettingsRow(L("Log file", "Protokolldatei")) {
-                HStack(spacing: 6) {
-                    Button(L("Show", "Zeigen")) { PluginLog.shared.reveal() }
-                        .buttonStyle(KlackButtonStyle())
-                    Button(L("Clear", "Leeren")) { PluginLog.shared.clear() }
-                        .buttonStyle(KlackButtonStyle())
-                }
             }
         }
     }
@@ -972,6 +873,13 @@ struct PluginConnectivity {
 extension PluginConnectivity {
     init(manifest: PluginManifest) {
         self.init(permissions: manifest.allPermissions, tools: (manifest.tools ?? []).map(\.name))
+    }
+
+    /// Antwort in der Info einer Plugin-Seite: Geht es ins Internet?
+    var answer: String {
+        if usesNetwork { return L("Yes", "Ja") }
+        if !tools.isEmpty { return L("Only to download programs", "Nur zum Laden von Programmen") }
+        return L("No, works offline", "Nein, offline")
     }
 
     struct LegendItem: Hashable {

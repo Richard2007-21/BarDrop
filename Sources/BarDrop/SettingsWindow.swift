@@ -61,7 +61,12 @@ final class SettingsNSWindow: NSWindow {
 /// Welcher Bereich der Einstellungen gezeigt wird
 final class SettingsNavigation: ObservableObject {
     static let shared = SettingsNavigation()
-    @Published var pane: SettingsPane = .general
+    @Published var pane: SettingsPane = .general {
+        // Anderer Bereich: Plugins beginnt beim nächsten Mal wieder bei der Liste
+        didSet { if pane != oldValue { pluginPage = .list } }
+    }
+    /// Unterseite von Einstellungen → Plugins (Titelzeile mit Zurück-Knopf)
+    @Published var pluginPage: PluginPage = .list
 
     /// Einen Bereich weiter nach oben oder unten, in der Reihenfolge der Seitenleiste; am
     /// Anfang und Ende bleibt er stehen
@@ -219,10 +224,17 @@ struct SettingsRoot: View {
 
     private var detail: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                PaneIcon(pane: pane, size: 24)
-                Text(pane.title)
-                    .font(.system(size: 17, weight: .semibold))
+            Group {
+                if pane == .plugins && navigation.pluginPage != .list {
+                    // Unterseite wie in den Systemeinstellungen: Zurück-Knopf und eigener Titel
+                    PluginPageHeader(navigation: navigation)
+                } else {
+                    HStack(spacing: 10) {
+                        PaneIcon(pane: pane, size: 24)
+                        Text(pane.title)
+                            .font(.system(size: 17, weight: .semibold))
+                    }
+                }
             }
             .padding(.leading, 18)
             .frame(height: 52)

@@ -141,14 +141,25 @@ final class ViewSmokeTests: XCTestCase {
             for appearance in [NSAppearance.Name.aqua, .darkAqua] {
                 let tag = "\(language.rawValue) \(appearance == .aqua ? "hell" : "dunkel")"
                 let size = CGSize(width: 436, height: 900)
-                render(page(PluginSettings(settings: settings, manager: manager, page: .plugin(plugin.id))),
-                       size: size, "Plugins Plugin \(tag)", appearance: appearance)
-                render(page(PluginSettings(settings: settings, manager: manager)),
-                       size: size, "Plugins Liste \(tag)", appearance: appearance)
-                render(page(PluginSettings(settings: settings, manager: manager, tab: .gallery)),
-                       size: size, "Plugins Galerie \(tag)", appearance: appearance)
-                render(page(PluginSettings(settings: settings, manager: manager, page: .order)),
-                       size: size, "Plugins Reihenfolge \(tag)", appearance: appearance)
+                let pages: [(PluginPage, String)] = [(.list, "Liste"), (.plugin(plugin.id), "Plugin"),
+                                                     (.permissions(plugin.id), "Rechte"), (.gallery, "Galerie"),
+                                                     (.order, "Reihenfolge")]
+                for (subpage, name) in pages {
+                    let navigation = SettingsNavigation()
+                    navigation.pane = .plugins
+                    navigation.pluginPage = subpage
+                    // Mit der Titelzeile, wie im Fenster (Unterseiten mit Zurück-Knopf)
+                    render(page(VStack(alignment: .leading, spacing: 0) {
+                               if subpage != .list {
+                                   PluginPageHeader(navigation: navigation, manager: manager)
+                                       .padding(.leading, 18)
+                                       .frame(height: 52, alignment: .leading)
+                               }
+                               PluginSettings(settings: settings, manager: manager, navigation: navigation)
+                           }
+                           .frame(maxWidth: .infinity, alignment: .leading)),
+                           size: size, "Plugins \(name) \(tag)", appearance: appearance)
+                }
             }
         }
         manager.lastErrors[plugin.id] = nil
