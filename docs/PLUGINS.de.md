@@ -304,7 +304,7 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
       "description": { "en": "…", "de": "…" },
       "icon": { "symbol": "link", "color": "#34C759" },
       "url": "https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/plugins/io.github.name.plugin/io.github.name.plugin-1.0.0.bdrop",
-      "sha256": "Prüfsumme der .bdrop", "size": 4812,
+      "sha256": "Prüfsumme der .bdrop", "size": 4812, "toolsSize": 61200000,
       "category": "links", "author": "Name", "homepage": "https://…",
       "permissions": ["network"], "tools": ["mytool"], "updated": "2026-10-22",
       "standard": false, "removed": false, "minAppVersion": "1.31.0" }
@@ -316,9 +316,10 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
 | --- | --- |
 | `id`, `version`, `name`, `url`, `sha256` | Pflicht. `id` muss der `id` im Manifest entsprechen, die Prüfsumme der Datei genau stimmen, sonst wird nichts installiert. |
 | `description`, `icon`, `author`, `homepage`, `minAppVersion` | aus dem Manifest |
-| `category` | `images`, `links`, `documents`, `text`, `media`, `files` oder `other` |
-| `permissions`, `tools` | aus dem Manifest. Die Galerie zeigt daraus vor dem Laden „Funktioniert offline“, „Lädt einmal …, dann offline“ oder „Verbindet sich mit dem Internet“ und „Startet Programme“. Fehlt `permissions`, zeigt sie dazu nichts. |
-| `size` | Größe der `.bdrop` in Bytes; mit `tools` steht „+ Programme“ dahinter |
+| `category` | freiwillig: `images`, `links`, `documents`, `text`, `media`, `files` oder `other` (für später; die Galerie gruppiert noch nicht danach) |
+| `permissions`, `tools` | aus dem Manifest. Die Galerie zeigt daraus vor dem Laden „Offline“, „Lädt einmal ein Programm“ oder „Internet“. Fehlt `permissions`, zeigt sie dazu nichts. |
+| `size` | Größe der `.bdrop` in Bytes |
+| `toolsSize` | Größe der Programme aus `tools`, wie sie auf dem Mac liegen (das Skript fragt sie bei den Adressen an, bei ZIP-Archiven die ausgepackte Datei). Die Galerie zeigt beides getrennt: „8 KB · Programm 61 MB“. |
 | `updated` | Datum dieser Version |
 | `standard`, `removed` | siehe unten |
 
@@ -327,7 +328,7 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
 * Andere Einträge erscheinen unter „Mehr im Katalog“ mit „Laden“. Ein so geladenes Plugin bekommt neue Versionen ebenfalls still aus dem Katalog; Rechte, die es weiter braucht, bleiben, nach neuen fragt das Erlauben-Fenster beim nächsten Start. Wer dasselbe Plugin als Datei importiert, bekommt keine Updates mehr aus dem Katalog.
 * `removed: true`: Standard-Plugins werden beim nächsten Abgleich entfernt; andere verschwinden aus der Galerie, bleiben aber installiert.
 * Einträge mit einer `minAppVersion`, die neuer ist als BarDrop, werden übergangen.
-* Einstellungen → Plugins → Plugin zeigt bei installierten Plugins „Internet“ (offline oder nicht) und unten die Größe auf dem Mac, mit geladenen Programmen.
+* Einstellungen → Plugins → Plugin zeigt bei installierten Plugins „Internet“ (offline oder nicht) und unten die Größe auf dem Mac, getrennt: „Plugin 38 KB · Programme 92 MB“.
 * Einreichen per Pull Request auf `plugin-katalog`; jedes Plugin wird vor dem Aufnehmen geprüft.
 
 ## 11. Prüfen vor dem Weitergeben

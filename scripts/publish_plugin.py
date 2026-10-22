@@ -6,6 +6,7 @@
     python3 scripts/publish_plugin.py MeinPlugin/ --standard        # für alle automatisch
     python3 scripts/publish_plugin.py MeinPlugin/ --push            # danach gleich hochladen
     python3 scripts/publish_plugin.py --remove io.github.name.plugin  # zurückziehen
+    python3 scripts/publish_plugin.py MeinPlugin/ --no-tool-size    # Programme nicht messen
 
 Was passiert:
 1. Das Plugin wird mit denselben Regeln geprüft wie in `check_plugin.py`. Bei einem Fehler
@@ -15,7 +16,8 @@ Was passiert:
    Fassungen desselben Plugins werden dort entfernt.
 4. In `index.json` entsteht oder ändert sich der Eintrag: Name, Beschreibung, Symbol, Autor,
    Webseite, Rechte und Programme kommen aus der manifest.json, dazu Adresse, Prüfsumme,
-   Kategorie und Datum. Was der Katalog schon wusste (Kategorie, `standard`), bleibt.
+   Größe von Plugin und Programmen (die Programme werden dafür angefragt bzw. bei ZIP
+   geladen), Kategorie und Datum. Was der Katalog schon wusste (Kategorie, `standard`), bleibt.
 
 Der Katalog liegt als eigener Arbeitsordner `.katalog/` neben dem Projekt (ein Git-Worktree
 des Zweigs `plugin-katalog`, wird beim ersten Mal angelegt). Ein Push dorthin baut **kein**
@@ -65,6 +67,41 @@ def catalog_dir(path):
     else:
         fail(f"Der Zweig {BRANCH} fehlt auf GitHub. Er wird einmal angelegt, siehe docs/PLUGINS.md (Abschnitt Katalog).")
     return folder
+
+
+def tool_size(tool):
+    """Größe eines Programms, wie es auf dem Mac liegt (Bytes), oder None.
+    Ohne Archiv: Content-Length der Datei. Mit `archive: zip`: Archiv laden und die Größe der
+    ausgepackten Datei `executable` lesen. `{arch}`: die größere der beiden Fassungen."""
+    import io
+    import urllib.request
+    import zipfile
+
+    def fetch(url, head):
+        req = urllib.request.Request(url, method="HEAD" if head else "GET",
+                                     headers={"User-Agent": "BarDrop-publish"})
+        return urllib.request.urlopen(req, timeout=60)
+
+    sizes = []
+    url = tool.get("url", "")
+    for arch in (["aarch64", "x86_64"] if "{arch}" in url else [None]):
+        u = url.replace("{arch}", arch) if arch else url
+        try:
+            if tool.get("archive") == "zip":
+                with fetch(u, head=False) as r:
+                    archive = zipfile.ZipFile(io.BytesIO(r.read()))
+                sizes.append(archive.getinfo(tool.get("executable", "")).file_size)
+            else:
+                with fetch(u, head=True) as r:
+                    length = r.headers.get("Content-Length")
+                if length is None:
+                    with fetch(u, head=False) as r:
+                        length = len(r.read())
+                sizes.append(int(length))
+        except Exception as e:  # noqa: BLE001  (nur Anzeige: ohne Größe weiter)
+            print(f"Hinweis: Größe von {tool.get('id')} ({u}) unbekannt: {e}")
+            return None
+    return max(sizes) if sizes else None
 
 
 def version_key(v):
@@ -168,6 +205,13 @@ def publish(args, options):
             entry[key] = manifest[key]
     if category:
         entry["category"] = category
+    # Größe der Programme, wie sie auf dem Mac liegen: Die Galerie zeigt Plugin und Programme
+    # getrennt („8 KB · Programm 61 MB“)
+    tools = [t for t in manifest.get("tools", []) if isinstance(t, dict)]
+    if tools and not options.get("no-tool-size"):
+        sizes = [tool_size(t) for t in tools]
+        if all(size is not None for size in sizes):
+            entry["toolsSize"] = sum(sizes)
     standard = options.get("standard") or (old or {}).get("standard")
     if standard:
         entry["standard"] = True
@@ -213,7 +257,7 @@ def main():
             options[a[2:]] = argv[i + 1]
             i += 2
             continue
-        if a in ("--standard", "--push", "--force"):
+        if a in ("--standard", "--push", "--force", "--no-tool-size"):
             options[a[2:]] = True
         elif a.startswith("--"):
             fail(f"Unbekannte Option {a}")

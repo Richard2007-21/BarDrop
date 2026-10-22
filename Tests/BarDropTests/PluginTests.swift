@@ -208,6 +208,11 @@ final class PluginTests: XCTestCase {
         XCTAssertTrue(PluginConnectivity(permissions: [.network], tools: []).usesNetwork)
         XCTAssertEqual(PluginConnectivity(permissions: [.clipboard], tools: []).symbol, "wifi.slash")
         XCTAssertEqual(PluginConnectivity(permissions: [.run], tools: ["mytool"]).symbol, "arrow.down.circle")
+        XCTAssertEqual(PluginConnectivity(permissions: [], tools: []).short, PluginConnectivity(permissions: [.clipboard], tools: []).short)
+        var entry = catalog.plugins[0]
+        entry.toolsSize = 61 * 1_000_000
+        XCTAssertTrue(PluginSize.catalogText(entry)?.contains("61") == true, "Programme getrennt mit Größe")
+        XCTAssertNil(PluginSize.catalogText(catalog.plugins[1]), "ohne Größe nichts behaupten")
         XCTAssertNotNil(PluginCategory.title("media"))
         XCTAssertNil(PluginCategory.title("unbekannt"))
     }

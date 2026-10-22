@@ -90,6 +90,8 @@ struct PluginCatalogEntry: Codable, Equatable, Identifiable {
     var updated: String?
     /// Größe der .bdrop-Datei in Bytes (ohne nachgeladene Programme)
     var size: Int?
+    /// Größe der Programme aus `tools`, wie sie auf dem Mac liegen (Bytes)
+    var toolsSize: Int?
 }
 
 struct PluginCatalog: Codable, Equatable {

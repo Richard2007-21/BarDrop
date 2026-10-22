@@ -304,7 +304,7 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
       "description": { "en": "…", "de": "…" },
       "icon": { "symbol": "link", "color": "#34C759" },
       "url": "https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/plugins/io.github.name.plugin/io.github.name.plugin-1.0.0.bdrop",
-      "sha256": "checksum of the .bdrop", "size": 4812,
+      "sha256": "checksum of the .bdrop", "size": 4812, "toolsSize": 61200000,
       "category": "links", "author": "Name", "homepage": "https://…",
       "permissions": ["network"], "tools": ["mytool"], "updated": "2026-10-22",
       "standard": false, "removed": false, "minAppVersion": "1.31.0" }
@@ -316,9 +316,10 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
 | --- | --- |
 | `id`, `version`, `name`, `url`, `sha256` | Required. `id` must equal the manifest `id`, and the checksum must match the file exactly; otherwise nothing is installed. |
 | `description`, `icon`, `author`, `homepage`, `minAppVersion` | from the manifest |
-| `category` | `images`, `links`, `documents`, `text`, `media`, `files` or `other` |
-| `permissions`, `tools` | from the manifest. Before loading, the gallery shows “Works offline”, “Downloads … once, then offline” or “Connects to the internet”, and “Runs programs”. Without `permissions` it shows none of this. |
-| `size` | size of the `.bdrop` in bytes; with `tools`, “+ programs” follows |
+| `category` | optional: `images`, `links`, `documents`, `text`, `media`, `files` or `other` (for later; the gallery doesn’t group by it yet) |
+| `permissions`, `tools` | from the manifest. Before loading, the gallery shows “Offline”, “Downloads a program once” or “Internet”. Without `permissions` it shows none of this. |
+| `size` | size of the `.bdrop` in bytes |
+| `toolsSize` | size of the programs in `tools` as they end up on the Mac (the script asks their addresses, for ZIP archives it reads the unpacked file). The gallery shows both separately: “8 KB · Program 61 MB”. |
 | `updated` | date of this version |
 | `standard`, `removed` | see below |
 
@@ -327,7 +328,7 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
 * Other entries appear under “More in the catalog” with “Get”. A plugin loaded this way also gets new versions from the catalog silently; permissions it still needs stay, and the allow window asks for new ones at the next start. Importing the same plugin as a file stops catalog updates for it.
 * `removed: true`: standard plugins are removed at the next check; others disappear from the gallery but stay installed.
 * Entries with a `minAppVersion` newer than BarDrop are skipped.
-* Settings → Plugins → plugin shows “Internet” (offline or not) for installed plugins, and at the bottom the size on the Mac, including downloaded programs.
+* Settings → Plugins → plugin shows “Internet” (offline or not) for installed plugins, and at the bottom the size on the Mac, separately: “Plugin 38 KB · Programs 92 MB”.
 * Submit with a pull request to `plugin-katalog`; every plugin is reviewed before it is merged.
 
 ## 11. Checking before sharing

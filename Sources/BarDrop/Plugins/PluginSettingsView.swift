@@ -516,15 +516,9 @@ extension CatalogRow {
         // Nur bekannt, wenn der Katalog die Rechte nennt (ältere Einträge: nichts behaupten)
         if let permissions = entry.permissions {
             parts.append(PluginConnectivity(permissions: permissions.compactMap(PluginPermission.init(rawValue:)),
-                                            tools: entry.tools ?? []).text)
-            if permissions.contains(PluginPermission.run.rawValue) { parts.append(L("Runs programs", "Startet Programme")) }
+                                            tools: entry.tools ?? []).short)
         }
-        if let size = entry.size {
-            // Programme kommen beim ersten Gebrauch dazu, ihre Größe kennt der Katalog nicht
-            parts.append(PluginSize.text(Int64(size)) + ((entry.tools ?? []).isEmpty ? "" : L(" + programs", " + Programme")))
-        }
-        if let category = entry.category.flatMap(PluginCategory.title) { parts.append(category) }
-        if let author = entry.author, !author.isEmpty { parts.append(author) }
+        if let size = PluginSize.catalogText(entry) { parts.append(size) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
@@ -545,6 +539,13 @@ struct PluginConnectivity {
                      "Lädt einmal \(tools.joined(separator: ", ")), dann offline")
         }
         return L("Works offline", "Funktioniert offline")
+    }
+
+    /// Kurz für die Zeilen der Galerie
+    var short: String {
+        if usesNetwork { return L("Internet", "Internet") }
+        if !tools.isEmpty { return L("Downloads a program once", "Lädt einmal ein Programm") }
+        return L("Offline", "Offline")
     }
 
     var symbol: String {
@@ -570,13 +571,29 @@ enum PluginSize {
         return total
     }
 
-    /// „120 KB“ oder „120 KB · Programme 85 MB“
+    /// Installiert, getrennt: „Plugin 38 KB · Programme 92 MB“ (nur „Plugin …“ ohne
+    /// Programme; „Programme noch nicht geladen“, solange sie fehlen)
     static func summary(of plugin: InstalledPlugin, tools: PluginTools) -> String {
-        let own = folder(plugin.directory)
-        let programs = (plugin.manifest.tools ?? []).compactMap { tools.installed($0) }
-            .reduce(Int64(0)) { $0 + folder($1.deletingLastPathComponent()) }
-        guard programs > 0 else { return text(own) }
-        return text(own) + " · " + L("programs ", "Programme ") + text(programs)
+        let own = L("Plugin ", "Plugin ") + text(folder(plugin.directory))
+        let declared = plugin.manifest.tools ?? []
+        guard !declared.isEmpty else { return own }
+        let installed = declared.compactMap { tools.installed($0) }
+        guard !installed.isEmpty else { return own + " · " + L("programs not downloaded yet", "Programme noch nicht geladen") }
+        let programs = installed.reduce(Int64(0)) { $0 + folder($1.deletingLastPathComponent()) }
+        return own + " · " + programsLabel(declared.count) + " " + text(programs)
+    }
+
+    /// Galerie, vor dem Laden: „14 KB“ oder „8 KB · Programm 61 MB“
+    static func catalogText(_ entry: PluginCatalogEntry) -> String? {
+        guard let size = entry.size else { return nil }
+        let count = entry.tools?.count ?? 0
+        guard count > 0 else { return text(Int64(size)) }
+        let programs = entry.toolsSize.map { text(Int64($0)) } ?? L("size unknown", "Größe unbekannt")
+        return text(Int64(size)) + " · " + programsLabel(count) + " " + programs
+    }
+
+    private static func programsLabel(_ count: Int) -> String {
+        count == 1 ? L("Program", "Programm") : L("Programs", "Programme")
     }
 }
 
