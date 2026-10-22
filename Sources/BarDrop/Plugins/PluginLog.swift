@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 /// Eigenes Protokoll für Plugins (Einstellungen → Plugins → Protokoll). Hält fest, welches
 /// Plugin wann läuft, was klappt und was fehlschlägt: Rechte, nachgeladene Programme,
@@ -68,6 +69,40 @@ final class PluginLog {
         queue.sync {
             try? FileManager.default.removeItem(at: logURL)
             try? FileManager.default.removeItem(at: logURL.deletingLastPathComponent().appendingPathComponent("Plugins-alt.log"))
+        }
+    }
+
+    /// Einschalten erst nach diesem Hinweis (wie beim Diagnoseprotokoll)
+    static func confirm() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L("Turn on the plugin log?", "Plugin-Protokoll einschalten?")
+        alert.informativeText = L("BarDrop then records what plugins do: which plugin runs and when, permissions, downloaded and started programs, internet requests and error messages. Unlike the diagnostic log, it names files and links. The log stays on this Mac and is never sent. Only when you click “Save Log” is a text file created that you can pass on yourself.",
+                                  "BarDrop hält dann fest, was Plugins tun: welches Plugin wann läuft, Rechte, geladene und gestartete Programme, Anfragen ins Internet und Fehlermeldungen. Anders als das Diagnoseprotokoll nennt es Dateien und Links. Das Protokoll bleibt auf diesem Mac und wird nie verschickt. Erst mit „Protokoll sichern“ entsteht eine Textdatei, die du selbst weitergeben kannst.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L("Turn On", "Einschalten"))
+        alert.addButton(withTitle: L("Cancel", "Abbrechen"))
+        alert.icon = NSApp.applicationIconImage
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Wie „Protokoll sichern“ beim Diagnoseprotokoll: ältere und aktuelle Datei als eine
+    /// Textdatei, wohin man will; danach im Finder gezeigt
+    func saveReport() {
+        flush()
+        let panel = NSSavePanel()
+        let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none)
+            .replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ".", with: "-")
+        panel.nameFieldStringValue = "BarDrop-Plugins-\(stamp).txt"
+        panel.allowedContentTypes = [.plainText]
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let old = logURL.deletingLastPathComponent().appendingPathComponent("Plugins-alt.log")
+        let text = [old, logURL].compactMap { try? String(contentsOf: $0, encoding: .utf8) }.joined()
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            NSSound.beep()
         }
     }
 

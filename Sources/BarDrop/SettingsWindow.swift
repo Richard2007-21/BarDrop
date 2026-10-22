@@ -43,6 +43,40 @@ enum SettingsWindowFactory {
 /// Fenster der Einstellungen: ↑ und ↓ wechseln den Bereich in der Seitenleiste. Nur Tasten,
 /// die nichts anderes verwendet hat (Textfeld, Regler, Aufnahme des Kurzbefehls), kommen hier an.
 final class SettingsNSWindow: NSWindow {
+    /// Knöpfe der Inhaltsansicht, die in der hohen Titelleiste liegen (Zurück auf den
+    /// Unterseiten). Die Titelleiste mit Symbolleiste nimmt dort sonst jeden Klick zum
+    /// Verschieben des Fensters, der Knopf bekam ihn nie. Rahmen in den Koordinaten der
+    /// Inhaltsansicht (oben links), wie SwiftUI sie liefert.
+    static var titlebarButtons: [String: (frame: CGRect, action: () -> Void)] = [:]
+    private var pressedButton: String?
+
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:
+            if let key = titlebarButton(at: event) {
+                pressedButton = key
+                return
+            }
+        case .leftMouseDragged where pressedButton != nil:
+            return
+        case .leftMouseUp where pressedButton != nil:
+            let key = pressedButton
+            pressedButton = nil
+            // Wie bei jedem Knopf: nur auslösen, wenn der Zeiger noch darauf steht
+            if titlebarButton(at: event) == key, let key { Self.titlebarButtons[key]?.action() }
+            return
+        default:
+            break
+        }
+        super.sendEvent(event)
+    }
+
+    private func titlebarButton(at event: NSEvent) -> String? {
+        guard let content = contentView else { return nil }
+        let point = CGPoint(x: event.locationInWindow.x, y: content.bounds.height - event.locationInWindow.y)
+        return Self.titlebarButtons.first { $0.value.frame.contains(point) }?.key
+    }
+
     override func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
         let step: Int? = switch event.keyCode {
@@ -66,7 +100,21 @@ final class SettingsNavigation: ObservableObject {
         didSet { if pane != oldValue { pluginPage = .list } }
     }
     /// Unterseite von Einstellungen → Plugins (Titelzeile mit Zurück-Knopf)
-    @Published var pluginPage: PluginPage = .list
+    @Published var pluginPage: PluginPage = .list {
+        didSet { if pluginPage == .list { pluginHistory = [] } }
+    }
+    /// Woher man kam: „Zurück“ führt dorthin (etwa von einem Plugin zurück zur Galerie)
+    private var pluginHistory: [PluginPage] = []
+
+    func openPluginPage(_ page: PluginPage) {
+        guard page != pluginPage else { return }
+        pluginHistory.append(pluginPage)
+        pluginPage = page
+    }
+
+    func pluginBack() {
+        pluginPage = pluginHistory.popLast() ?? pluginPage.parent
+    }
 
     /// Einen Bereich weiter nach oben oder unten, in der Reihenfolge der Seitenleiste; am
     /// Anfang und Ende bleibt er stehen
@@ -208,7 +256,16 @@ struct SettingsRoot: View {
 
     private func row(_ item: SettingsPane) -> some View {
         SidebarRow(item: item, selected: pane == item,
-                   badge: item == .about && updateAvailable, beta: item == .plugins) { pane = item }
+                   badge: item == .about && updateAvailable, beta: item == .plugins) {
+            // Nochmals auf den gewählten Bereich: zurück zu seiner Startseite
+            if pane == item {
+                if navigation.pluginPage != .list {
+                    withAnimation(.easeInOut(duration: 0.18)) { navigation.pluginPage = .list }
+                }
+            } else {
+                pane = item
+            }
+        }
     }
 
     @ObservedObject private var updater = Updater.shared

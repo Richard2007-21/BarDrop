@@ -40,9 +40,7 @@ struct PluginPageHeader: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) { navigation.pluginPage = navigation.pluginPage.parent }
-            } label: {
+            Button(action: back) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -56,10 +54,32 @@ struct PluginPageHeader: View {
             .keyboardShortcut(.cancelAction)
             .help(L("Back", "Zurück"))
             .accessibilityLabel(L("Back", "Zurück"))
+            // Liegt in der Titelleiste: Klicks kommen über das Fenster an
+            .background(GeometryReader { g in
+                Color.clear
+                    .onAppear { register(g.frame(in: .global)) }
+                    .onChange(of: g.frame(in: .global)) { _, frame in register(frame) }
+            })
+            .onDisappear { SettingsNSWindow.titlebarButtons["back"] = nil }
+            // Plugins haben ein Symbol: dann wie bei den Bereichen davor
+            if case .plugin(let id) = navigation.pluginPage, let plugin = manager.plugin(id) {
+                PluginIconView(icon: plugin.manifest.icon, size: 24)
+            }
             Text(navigation.pluginPage.title(manager))
                 .font(.system(size: 17, weight: .semibold))
                 .lineLimit(1)
         }
+    }
+
+    private func back() {
+        withAnimation(.easeInOut(duration: 0.18)) { navigation.pluginBack() }
+    }
+
+    private func register(_ frame: CGRect) {
+        let navigation = navigation
+        SettingsNSWindow.titlebarButtons["back"] = (frame.insetBy(dx: -4, dy: -4), {
+            withAnimation(.easeInOut(duration: 0.18)) { navigation.pluginBack() }
+        })
     }
 }
 
@@ -69,7 +89,6 @@ struct PluginSettings: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject private var manager: PluginManager
     @ObservedObject private var navigation: SettingsNavigation
-    @State private var importFrame: CGRect = .zero
 
     /// `manager` und `navigation` nur für Tests und Vorschaubilder
     init(settings: AppSettings, manager: PluginManager = .shared, navigation: SettingsNavigation = .shared) {
@@ -113,27 +132,44 @@ struct PluginSettings: View {
     }
 
     private func open(_ next: PluginPage) {
-        withAnimation(.easeInOut(duration: 0.18)) { navigation.pluginPage = next }
+        withAnimation(.easeInOut(duration: 0.18)) { navigation.openPluginPage(next) }
     }
 
     // MARK: Startseite
 
+    /// Plugin-Protokoll ein: erst nach dem Hinweis, was erfasst wird (wie beim
+    /// Diagnoseprotokoll); aus: Protokoll gelöscht
+    private var pluginLog: Binding<Bool> {
+        Binding(get: { settings.pluginLogEnabled }, set: { on in
+            if on {
+                guard PluginLog.confirm() else { return }
+                settings.pluginLogEnabled = true
+            } else {
+                settings.pluginLogEnabled = false
+                PluginLog.shared.clear()
+            }
+        })
+    }
+
+    private var nothingInstalled: Bool {
+        manager.plugins.isEmpty && manager.missingStandard.isEmpty && manager.broken.isEmpty
+    }
+
     @ViewBuilder
     private var start: some View {
         SettingsSection(note: settings.pluginsEnabled ? nil
-                        : L("Plugins add entries to the right-click menu and the action bar, or run when you drop matching items.",
-                            "Plugins ergänzen Einträge im Rechtsklick-Menü und in der Aktionsleiste oder laufen beim Ablegen passender Objekte.")) {
+                        : L("Plugins are small add-ons that teach BarDrop new things, such as shrinking images, reading text from screenshots or converting files. They show up in the right-click menu and the action bar, or run by themselves when you drop something.",
+                            "Plugins sind kleine Erweiterungen, die BarDrop Neues beibringen: etwa Bilder verkleinern, Text aus Bildschirmfotos lesen oder Dateien umwandeln. Sie erscheinen im Rechtsklick-Menü und in der Aktionsleiste oder laufen von selbst, wenn du etwas ablegst.")) {
             ToggleRow(L("Use plugins", "Plugins verwenden"), isOn: $settings.pluginsEnabled)
         }
 
         if settings.pluginsEnabled {
-            VStack(alignment: .leading, spacing: 10) {
+            if nothingInstalled {
+                // Noch nichts installiert: gleich zeigen, was es gibt
+                GalleryPage(manager: manager, title: L("Available", "Verfügbar")) { id in open(.plugin(id)) }
+                importButton
+            } else {
                 SettingsSection(L("Installed", "Installiert")) {
-                    if manager.plugins.isEmpty && manager.missingStandard.isEmpty && manager.broken.isEmpty {
-                        SettingsRow(L("No plugins installed", "Keine Plugins installiert")) {
-                            if manager.syncing { ProgressView().controlSize(.small) }
-                        }
-                    }
                     ForEach(manager.plugins) { plugin in
                         InstalledRow(plugin: plugin, manager: manager) { open(.plugin(plugin.id)) }
                     }
@@ -144,36 +180,45 @@ struct PluginSettings: View {
                         BrokenPluginRow(id: id, message: manager.broken[id] ?? "", manager: manager)
                     }
                 }
-                AddListRow(title: L("Import Plugin", "Plugin importieren"), frame: $importFrame) {
-                    PluginImporter.chooseAndImport()
-                }
-            }
 
-            SettingsCard {
-                NavigationRow(L("More Plugins", "Weitere Plugins"),
-                              value: manager.catalogExtras.isEmpty ? nil
-                                  : L("\(manager.catalogExtras.count) new", "\(manager.catalogExtras.count) neu")) {
-                    open(.gallery)
-                }
-                if manager.plugins.filter({ manager.isAutomatic($0) }).count > 1 {
-                    NavigationRow(L("Order When Dropped", "Reihenfolge beim Ablegen")) { open(.order) }
+                VStack(alignment: .trailing, spacing: 10) {
+                    SettingsCard {
+                        NavigationRow(L("More Plugins", "Weitere Plugins"),
+                                      value: manager.catalogExtras.isEmpty ? nil
+                                          : L("\(manager.catalogExtras.count) new", "\(manager.catalogExtras.count) neu")) {
+                            open(.gallery)
+                        }
+                        if manager.plugins.filter({ manager.isAutomatic($0) }).count > 1 {
+                            NavigationRow(L("Order When Dropped", "Reihenfolge beim Ablegen")) { open(.order) }
+                        }
+                    }
+                    importButton
                 }
             }
 
             SettingsSection(L("Log", "Protokoll")) {
-                ToggleRow(L("Keep a plugin log", "Plugin-Protokoll führen"),
-                          info: L("Its own file on this Mac, separate from the diagnostic log. It records which plugin runs and when, what works and what fails: permissions, downloaded and started programs, internet requests and the plugin’s own log lines.",
-                                  "Eine eigene Datei auf diesem Mac, getrennt vom Diagnoseprotokoll. Sie hält fest, welches Plugin wann läuft, was klappt und was fehlschlägt: Rechte, geladene und gestartete Programme, Anfragen ins Internet und eigene Zeilen des Plugins."),
-                          isOn: $settings.pluginLogEnabled)
-                SettingsRow(L("Log file", "Protokolldatei")) {
-                    HStack(spacing: 6) {
-                        Button(L("Show", "Zeigen")) { PluginLog.shared.reveal() }
-                            .buttonStyle(KlackButtonStyle())
-                        Button(L("Clear", "Leeren")) { PluginLog.shared.clear() }
+                ToggleRow(L("Plugin log", "Plugin-Protokoll"),
+                          info: L("Records which plugin runs and when, what works and what fails, with file names and error messages, to find problems with plugins. Stays on this Mac until you save it.",
+                                  "Hält fest, welches Plugin wann läuft, was klappt und was fehlschlägt, mit Dateinamen und Fehlermeldungen, um Probleme mit Plugins zu finden. Bleibt auf diesem Mac, bis du es sicherst."),
+                          isOn: pluginLog)
+                if settings.pluginLogEnabled {
+                    SettingsRow(L("Log file", "Protokolldatei")) {
+                        Button(L("Save Log", "Protokoll sichern")) { PluginLog.shared.saveReport() }
                             .buttonStyle(KlackButtonStyle())
                     }
                 }
             }
+        }
+    }
+
+    /// Klein und rechts: Die meisten nehmen Plugins aus der Galerie
+    private var importButton: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Button(L("Import From File", "Aus Datei importieren")) { PluginImporter.chooseAndImport() }
+                .buttonStyle(KlackButtonStyle())
+                .help(L("Install a .bdrop file. You can also double-click it.",
+                        "Eine .bdrop-Datei installieren. Doppelklicken geht auch."))
         }
     }
 }
@@ -277,6 +322,8 @@ private struct InstalledRow: View {
 
 private struct GalleryPage: View {
     @ObservedObject var manager: PluginManager
+    /// Überschrift über der Liste (auf der Startseite, solange nichts installiert ist)
+    var title: String?
     let open: (String) -> Void
     @State private var query = ""
 
@@ -291,6 +338,19 @@ private struct GalleryPage: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let title {
+                SettingsHeader(title) {
+                    if manager.syncing && !manager.catalogEntries.isEmpty { ProgressView().controlSize(.small) }
+                }
+                .padding(.horizontal, 8)
+            }
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         // Suche erst, wenn es etwas zu suchen gibt
         if manager.catalogEntries.count > 6 {
             HStack(spacing: 6) {
@@ -487,9 +547,7 @@ private struct PluginPageView: View {
                     }
                 }
                 if !manager.isFullyAuthorized(plugin) {
-                    SettingsRow(L("Needs your permission", "Braucht deine Erlaubnis"),
-                                subtitle: L("Asked once for everything, then never during a run.",
-                                            "Wird einmal für alles gefragt, nie mitten im Lauf.")) {
+                    SettingsRow(L("Needs your permission", "Braucht deine Erlaubnis")) {
                         Button(L("Allow", "Erlauben")) { _ = PluginDialogs.authorize(plugin, manager: manager, ui: nil) }
                             .buttonStyle(KlackButtonStyle(prominent: true))
                     }
@@ -658,8 +716,8 @@ private struct PluginPermissionsPage: View {
 
     var body: some View {
         let manifest = plugin.manifest
-        SettingsSection(note: L("The plugin asks once for everything it needs, before its first run. Changing its files takes the permissions back.",
-                                "Das Plugin fragt einmal vor dem ersten Lauf nach allem, was es braucht. Wird seine Datei geändert, gelten die Rechte nicht mehr.")) {
+        SettingsSection(note: L("If the plugin’s files change, it asks again.",
+                                "Ändern sich die Dateien des Plugins, fragt es erneut.")) {
             if manifest.consent != nil {
                 SettingsRow(L("Notice", "Hinweis"), subtitle: manifest.consent?.text) {
                     status(manager.hasConsented(plugin), allowed: L("Agreed", "Zugestimmt"))

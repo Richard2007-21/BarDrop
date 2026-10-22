@@ -31,7 +31,7 @@ BarDrop unpacks with `/usr/bin/ditto`. An installed plugin lives in `~/Library/A
 
 **Making one:** `python3 scripts/check_plugin.py MyPlugin/ --pack` checks the folder and writes `MyPlugin.bdrop`. By hand: `ditto -c -k --norsrc --noextattr MyPlugin MyPlugin.bdrop`, or “Compress” in the Finder and rename `.zip` to `.bdrop`.
 
-**Installing:** double-click the file, or Settings → Plugins → Import Plugin. BarDrop shows the name, permissions, programs to load and the script, with a note that the plugin isn’t from the catalog. Nothing is installed before “Install”. If a plugin with the same `id` exists, the button says “Update”. A standard plugin from the catalog can’t be replaced by an import. After importing, BarDrop turns on “Use plugins”; the plugin itself stays off. If an installed plugin can no longer be read (for example after editing it), it appears in the list with the error, with “Show in Finder” and, except for standard plugins, “Remove”.
+**Installing:** double-click the file, or Settings → Plugins → “Import From File”. BarDrop shows the name, permissions, programs to load and the script, with a note that the plugin isn’t from the catalog. Nothing is installed before “Install”. If a plugin with the same `id` exists, the button says “Update”. A standard plugin from the catalog can’t be replaced by an import. After importing, BarDrop turns on “Use plugins”; the plugin itself stays off. If an installed plugin can no longer be read (for example after editing it), it appears in the list with the error, with “Show in Finder” and, except for standard plugins, “Remove”.
 
 ## 3. manifest.json
 
@@ -325,10 +325,10 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
 
 * Checked at most once a day, only while plugins are turned on; right away when turning them on; when opening Settings → Plugins if the last check is more than an hour old.
 * `standard: true`: installed automatically (turned off), updated silently as soon as `version` is higher, can’t be edited or removed. Without internet it appears as “Not loaded” with “Try Again”.
-* Settings → Plugins → “More Plugins” (with the number of new ones on the right) shows all entries (with a search field from seven on); those not installed with “Get”, installed ones with “Open”.
+* If no plugin is installed yet, Settings → Plugins shows the available ones right away under “Available”. Otherwise “More Plugins” (with the number of new ones on the right) leads there; the list shows all entries (with a search field from seven on); those not installed with “Get”, installed ones with “Open”.
 * `removed: true`: standard plugins are removed at the next check; others disappear from the gallery but stay installed.
 * Entries with a `minAppVersion` newer than BarDrop are skipped.
-* Settings → Plugins works like System Settings: the list shows each plugin’s name, description (or what needs attention) and “On” or “Off”; clicking opens its page, and ‹ in the title bar (or Esc) goes back. The page has the switch at the top, then “When it runs”, the plugin’s settings and, at the bottom, Info: Internet (Yes, No or only to download programs), Works with, Version, Developer, Size, Programs (size, “Update”) and Permissions. In the gallery, a symbol shows whether a plugin works offline, uses the internet or downloads a program once.
+* Settings → Plugins works like System Settings: the list shows each plugin’s name, description (or what needs attention) and “On” or “Off”; clicking opens its page, and ‹ in the title bar (or Esc) goes back; clicking “Plugins” in the sidebar again returns to the start page. The page has the switch at the top, then “When it runs”, the plugin’s settings and, at the bottom, Info: Internet (Yes, No or only to download programs), Works with, Version, Developer, Size, Programs (size, “Update”) and Permissions. In the gallery, a symbol shows whether a plugin works offline, uses the internet or downloads a program once.
 * Submit with a pull request to `plugin-katalog`; every plugin is reviewed before it is merged.
 
 ## 11. Checking before sharing
@@ -346,7 +346,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 1. Import it in BarDrop and turn it on.
 2. Try it with a right-click on a matching item; if it doesn’t appear, `match` doesn’t match.
 3. Errors appear under Settings → Plugins → plugin → “Last error” and in the log.
-4. More detail: Settings → Plugins → Log → “Keep a plugin log”, then `bardrop.log`/`console.log` in the script (section 14).
+4. More detail: Settings → Plugins → Log → “Plugin log”, then `bardrop.log`/`console.log` in the script (section 14).
 5. Only then try “Automatically when dropped”.
 
 ## 12. Common mistakes
@@ -412,7 +412,7 @@ function run(item) {
 
 ## 14. Plugin log
 
-Settings → Plugins → Log → “Keep a plugin log” (off by default). The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`); “Show” opens it, “Clear” deletes both.
+Settings → Plugins → Log → “Plugin log” (off by default), built like the diagnostic log: turning it on shows a note on what is recorded; “Save Log” saves it as a text file wherever you like; turning it off deletes it. The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`; “Save Log” includes both).
 
 It is **separate from BarDrop’s diagnostic log**: its own file, its own switch, available in all versions. Plugin events appear only here, not in the diagnostic log. Unlike that one, it names files, addresses and error messages. It stays on the Mac.
 

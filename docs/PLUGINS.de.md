@@ -31,7 +31,7 @@ Entpackt wird mit `/usr/bin/ditto`. Installiert liegt ein Plugin in `~/Library/A
 
 **Erzeugen:** `python3 scripts/check_plugin.py MeinPlugin/ --pack` prüft den Ordner und erzeugt `MeinPlugin.bdrop`. Von Hand geht es mit `ditto -c -k --norsrc --noextattr MeinPlugin MeinPlugin.bdrop` oder mit „Komprimieren“ im Finder und anschließendem Umbenennen von `.zip` in `.bdrop`.
 
-**Installieren:** Doppelklick auf die Datei oder Einstellungen → Plugins → Plugin importieren. BarDrop zeigt Name, Rechte, nachzuladende Programme und das Skript, mit dem Hinweis, dass das Plugin nicht aus dem Katalog stammt. Installiert wird erst nach „Installieren“. Ist ein Plugin mit derselben `id` schon da, heißt der Knopf „Aktualisieren“. Ein Standard-Plugin aus dem Katalog lässt sich nicht durch einen Import ersetzen. Nach dem Import schaltet BarDrop „Plugins verwenden“ ein; das Plugin selbst bleibt aus. Lässt sich ein installiertes Plugin nicht mehr lesen (etwa nach dem Bearbeiten), steht es mit der Fehlermeldung in der Liste, mit „Im Finder zeigen“ und, außer bei Standard-Plugins, „Entfernen“.
+**Installieren:** Doppelklick auf die Datei oder Einstellungen → Plugins → „Aus Datei importieren“. BarDrop zeigt Name, Rechte, nachzuladende Programme und das Skript, mit dem Hinweis, dass das Plugin nicht aus dem Katalog stammt. Installiert wird erst nach „Installieren“. Ist ein Plugin mit derselben `id` schon da, heißt der Knopf „Aktualisieren“. Ein Standard-Plugin aus dem Katalog lässt sich nicht durch einen Import ersetzen. Nach dem Import schaltet BarDrop „Plugins verwenden“ ein; das Plugin selbst bleibt aus. Lässt sich ein installiertes Plugin nicht mehr lesen (etwa nach dem Bearbeiten), steht es mit der Fehlermeldung in der Liste, mit „Im Finder zeigen“ und, außer bei Standard-Plugins, „Entfernen“.
 
 ## 3. manifest.json
 
@@ -325,10 +325,10 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
 
 * Abfrage höchstens einmal am Tag, nur bei eingeschalteten Plugins; beim Einschalten sofort; beim Öffnen von Einstellungen → Plugins, wenn die letzte Abfrage über eine Stunde her ist.
 * `standard: true`: wird automatisch installiert (ausgeschaltet), still aktualisiert, sobald `version` höher ist, lässt sich weder bearbeiten noch entfernen. Ohne Internet erscheint es als „Nicht geladen“ mit „Erneut versuchen“.
-* Einstellungen → Plugins → „Weitere Plugins“ (rechts die Zahl der neuen) zeigt alle Einträge (ab sieben mit Suche); noch nicht installierte mit „Laden“, installierte mit „Öffnen“.
+* Ist noch kein Plugin installiert, zeigt Einstellungen → Plugins gleich die verfügbaren unter „Verfügbar“. Sonst führt „Weitere Plugins“ (rechts die Zahl der neuen) dorthin; die Liste zeigt alle Einträge (ab sieben mit Suche); noch nicht installierte mit „Laden“, installierte mit „Öffnen“.
 * `removed: true`: Standard-Plugins werden beim nächsten Abgleich entfernt; andere verschwinden aus der Galerie, bleiben aber installiert.
 * Einträge mit einer `minAppVersion`, die neuer ist als BarDrop, werden übergangen.
-* Einstellungen → Plugins ist wie die Systemeinstellungen aufgebaut: In der Liste steht je Plugin Name, Beschreibung (oder was ansteht) und „Ein“ bzw. „Aus“; ein Klick öffnet seine Seite, oben in der Titelzeile führt ‹ (oder Esc) zurück. Die Seite zeigt oben den Schalter, dann „Wann es läuft“, die Einstellungen des Plugins und ganz unten die Info: Internet (Ja, Nein oder nur zum Laden von Programmen), Passt zu, Version, Entwickler, Größe, Programme (Größe, „Aktualisieren“) und Rechte. In der Galerie zeigt ein Zeichen, ob ein Plugin offline läuft, das Internet nutzt oder einmal ein Programm lädt.
+* Einstellungen → Plugins ist wie die Systemeinstellungen aufgebaut: In der Liste steht je Plugin Name, Beschreibung (oder was ansteht) und „Ein“ bzw. „Aus“; ein Klick öffnet seine Seite, oben in der Titelzeile führt ‹ (oder Esc) zurück, ein erneuter Klick auf „Plugins“ in der Seitenleiste zur Startseite. Die Seite zeigt oben den Schalter, dann „Wann es läuft“, die Einstellungen des Plugins und ganz unten die Info: Internet (Ja, Nein oder nur zum Laden von Programmen), Passt zu, Version, Entwickler, Größe, Programme (Größe, „Aktualisieren“) und Rechte. In der Galerie zeigt ein Zeichen, ob ein Plugin offline läuft, das Internet nutzt oder einmal ein Programm lädt.
 * Einreichen per Pull Request auf `plugin-katalog`; jedes Plugin wird vor dem Aufnehmen geprüft.
 
 ## 11. Prüfen vor dem Weitergeben
@@ -346,7 +346,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 1. In BarDrop importieren, Plugin einschalten.
 2. Per Rechtsklick an einem passenden Objekt ausprobieren; erscheint es nicht, passt `match` nicht.
 3. Fehler stehen unter Einstellungen → Plugins → Plugin → „Letzter Fehler“ und im Protokoll.
-4. Mehr Einzelheiten: Einstellungen → Plugins → Protokoll → „Plugin-Protokoll führen“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
+4. Mehr Einzelheiten: Einstellungen → Plugins → Protokoll → „Plugin-Protokoll“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
 5. Erst dann „Automatisch beim Ablegen“ ausprobieren.
 
 ## 12. Häufige Fehler
@@ -412,7 +412,7 @@ function run(item) {
 
 ## 14. Plugin-Protokoll
 
-Einstellungen → Plugins → Protokoll → „Plugin-Protokoll führen“ (standardmäßig aus). Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`); „Zeigen“ öffnet sie, „Leeren“ löscht beide.
+Einstellungen → Plugins → Protokoll → „Plugin-Protokoll“ (standardmäßig aus), aufgebaut wie das Diagnoseprotokoll: Beim Einschalten erklärt ein Hinweis, was erfasst wird; „Protokoll sichern“ speichert es als Textdatei, wohin man will; Ausschalten löscht es. Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`; „Protokoll sichern“ nimmt beide).
 
 Es ist **getrennt vom Diagnoseprotokoll** von BarDrop: eigene Datei, eigener Schalter, in allen Versionen verfügbar. Plugin-Ereignisse stehen nur hier, nicht im Diagnoseprotokoll. Anders als dieses nennt es Dateinamen, Adressen und Fehlermeldungen. Es bleibt auf dem Mac.
 

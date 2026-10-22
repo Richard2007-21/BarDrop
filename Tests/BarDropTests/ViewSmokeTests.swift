@@ -164,6 +164,22 @@ final class ViewSmokeTests: XCTestCase {
         }
         manager.lastErrors[plugin.id] = nil
 
+        // Zurück führt dorthin, woher man kam; ein anderer Bereich beginnt wieder bei der Liste
+        let navigation = SettingsNavigation()
+        navigation.pane = .plugins
+        navigation.openPluginPage(.gallery)
+        navigation.openPluginPage(.plugin(plugin.id))
+        navigation.openPluginPage(.permissions(plugin.id))
+        navigation.pluginBack()
+        XCTAssertEqual(navigation.pluginPage, .plugin(plugin.id))
+        navigation.pluginBack()
+        XCTAssertEqual(navigation.pluginPage, .gallery)
+        navigation.pluginBack()
+        XCTAssertEqual(navigation.pluginPage, .list)
+        navigation.openPluginPage(.order)
+        navigation.pane = .general
+        XCTAssertEqual(navigation.pluginPage, .list)
+
         let store = ShelfStore(baseDirectory: base.appendingPathComponent("shelf"))
         let ui = ShelfUIModel()
         let actions = ShelfActions(store: store, ui: ui, settings: settings)
