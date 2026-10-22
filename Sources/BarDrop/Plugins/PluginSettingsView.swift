@@ -305,10 +305,8 @@ private struct InstalledRow: View {
             }
             .buttonStyle(.plain)
 
-            if needsAllow {
-                Button(L("Allow", "Erlauben")) { _ = PluginDialogs.authorize(plugin, manager: manager, ui: nil) }
-                    .buttonStyle(KlackButtonStyle(prominent: true))
-            }
+            // „Erlauben“ steht auf der Seite des Plugins; hier nur der gelbe Hinweis, damit
+            // der Name nicht abgeschnitten wird
             KlackSwitch(isOn: enabled)
             Button(action: open) {
                 Image(systemName: "chevron.right")
@@ -633,15 +631,15 @@ private struct PluginPageView: View {
             }
             InfoRow(symbol: "tray.and.arrow.down", title: L("Works with", "Passt zu"), value: PluginSummary.matches(manifest.match))
             if !manifest.allPermissions.isEmpty {
-                let granted = manifest.allPermissions.allSatisfy { manager.isGranted($0, for: plugin) }
+                // Ob erlaubt, zeigt der Hinweis oben; „Zurücksetzen“ nur, wenn etwas erlaubt ist
                 InfoRow(symbol: "lock", title: L("May", "Darf"),
-                        value: manifest.allPermissions.map(\.title).joined(separator: ", ")
-                            + " · " + (granted ? L("allowed", "erlaubt") : L("not allowed yet", "noch nicht erlaubt"))) {
-                    Button(L("Reset", "Zurücksetzen")) { manager.revokePermissions(plugin.id) }
-                        .buttonStyle(KlackButtonStyle())
-                        .disabled(state.granted.isEmpty)
-                        .help(L("Takes back all permissions; the plugin asks again before its next run.",
-                                "Nimmt alle Rechte zurück; das Plugin fragt vor dem nächsten Lauf erneut."))
+                        value: manifest.allPermissions.map(\.title).joined(separator: ", ")) {
+                    if !state.granted.isEmpty {
+                        Button(L("Reset", "Zurücksetzen")) { manager.revokePermissions(plugin.id) }
+                            .buttonStyle(KlackButtonStyle())
+                            .help(L("Takes back all permissions; the plugin asks again before its next run.",
+                                    "Nimmt alle Rechte zurück; das Plugin fragt vor dem nächsten Lauf erneut."))
+                    }
                 }
             }
         }
@@ -961,7 +959,7 @@ struct PluginConnectivity {
     /// Kurz für die Zeilen der Galerie
     var short: String {
         if usesNetwork { return L("Internet", "Internet") }
-        if !tools.isEmpty { return L("Downloads a program once", "Lädt einmal ein Programm") }
+        if !tools.isEmpty { return tools.count == 1 ? L("Program", "Programm") : L("Programs", "Programme") }
         return L("Offline", "Offline")
     }
 
@@ -1018,13 +1016,12 @@ enum PluginSize {
         return own + " · " + programsLabel(declared.count) + " " + text(programs)
     }
 
-    /// Galerie, vor dem Laden: „14 KB“ oder „8 KB · Programm 61 MB“
+    /// Galerie, vor dem Laden: „14 KB“ oder, mit Programmen, „8 KB + 61 MB“ (das Zeichen
+    /// und „Programm“ davor nennt die Zeile schon; ohne bekannte Größe nur „8 KB“)
     static func catalogText(_ entry: PluginCatalogEntry) -> String? {
         guard let size = entry.size else { return nil }
-        let count = entry.tools?.count ?? 0
-        guard count > 0 else { return text(Int64(size)) }
-        let programs = entry.toolsSize.map { text(Int64($0)) } ?? L("size unknown", "Größe unbekannt")
-        return text(Int64(size)) + " · " + programsLabel(count) + " " + programs
+        guard (entry.tools?.count ?? 0) > 0, let programs = entry.toolsSize else { return text(Int64(size)) }
+        return text(Int64(size)) + " + " + text(Int64(programs))
     }
 
     /// Plugin und Programme getrennt, für die Seite eines Plugins. `programs` nil: noch

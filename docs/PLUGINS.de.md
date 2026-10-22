@@ -317,9 +317,9 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
 | `id`, `version`, `name`, `url`, `sha256` | Pflicht. `id` muss der `id` im Manifest entsprechen, die Prüfsumme der Datei genau stimmen, sonst wird nichts installiert. |
 | `description`, `icon`, `author`, `homepage`, `minAppVersion` | aus dem Manifest |
 | `category` | freiwillig: `images`, `links`, `documents`, `text`, `media`, `files` oder `other` (für später; die Galerie gruppiert noch nicht danach) |
-| `permissions`, `tools` | aus dem Manifest. Die Galerie zeigt daraus vor dem Laden „Offline“, „Lädt einmal ein Programm“ oder „Internet“. Fehlt `permissions`, zeigt sie dazu nichts. |
+| `permissions`, `tools` | aus dem Manifest. Die Galerie zeigt daraus vor dem Laden „Offline“, „Programm“ (lädt einmal ein Programm, danach offline) oder „Internet“, jeweils mit Zeichen. Fehlt `permissions`, zeigt sie dazu nichts. |
 | `size` | Größe der `.bdrop` in Bytes |
-| `toolsSize` | Größe der Programme aus `tools`, wie sie auf dem Mac liegen (das Skript fragt sie bei den Adressen an, bei ZIP-Archiven die ausgepackte Datei). Die Galerie zeigt beides getrennt: „8 KB · Programm 61 MB“. |
+| `toolsSize` | Größe der Programme aus `tools`, wie sie auf dem Mac liegen (das Skript fragt sie bei den Adressen an, bei ZIP-Archiven die ausgepackte Datei). Die Galerie zeigt beides getrennt: „8 KB + 61 MB“. |
 | `updated` | Datum dieser Version |
 | `standard`, `removed` | siehe unten |
 

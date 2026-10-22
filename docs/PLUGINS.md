@@ -317,9 +317,9 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
 | `id`, `version`, `name`, `url`, `sha256` | Required. `id` must equal the manifest `id`, and the checksum must match the file exactly; otherwise nothing is installed. |
 | `description`, `icon`, `author`, `homepage`, `minAppVersion` | from the manifest |
 | `category` | optional: `images`, `links`, `documents`, `text`, `media`, `files` or `other` (for later; the gallery doesn’t group by it yet) |
-| `permissions`, `tools` | from the manifest. Before loading, the gallery shows “Offline”, “Downloads a program once” or “Internet”. Without `permissions` it shows none of this. |
+| `permissions`, `tools` | from the manifest. Before loading, the gallery shows “Offline”, “Program” (downloads a program once, then offline) or “Internet”, each with a symbol. Without `permissions` it shows none of this. |
 | `size` | size of the `.bdrop` in bytes |
-| `toolsSize` | size of the programs in `tools` as they end up on the Mac (the script asks their addresses, for ZIP archives it reads the unpacked file). The gallery shows both separately: “8 KB · Program 61 MB”. |
+| `toolsSize` | size of the programs in `tools` as they end up on the Mac (the script asks their addresses, for ZIP archives it reads the unpacked file). The gallery shows both separately: “8 KB + 61 MB”. |
 | `updated` | date of this version |
 | `standard`, `removed` | see below |
 
