@@ -306,7 +306,7 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
       "url": "https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/plugins/io.github.name.plugin/io.github.name.plugin-1.0.0.bdrop",
       "sha256": "Prüfsumme der .bdrop", "size": 4812,
       "category": "links", "author": "Name", "homepage": "https://…",
-      "permissions": ["network"], "tools": ["yt-dlp"], "updated": "2026-10-22",
+      "permissions": ["network"], "tools": ["mytool"], "updated": "2026-10-22",
       "standard": false, "removed": false, "minAppVersion": "1.31.0" }
   ]
 }
