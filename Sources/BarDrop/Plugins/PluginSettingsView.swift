@@ -449,29 +449,27 @@ private struct PluginPageView: View {
     }
 
     var body: some View {
-        // Kopf: Symbol, Name, Beschreibung und der Schalter
-        VStack(alignment: .leading, spacing: 10) {
-            SettingsCard {
-                HStack(spacing: 12) {
-                    PluginIconView(icon: manifest.icon, size: 36)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(manifest.name.text)
-                            .font(.system(size: 14, weight: .semibold))
-                            .lineLimit(1)
-                        Text(state.enabled ? L("On", "Ein") : L("Off", "Aus"))
-                            .font(.system(size: 11))
+        // Kopf wie in den Systemeinstellungen: Symbol, Name, Beschreibung und der Schalter
+        SettingsCard {
+            HStack(spacing: 12) {
+                PluginIconView(icon: manifest.icon, size: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(manifest.name.text)
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1)
+                    if let description = manifest.description?.text, !description.isEmpty {
+                        Text(description)
+                            .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer(minLength: 8)
-                    KlackSwitch(isOn: enabled)
                 }
-                .padding(.horizontal, SettingsTheme.rowPadding)
-                .frame(minHeight: 60)
+                Spacer(minLength: 8)
+                KlackSwitch(isOn: enabled)
             }
-            if let description = manifest.description?.text, !description.isEmpty {
-                SectionNote(description)
-                    .padding(.horizontal, 8)
-            }
+            .padding(.horizontal, SettingsTheme.rowPadding)
+            .padding(.vertical, 12)
+            .frame(minHeight: 60)
         }
 
         // Was gerade ansteht: läuft, Erlaubnis fehlt, letzter Fehler
