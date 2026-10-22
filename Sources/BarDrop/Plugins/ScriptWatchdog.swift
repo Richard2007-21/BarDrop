@@ -32,6 +32,14 @@ enum ScriptWatchdog {
         return unsafeBitCast(symbol, to: SetLimit.self)
     }()
 
+    /// Wie oft JavaScriptCore nachgefragt hat und wie oft die Antwort „beenden“ war (Diagnose, Tests)
+    private static let countLock = NSLock()
+    private static var _asked = 0, _stopped = 0
+    static var counts: (asked: Int, stopped: Int) { countLock.lock(); defer { countLock.unlock() }; return (_asked, _stopped) }
+    fileprivate static func count(stop: Bool) {
+        countLock.lock(); _asked += 1; if stop { _stopped += 1 }; countLock.unlock()
+    }
+
     /// Gibt es den Wächter auf diesem System?
     static var isAvailable: Bool { setLimit != nil }
 
@@ -42,7 +50,9 @@ enum ScriptWatchdog {
         guard let setLimit, let group = JSContextGetGroup(context.jsGlobalContextRef) else { return false }
         let callback: ShouldTerminate = { _, info in
             guard let info else { return false }
-            return Unmanaged<StopFlag>.fromOpaque(info).takeUnretainedValue().shouldStop
+            let stop = Unmanaged<StopFlag>.fromOpaque(info).takeUnretainedValue().shouldStop
+            ScriptWatchdog.count(stop: stop)
+            return stop
         }
         setLimit(group, interval, callback, Unmanaged.passUnretained(flag).toOpaque())
         return true

@@ -541,13 +541,16 @@ final class PluginTests: XCTestCase {
         XCTAssertEqual(PluginRuntime.busyScripts, before + 1)
         RunLoop.current.run(until: Date().addingTimeInterval(0.4))
         XCTAssertEqual(PluginRuntime.busyScripts, before + 1, "Ein gewollter Lauf darf lange rechnen")
+        let askedWhileRunning = ScriptWatchdog.counts.asked
+        XCTAssertGreaterThan(askedWhileRunning, 0, "Wächter fragt während des Laufs nie nach")
         runtime.cancel()
         wait(for: [done], timeout: 5)
         if case .failure(.cancelled) = result {} else { XCTFail("Abbrechen erwartet, nicht \(String(describing: result))") }
         // Und hört wirklich auf
         let stop = Date().addingTimeInterval(3)
         while PluginRuntime.busyScripts > before, Date() < stop { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
-        XCTAssertEqual(PluginRuntime.busyScripts, before, "Das Skript rechnet nach dem Abbrechen weiter")
+        XCTAssertEqual(PluginRuntime.busyScripts, before,
+                       "Das Skript rechnet nach dem Abbrechen weiter; Wächter gefragt \(ScriptWatchdog.counts.asked)×, beenden \(ScriptWatchdog.counts.stopped)×")
     }
 
     func testConsoleLogDoesNotFail() throws {
