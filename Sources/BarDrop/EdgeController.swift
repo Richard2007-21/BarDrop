@@ -495,6 +495,34 @@ final class EdgeController: NSObject {
             return
         }
         lastScreenSignature = signature
+        // Schwebt die Ablage auf einem Bildschirm, der gerade abgesteckt wurde, schob macOS sie
+        // an den oberen Rand eines anderen, wo man sie kaum noch greifen konnte. Stattdessen
+        // ist sie weg und wartet zu an ihrem Rand, wo man sie wieder herausholt.
+        if let drag = tearDrag {
+            let ids = Set(NSScreen.screens.compactMap(\.displayID))
+            let lost: Bool
+            switch drag.phase {
+            case .floating:
+                lost = drag.floatDisplay.map { !ids.contains($0) } ?? false
+            case .docking:
+                lost = drag.dockScreen.flatMap(\.displayID).map { !ids.contains($0) } ?? false
+            default:
+                lost = false
+            }
+            if lost {
+                Diagnostics.shared.record("screen", "floating shelf lost its display, back to the edge")
+                if Self.fresh(drag.originScreen) != nil { screen = Self.fresh(drag.originScreen) }
+                endTearImmediately()
+                logic.manualOpen = false
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { ui.level = .hidden }
+                logic.level = .hidden
+                logic.levelSince = Date()
+                logic.outsideSince = nil
+                if panel.isKeyWindow { resignFocus() }
+            }
+        }
         // Bildschirm abgesteckt, Mac entsperrt oder Auflösung geändert: neu ausrichten
         let before = screen
         if let s = screen, let current = Self.fresh(s), allowedScreens().contains(where: { Self.same($0, current) }) {
@@ -1166,6 +1194,8 @@ final class TearDrag {
     var moveObserver: NSObjectProtocol?
     /// Abstand zum Zeiger beim Lösen, der in kurzer Zeit auf null ausläuft
     var catchUp: CGVector?
+    /// Bildschirm, auf dem sie schwebt (wird er abgesteckt, kehrt sie an ihren Rand zurück)
+    var floatDisplay: CGDirectDisplayID?
 
     init(down: NSEvent?, start: NSPoint, origin: ScreenEdge, originScreen: NSScreen) {
         self.down = down
@@ -1647,6 +1677,7 @@ extension EdgeController {
         stopTearTimer()
         drag.phase = .floating
         drag.inZone = false
+        drag.floatDisplay = tearScreen(at: NSPoint(x: drag.body.midX, y: drag.body.midY))?.displayID
         setTear(gap: 0, attach: 0, side: ui.tear?.side ?? drag.origin)
         applyTearFrame(drag.body)
         logic.outsideSince = nil
