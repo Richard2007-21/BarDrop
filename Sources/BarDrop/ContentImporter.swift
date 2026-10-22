@@ -63,7 +63,12 @@ final class ContentImporter {
         // Browser gezogen): als Link übernehmen, nicht als Vorschaubild, das oft dabei ist
         if fileURLs.isEmpty || !onlyUserFiles {
             let snapshot = PasteboardSnapshot(pb)
-            if snapshot.prefersLink, let link = snapshot.webURL, let webloc = writeWebloc(link, title: snapshot.urlTitle) {
+            // Nicht, wenn eine Datei mitkommt und die Adresse nur als Text dabei ist: Dann
+            // zieht man ein Bild (Google-Bildersuche, Bilder im Web), und der Text ist bloß
+            // die Seite dazu. Sonst landete statt des Bildes ein Link in der Ablage.
+            let incidental = snapshot.webURLFromText && (!promises.isEmpty || snapshot.image != nil)
+            if snapshot.prefersLink, !incidental, let link = snapshot.webURL,
+               let webloc = writeWebloc(link, title: snapshot.urlTitle) {
                 Log.importing.info("Link für ein Plugin übernommen")
                 finish([ShelfFile(url: webloc, owned: true)], completion)
                 return
@@ -636,6 +641,9 @@ struct PasteboardSnapshot {
     var text: String?
     /// Ein eingeschaltetes Plugin ist für `webURL` zuständig: als Link übernehmen
     var prefersLink = false
+    /// Die Adresse stand nur als Text dabei (kein Link-Typ): So schicken Browser beim Ziehen
+    /// eines Bildes die Seite mit, etwa die Google-Bildersuche
+    var webURLFromText = false
 
     /// Fragt, ob ein Plugin einen Link als Link braucht (gesetzt beim Start der App;
     /// nur auf dem Hauptthread aufgerufen, dort entsteht der Schnappschuss)
@@ -680,6 +688,7 @@ struct PasteboardSnapshot {
         if webURL == nil, let t = text, let u = URL(string: t.trimmingCharacters(in: .whitespacesAndNewlines)),
            let scheme = u.scheme, ["http", "https"].contains(scheme), !t.contains(" ") {
             webURL = u
+            webURLFromText = true
         }
         if let webURL, let wanted = Self.linkWanted, Thread.isMainThread {
             prefersLink = wanted(webURL)

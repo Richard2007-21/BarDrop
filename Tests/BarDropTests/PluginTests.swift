@@ -349,6 +349,26 @@ final class PluginTests: XCTestCase {
 
         PasteboardSnapshot.linkWanted = { _ in false }
         XCTAssertEqual(importDrag().first?.url.pathExtension, "png")
+
+        // Bild aus dem Web (Google-Bildersuche): Die Seite steht nur als Text dabei. Dann das
+        // Bild nehmen, auch wenn ein Plugin für die Adresse zuständig wäre
+        PasteboardSnapshot.linkWanted = { _ in true }
+        let pb = NSPasteboard(name: NSPasteboard.Name("BarDropPlugin-\(UUID().uuidString)"))
+        defer { pb.releaseGlobally() }
+        pb.clearContents()
+        let item = NSPasteboardItem()
+        item.setString("https://www.example.com/imgres?id=1", forType: .string)
+        item.setData(png, forType: NSPasteboard.PasteboardType("public.png"))
+        pb.writeObjects([item])
+        let importer = ContentImporter(storage: base.appendingPathComponent("items-text"), convertImages: true)
+        let done = expectation(description: "Import Text")
+        var result: [ShelfFile] = []
+        importer.importContent(of: pb) { files in
+            result = files
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 10)
+        XCTAssertEqual(result.first?.url.pathExtension, "png")
     }
 
     func testConsoleLogDoesNotFail() throws {
