@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import Combine
 import SwiftUI
 
@@ -243,7 +244,16 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         case .failure(let error):
             PluginLog.shared.record(job.plugin.id, "fehler", error.message)
             manager.lastErrors[job.plugin.id] = String(error.message.prefix(600))
-            removeJob(job)
+            // Erst kurz rütteln, damit man sieht, welcher Platzhalter es war, dann weg
+            // (Ohne Dialoge, etwa in Tests, gleich weg)
+            if showsErrorDialogs {
+                job.failed = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + PluginJobTile.failureDuration) { [weak self] in
+                    self?.removeJob(job)
+                }
+            } else {
+                removeJob(job)
+            }
             NSSound.beep()
             actions?.announce(L("Failed", "Fehlgeschlagen"), duration: 2.5)
             if !job.automatic && showsErrorDialogs { showError(error, of: job.plugin) }
@@ -354,8 +364,12 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     /// halbes oder kaputtes Vorschaubild.
     private func scanResults() {
         for (id, runtime) in runtimes {
-            guard let job = jobs.first(where: { $0.id == id }),
-                  let candidate = Self.newestResult(in: runtime.outputDirectory) else { continue }
+            guard let job = jobs.first(where: { $0.id == id }) else { continue }
+            // Was gerade entsteht, auch halb geschrieben: Der Platzhalter zeigt schon sein Symbol
+            if job.resultPreview == nil, let type = Self.typeInProgress(in: runtime.outputDirectory), job.resultType != type {
+                job.resultType = type
+            }
+            guard let candidate = Self.newestResult(in: runtime.outputDirectory) else { continue }
             let previous = previewCandidates[id]
             previewCandidates[id] = candidate
             guard previous?.url == candidate.url, previous?.size == candidate.size,
@@ -366,6 +380,26 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     }
 
     /// Neueste fertige Datei im Ausgabeordner (keine versteckten, halb geladenen oder leeren)
+    /// Art der neuesten Datei im Ausgabeordner, auch wenn sie noch geschrieben wird. Endungen
+    /// halb geladener Dateien zählen nicht: „film.mp4.part“ ist ein Video.
+    static func typeInProgress(in directory: URL) -> UTType? {
+        let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { return nil }
+        var best: (url: URL, date: Date)?
+        for url in urls {
+            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
+            let date = values.contentModificationDate ?? .distantPast
+            if best == nil || date > best!.date { best = (url, date) }
+        }
+        guard var name = best?.url else { return nil }
+        while PluginRuntime.partialExtensions.contains(name.pathExtension.lowercased()) {
+            name = name.deletingPathExtension()
+        }
+        guard !name.pathExtension.isEmpty else { return nil }
+        return UTType(filenameExtension: name.pathExtension)
+    }
+
     static func newestResult(in directory: URL) -> (url: URL, size: Int)? {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
         guard let urls = try? FileManager.default.contentsOfDirectory(

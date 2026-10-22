@@ -1,12 +1,15 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Platzhalter für ein laufendes Plugin, direkt neben dem Original (bei „Original ersetzen“
 /// an seiner Stelle): eine sichtbare, aber durchsichtige Vorschau, die mit dem Fortschritt
-/// deckend wird. Gezeigt wird das Ergebnis, sobald das Plugin eine fertige Datei geschrieben
-/// hat, bis dahin die Datei, an der es arbeitet. Meldet das Plugin keinen Fortschritt, wird
-/// die Vorschau sanft deckender und wieder durchsichtiger („atmet“). Welches Plugin arbeitet,
-/// zeigt sein Symbol oben rechts im Kopf der Ablage.
+/// deckend wird, und darunter, zwischen Bild und Namen, ein schmaler Balken mit dem
+/// Fortschritt. Gezeigt wird die Datei, die entsteht: ihr Vorschaubild, sobald sie fertig
+/// geschrieben ist, solange sie noch wächst das Symbol ihrer Art, und bis es sie gibt die
+/// Datei, an der das Plugin arbeitet. Meldet das Plugin keinen Fortschritt, „atmet“ die
+/// Vorschau, und im Balken wandert ein Lichtstreifen. Scheitert der Lauf, rüttelt der
+/// Platzhalter kurz, bevor er verschwindet.
 ///
 /// Auswählen wie eine Kachel (Klick, ⌘- bzw. ⇧-Klick, Lasso, Pfeiltasten); ⌫ bricht ab.
 /// Wie bei Downloads im Finder und im App Store: Fährt der Zeiger darüber, wird das Zeichen
@@ -19,6 +22,9 @@ struct PluginJobTile: View {
     let actions: ShelfActions
     var iconSize: CGFloat = 64
     @State private var hovering = false
+
+    /// So lange bleibt ein gescheiterter Platzhalter stehen (Rütteln), bevor er verschwindet
+    static let failureDuration: TimeInterval = 0.55
 
     private var showsControls: Bool { hovering && !shelfDemo }
 
@@ -38,6 +44,8 @@ struct PluginJobTile: View {
             withAnimation(.easeOut(duration: 0.12)) { hovering = inside }
         }
         .help(job.percent.map { "\(job.title): " + Format.percent($0) } ?? job.title)
+        .modifier(Shake(amount: job.failed && !AnimationStyle.reduceMotion ? 1 : 0))
+        .animation(.linear(duration: 0.45), value: job.failed)
         .transition(.opacity)
     }
 
@@ -90,6 +98,9 @@ private struct PluginPreview: View {
 
     /// Am Anfang gut zu sehen, aber deutlich durchsichtig
     private static let startOpacity = 0.3
+    /// Mit Fortschritt beginnt die Deckkraft in der Mitte des Atmens (0,3 bis 0,6): Kommt der
+    /// erste Fortschritt, springt die Vorschau nicht erst zurück und flackert
+    private static let progressOpacity = 0.45
 
     private var breathes: Bool {
         job.isStarted && !job.paused && job.progress == nil && !AnimationStyle.reduceMotion
@@ -100,19 +111,42 @@ private struct PluginPreview: View {
         if !job.isStarted {
             base = Self.startOpacity
         } else if let progress = job.progress {
-            base = Self.startOpacity + (1 - Self.startOpacity) * progress
+            base = Self.progressOpacity + (1 - Self.progressOpacity) * progress
         } else {
             base = breathing ? 0.6 : Self.startOpacity
         }
-        return job.paused ? base * 0.75 : base
+        // Angehalten etwas blasser, aber nie fast unsichtbar
+        return job.paused ? max(base * 0.75, Self.startOpacity) : base
     }
 
-    private var shownURL: URL { job.resultPreview ?? job.item.url }
+    /// Welches Bild: das fertige Ergebnis, sonst das Symbol der Datei, die gerade entsteht,
+    /// sonst die Datei, an der das Plugin arbeitet
+    private var pictureKey: String {
+        if let url = job.resultPreview { return "result:" + url.path }
+        if let type = job.resultType { return "type:" + type.identifier }
+        return "source:" + job.item.url.path
+    }
+
+    @ViewBuilder
+    private var picture: some View {
+        if let url = job.resultPreview {
+            ThumbnailView(url: url, size: size)
+        } else if let type = job.resultType {
+            Image(nsImage: NSWorkspace.shared.icon(for: type))
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
+        } else {
+            ThumbnailView(url: job.item.url, size: size)
+        }
+    }
 
     var body: some View {
         ZStack {
-            ThumbnailView(url: shownURL, size: size)
-                .id(shownURL)
+            picture
+                .id(pictureKey)
                 .transition(.opacity)
                 .opacity(opacity)
                 .animation(.easeOut(duration: 0.3), value: job.progress)
@@ -122,7 +156,15 @@ private struct PluginPreview: View {
             centerGlyph
                 .animation(.easeOut(duration: 0.12), value: hovering)
         }
+        .animation(.easeOut(duration: 0.3), value: pictureKey)
         .frame(width: size, height: size)
+        // Zwischen Bild und Namen, im Rand der Fläche um das Bild: Die Kachel wird nicht höher
+        .overlay(alignment: .bottom) {
+            PluginProgressBar(progress: job.isStarted ? job.progress : nil, running: job.isStarted,
+                              paused: job.paused, failed: job.failed)
+                .frame(width: (size * 0.78).rounded(), height: 3)
+                .offset(y: 5)
+        }
         .onAppear { breathing = breathes }
         .onChange(of: breathes) { _, now in breathing = now }
     }
@@ -143,6 +185,61 @@ private struct PluginPreview: View {
                 .contentTransition(.symbolEffect(.replace))
                 .transition(.opacity)
         }
+    }
+}
+
+/// Schmaler Balken unter dem Bild: füllt sich mit dem Fortschritt. Ohne Anteil wandert ein
+/// Lichtstreifen (bei „Bewegung reduzieren“ steht er still); wartet der Lauf, ist er leer.
+private struct PluginProgressBar: View {
+    let progress: Double?
+    let running: Bool
+    let paused: Bool
+    let failed: Bool
+    @State private var sweep = false
+
+    private var fill: Color {
+        failed ? Color(red: 1, green: 0.35, blue: 0.3) : Color.primary.opacity(paused ? 0.45 : 0.85)
+    }
+
+    private var sweeps: Bool { running && progress == nil && !paused && !failed && !AnimationStyle.reduceMotion }
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.16))
+                if failed {
+                    Capsule().fill(fill)
+                } else if let progress {
+                    Capsule().fill(fill)
+                        .frame(width: max(3, geo.size.width * max(0, min(1, progress))))
+                        .animation(.easeOut(duration: 0.3), value: progress)
+                } else if running {
+                    Capsule().fill(fill.opacity(0.8))
+                        .frame(width: geo.size.width * 0.3)
+                        .offset(x: sweep ? geo.size.width * 0.7 : 0)
+                        .animation(sweeps ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true) : .easeOut(duration: 0.3),
+                                   value: sweep)
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: failed)
+        .onAppear { sweep = sweeps }
+        .onChange(of: sweeps) { _, now in sweep = now }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Kurzes Rütteln (links, rechts, auslaufend), wie bei einem falschen Kennwort in macOS
+private struct Shake: GeometryEffect {
+    var amount: CGFloat
+    var animatableData: CGFloat {
+        get { amount }
+        set { amount = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        let x = 5 * sin(amount * .pi * 6) * (1 - amount * 0.6)
+        return ProjectionTransform(CGAffineTransform(translationX: x, y: 0))
     }
 }
 

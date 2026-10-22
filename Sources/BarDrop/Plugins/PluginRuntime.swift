@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import JavaScriptCore
 
 /// Fragen an den Nutzer, die ein laufendes Plugin auslösen kann (immer auf dem Hauptthread).
@@ -32,6 +33,11 @@ final class PluginJob: ObservableObject, Identifiable {
     /// Datei, die das Plugin schon als Ergebnis geschrieben hat (sobald sie nicht mehr wächst):
     /// Der Platzhalter zeigt dann sie statt der Ausgangsdatei
     @Published var resultPreview: URL?
+    /// Art der Datei, die gerade entsteht (auch halb geschrieben, etwa „film.mp4.part“):
+    /// Der Platzhalter zeigt ihr Symbol, bis `resultPreview` da ist
+    @Published var resultType: UTType?
+    /// Gescheitert: Der Platzhalter rüttelt kurz, bevor er verschwindet
+    @Published var failed = false
 
     fileprivate weak var runtime: PluginRuntime?
     /// Letzte Meldung an die Oberfläche (höchstens alle 100 ms, sonst zeichnet die Ablage zu oft)
