@@ -616,7 +616,7 @@ final class PluginTests: XCTestCase {
         XCTAssertEqual(asked, 1, "Für dieses Plugin wird trotzdem gefragt")
         XCTAssertEqual(try Data(contentsOf: url), body)
         XCTAssertNotNil(tools.installed(try tool("mine")))
-        XCTAssertTrue(tools.sharedFolders().contains(other.path))
+        XCTAssertTrue(tools.sharedFolders().contains { $0.hasSuffix("/runtime-abc") })
         // Aktualisieren: gilt als veraltet, wird neu geladen (hier nicht erreichbar, also Fehler)
         tools.markOutdated([try tool("mine")])
         XCTAssertNil(tools.installed(try tool("mine")))

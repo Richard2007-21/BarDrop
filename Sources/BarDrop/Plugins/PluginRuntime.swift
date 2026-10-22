@@ -258,7 +258,8 @@ final class PluginRuntime {
         guard let error, !error.isUndefined, !error.isNull else { return "Error" }
         guard error.isObject, error.hasProperty("message") else { return error.toString() ?? "Error" }
         let message = error.forProperty("message")?.toString() ?? ""
-        let name = error.forProperty("name")?.toString() ?? ""
+        // Ein einfaches Objekt ({ message, hint }) hat keinen Namen: kein „undefined:“ davor
+        let name = error.forProperty("name").flatMap { $0.isString ? $0.toString() : nil } ?? ""
         let plain = name.isEmpty || name == "Error"
         var text = plain ? message : "\(name): \(message)"
         // Datei und Zeile nur bei Fehlern im Code (TypeError, ReferenceError …). Eine Meldung,
