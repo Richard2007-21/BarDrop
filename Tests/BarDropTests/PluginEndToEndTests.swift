@@ -199,7 +199,8 @@ final class PluginEndToEndTests: XCTestCase {
         // Über die Aktionsleiste, wie ein Klick auf die Aktion mit ausgewähltem Link
         actions.perform(QuickAction(kind: .plugin, path: plugin.id), urls: [link.url], anchor: NSView())
         // Solange es läuft: Platzhalter an der Stelle des Links, nicht daneben
-        XCTAssertNotNil(runner.replacingJob(for: link.id))
+        // (Zu sehen ist der Platzhalter erst nach PluginRunner.showDelay; dieser Lauf kann vorher fertig sein)
+        XCTAssertEqual(runner.jobs.first?.replacesOriginal, true)
         XCTAssertTrue(runner.jobs(nextTo: [link.id]).isEmpty)
         waitUntil { self.names.contains("Page.txt") }
         XCTAssertEqual(names, ["Page clean", "Page.txt"])

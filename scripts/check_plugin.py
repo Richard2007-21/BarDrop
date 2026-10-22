@@ -41,7 +41,7 @@ KNOWN_KEYS = {"schema", "id", "name", "description", "version", "author", "homep
               "settings", "canReplaceOriginal", "batch", "consent"}
 API = {"writeFile", "createLink", "readFile", "progress", "notify", "isCancelled", "sleep", "log", "fetch",
        "download", "run", "setClipboard", "settings", "language", "appVersion", "outputDirectory",
-       "pluginDirectory", "plugin", "readData", "writeData"}
+       "pluginDirectory", "plugin", "readData", "writeData", "findProgram"}
 
 errors, hints = [], []
 
@@ -293,11 +293,15 @@ def check_script(full_text, m):
     for name in sorted(set(re.findall(r"\bbardrop\.(\w+)", text))):
         if name not in API:
             error(f"bardrop.{name} gibt es nicht")
-    for word, why in (("setTimeout", "bardrop.sleep(ms) verwenden"), ("require(", "es gibt keine Module"),
-                      ("document.", "es gibt kein DOM"), ("new URL(", "es gibt keine URL-Klasse"),
+    # setTimeout, URL, TextEncoder & Co. stellt BarDrop selbst bereit (PluginPrelude)
+    for word, why in (("require(", "es gibt keine Module"), ("document.", "es gibt kein DOM"),
                       ("XMLHttpRequest", "bardrop.fetch verwenden"), ("window.", "es gibt kein window")):
         if word in text:
             error(f"\"{word.rstrip('(.')}\" gibt es in BarDrop-Plugins nicht: {why}")
+    if re.search(r"bardrop\.run\(\s*[\"'](/usr/bin/)?which[\"']", text):
+        hint("Programme mit bardrop.findProgram(name) suchen statt which zu starten: findet auch Programme im Benutzerordner und solche, die andere Plugins geladen haben")
+    if re.search(r"Tipp:|Tip:|\\n\\nHint", full_text):
+        hint("Einen Tipp zum Fehler als hint mitgeben (throw { message, hint }) statt an die Meldung zu hängen: BarDrop zeigt ihn abgesetzt")
     if re.search(r"(^|[^.\w])fetch\(", text):
         error("Globales fetch gibt es nicht: bardrop.fetch verwenden")
     if re.search(r"\b(let|const|class)\s+console\b", text):

@@ -349,7 +349,7 @@ final class PluginTests: XCTestCase {
     func testAsyncScriptAndErrors() throws {
         let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
         let failing = try installed(manager, script: "async function run(item) { await Promise.resolve(); throw new Error('nope'); }")
-        guard case .failure(.script(let message)) = run(failing, on: makeFile("a.txt")) else { return XCTFail("muss scheitern") }
+        guard case .failure(.script(let message, _)) = run(failing, on: makeFile("a.txt")) else { return XCTFail("muss scheitern") }
         XCTAssertTrue(message.contains("nope"))
         XCTAssertFalse(message.contains("main.js"), "eigene Meldungen ohne Ort")
 
@@ -563,6 +563,64 @@ final class PluginTests: XCTestCase {
         Thread.sleep(forTimeInterval: 1.1)
         try Data([1]).write(to: dir.appendingPathComponent("bild.png"))
         XCTAssertEqual(PluginRunner.typeInProgress(in: dir), .png)
+    }
+
+    /// findProgram sucht wie run, lädt nichts; Fehler mit hint: Tipp getrennt von der Meldung
+    func testFindProgramAndErrorHint() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let plugin = try installed(manager, script: #"""
+        function run(item) {
+          bardrop.writeFile('out.json', JSON.stringify({
+            sh: bardrop.findProgram('sh'), none: bardrop.findProgram('gibt-es-nicht-xyz'),
+            abs: bardrop.findProgram('/bin/sh'), bad: bardrop.findProgram('../sh')
+          }));
+        }
+        """#)
+        let out = try outputJSON(run(plugin, on: makeFile("a.txt")))
+        XCTAssertTrue((out["sh"] as? String)?.hasSuffix("/sh") == true, "\(String(describing: out["sh"]))")
+        XCTAssertTrue(out["none"] is NSNull)
+        XCTAssertEqual(out["abs"] as? String, "/bin/sh")
+        XCTAssertTrue(out["bad"] is NSNull)
+
+        let failing = try installed(manager, script: #"function run(item) { throw { message: 'Geht nicht', hint: 'Erst X installieren.' }; }"#)
+        guard case .failure(let error) = run(failing, on: makeFile("b.txt")) else { return XCTFail("muss scheitern") }
+        XCTAssertEqual(error.message, "Geht nicht")
+        XCTAssertEqual(error.hint, "Erst X installieren.")
+        let plain = try installed(manager, script: #"function run(item) { throw new Error('Nur Meldung'); }"#)
+        guard case .failure(let other) = run(plain, on: makeFile("c.txt")) else { return XCTFail("muss scheitern") }
+        XCTAssertEqual(other.message, "Nur Meldung")
+        XCTAssertNil(other.hint)
+    }
+
+    /// Dasselbe Programm (gleiche Adresse und Prüfsumme) unter anderem Namen: mitbenutzen, nichts laden
+    func testToolIsSharedBetweenPluginsWithSameAddress() throws {
+        let dir = base.appendingPathComponent("tools-\(UUID().uuidString)", isDirectory: true)
+        let tools = PluginTools(directory: dir)
+        // Ein anderes Plugin hat es als „runtime“ geladen
+        let body = Data("#!/bin/sh\necho hi\n".utf8)
+        let file = base.appendingPathComponent("bin-\(UUID().uuidString)")
+        try body.write(to: file)
+        let sum = try XCTUnwrap(PluginPackage.sha256(of: file)).lowercased()
+        func tool(_ id: String) throws -> PluginTool {
+            try JSONDecoder().decode(PluginTool.self, from: Data(#"{"id": "\#(id)", "name": "Tool", "url": "https://example.invalid/tool", "sha256": "\#(sum)"}"#.utf8))
+        }
+        let other = dir.appendingPathComponent("runtime-abc", isDirectory: true)
+        try FileManager.default.createDirectory(at: other, withIntermediateDirectories: true)
+        try body.write(to: other.appendingPathComponent("runtime"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: other.appendingPathComponent("runtime").path)
+        try #"{"url": "https://example.invalid/tool", "sha256": "\#(sum)", "fetched": 0}"#
+            .write(to: other.appendingPathComponent("meta.json"), atomically: true, encoding: .utf8)
+        // Unter dem Namen „mine“: keine Adresse erreichbar, also nur über das Mitbenutzen
+        var asked = 0
+        let url = try tools.ensure(tool("mine"), ask: { asked += 1; return true }, cancelled: { false })
+        XCTAssertEqual(asked, 1, "Für dieses Plugin wird trotzdem gefragt")
+        XCTAssertEqual(try Data(contentsOf: url), body)
+        XCTAssertNotNil(tools.installed(try tool("mine")))
+        XCTAssertTrue(tools.sharedFolders().contains(other.path))
+        // Aktualisieren: gilt als veraltet, wird neu geladen (hier nicht erreichbar, also Fehler)
+        tools.markOutdated([try tool("mine")])
+        XCTAssertNil(tools.installed(try tool("mine")))
+        XCTAssertThrowsError(try tools.ensure(tool("mine"), ask: { true }, cancelled: { false }))
     }
 
     func testConsoleLogDoesNotFail() throws {

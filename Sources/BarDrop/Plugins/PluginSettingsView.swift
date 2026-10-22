@@ -198,6 +198,17 @@ private struct PluginDetails: View {
     @ObservedObject var manager: PluginManager
     @ObservedObject var settings: AppSettings
 
+    /// Namen der Programme und, nach „Aktualisieren“, wie es ausging
+    private func toolSubtitle(_ tools: [PluginTool]) -> String {
+        let names = tools.map(\.id).joined(separator: ", ")
+        switch manager.toolRefresh[plugin.id] {
+        case .running: return names + " · " + L("updating", "wird aktualisiert")
+        case .done: return names + " · " + L("up to date", "aktualisiert")
+        case .failed(let message): return names + " · " + message
+        case nil: return names
+        }
+    }
+
     private var state: PluginState { manager.state(plugin.id) }
     private var manifest: PluginManifest { plugin.manifest }
 
@@ -248,6 +259,16 @@ private struct PluginDetails: View {
             }
             ForEach(manifest.settings ?? []) { spec in
                 PluginSettingRow(spec: spec, plugin: plugin, manager: manager)
+                divider
+            }
+            if let tools = manifest.tools, !tools.isEmpty, tools.contains(where: { state.approvedTools.contains($0.approvalKey) }) {
+                SettingsRow(L("Programs", "Programme"), subtitle: toolSubtitle(tools)) {
+                    Button(L("Update", "Aktualisieren")) { manager.refreshTools(of: plugin) }
+                        .buttonStyle(KlackButtonStyle())
+                        .disabled(manager.toolRefresh[plugin.id] == .running)
+                        .help(L("Downloads the plugin’s programs again, for example when a newer version fixes an error.",
+                                "Lädt die Programme des Plugins neu, etwa wenn eine neuere Fassung einen Fehler behebt."))
+                }
                 divider
             }
             if let count = manager.runningCounts[plugin.id], count > 0 {

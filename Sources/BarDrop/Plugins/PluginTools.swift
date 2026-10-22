@@ -24,6 +24,46 @@ final class PluginTools {
         var url: String
         var sha256: String
         var fetched: Date
+        /// „Programme aktualisieren“: beim nächsten Gebrauch neu laden, ohne erneut zu fragen
+        var outdated: Bool?
+    }
+
+    /// Ordner aller geladenen Programme, auch anderer Plugins (für die Suche nach Programmen)
+    func sharedFolders() -> [String] {
+        let fm = FileManager.default
+        let items = (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey],
+                                                 options: [.skipsHiddenFiles])) ?? []
+        return items.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true }
+            .map(\.path).sorted()
+    }
+
+    /// „Programme aktualisieren“: Diese Programme gelten als veraltet und werden beim nächsten
+    /// `ensure` neu geladen (ohne Frage, da von derselben Adresse)
+    func markOutdated(_ tools: [PluginTool]) {
+        for tool in tools {
+            guard var meta = storedMeta(of: tool) else { continue }
+            meta.outdated = true
+            try? JSONEncoder().encode(meta).write(to: folder(tool).appendingPathComponent("meta.json"))
+        }
+    }
+
+    /// Dasselbe Programm (gleiche Adresse, gleiche Prüfsumme, noch gültig), das ein anderes
+    /// Plugin unter anderem Namen schon geladen hat: wird mitbenutzt statt neu geladen
+    private func sharedCopy(of tool: PluginTool) -> (binary: URL, meta: Meta)? {
+        let fm = FileManager.default
+        for path in sharedFolders() where path != folder(tool).path {
+            let dir = URL(fileURLWithPath: path, isDirectory: true)
+            guard let data = try? Data(contentsOf: dir.appendingPathComponent("meta.json")),
+                  let meta = try? JSONDecoder().decode(Meta.self, from: data),
+                  meta.url == tool.resolvedURL, meta.outdated != true else { continue }
+            if let pinned = tool.sha256, pinned.lowercased() != meta.sha256 { continue }
+            if let days = tool.refreshDays, Date().timeIntervalSince(meta.fetched) > Double(days) * 86_400 { continue }
+            let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+            guard let binary = files.first(where: { $0.lastPathComponent != "meta.json" && fm.isExecutableFile(atPath: $0.path) }),
+                  PluginPackage.sha256(of: binary)?.lowercased() == meta.sha256 || tool.archive == "zip" else { continue }
+            return (binary, meta)
+        }
+        return nil
     }
 
     enum ToolError: Error {
@@ -73,6 +113,7 @@ final class PluginTools {
               let meta = storedMeta(of: tool), meta.url == tool.resolvedURL else { return nil }
         if let pinned = tool.sha256, pinned.lowercased() != meta.sha256 { return nil }
         if let days = tool.refreshDays, Date().timeIntervalSince(meta.fetched) > Double(days) * 86_400 { return nil }
+        if meta.outdated == true { return nil }
         return url
     }
 
@@ -92,6 +133,23 @@ final class PluginTools {
             && storedMeta(of: tool)?.url == tool.resolvedURL
         guard sameSource || ask() else { throw ToolError.declined }
         let who = owner.isEmpty ? tool.id : owner
+        // Hat ein anderes Plugin dasselbe Programm schon geladen: mitbenutzen statt laden
+        // (Nicht beim Aktualisieren: Dann soll es wirklich neu geladen werden)
+        if storedMeta(of: tool)?.outdated != true, let shared = sharedCopy(of: tool) {
+            let fm = FileManager.default
+            try? fm.createDirectory(at: folder(tool), withIntermediateDirectories: true)
+            let target = binary(tool)
+            try? fm.removeItem(at: target)
+            do {
+                // Feste Verknüpfung: kein zweiter Platz auf der Platte; geht das nicht, Kopie
+                do { try fm.linkItem(at: shared.binary, to: target) } catch { try fm.copyItem(at: shared.binary, to: target) }
+                try JSONEncoder().encode(shared.meta).write(to: folder(tool).appendingPathComponent("meta.json"))
+                PluginLog.shared.record(who, "programm", "\(tool.id): von einem anderen Plugin mitbenutzt (\(shared.meta.sha256.prefix(12)))")
+                return target
+            } catch {
+                try? fm.removeItem(at: target)   // dann eben laden
+            }
+        }
         PluginLog.shared.record(who, "programm", "\(tool.id): lade \(tool.resolvedURL)")
         let started = Date()
         let expected = try expectedChecksum(tool)

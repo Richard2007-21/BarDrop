@@ -38,6 +38,9 @@ final class PluginJob: ObservableObject, Identifiable {
     @Published var resultType: UTType?
     /// Gescheitert: Der Platzhalter rüttelt kurz, bevor er verschwindet
     @Published var failed = false
+    /// Zu sehen erst nach einem Augenblick: Ein Lauf, der sofort fertig ist (etwa ein Plugin,
+    /// das nichts zu tun hat), blitzt so nicht als Platzhalter auf
+    var shown = false
 
     fileprivate weak var runtime: PluginRuntime?
     /// Letzte Meldung an die Oberfläche (höchstens alle 100 ms, sonst zeichnet die Ablage zu oft)
@@ -93,15 +96,22 @@ final class PluginJob: ObservableObject, Identifiable {
 
 enum PluginRunError: Error, Equatable {
     case cancelled
-    case script(String)
+    /// Fehler im Skript; `hint` ist ein Tipp des Plugins (`throw { message, hint }`), den
+    /// BarDrop abgesetzt unter der Meldung zeigt
+    case script(String, hint: String? = nil)
     case permissionDenied(PluginPermission)
 
     var message: String {
         switch self {
         case .cancelled: return L("Canceled", "Abgebrochen")
-        case .script(let text): return text
+        case .script(let text, _): return text
         case .permissionDenied(let p): return L("Not allowed: \(p.title)", "Nicht erlaubt: \(p.title)")
         }
+    }
+
+    var hint: String? {
+        if case .script(_, let hint) = self { return hint }
+        return nil
     }
 }
 
@@ -199,7 +209,7 @@ final class PluginRuntime {
             ScriptWatchdog.install(on: context, flag: stopFlag)
             context.name = plugin.manifest.name.text(for: .english)
             context.exceptionHandler = { [weak self] _, exception in
-                self?.finish(.failure(.script(PluginRuntime.describe(exception))))
+                self?.finish(.failure(.script(PluginRuntime.describe(exception), hint: PluginRuntime.hint(of: exception))))
             }
             installAPI(in: context)
             // console.log & Co. landen im Diagnoseprotokoll (JavaScriptCore kennt kein console)
@@ -236,6 +246,14 @@ final class PluginRuntime {
 
     /// Fehlermeldung eines Skripts: Text, bei Fehlern im Skript mit Datei und Zeile
     /// („TypeError: … (main.js:12)“), damit man die Stelle findet
+    /// Tipp zu einem Fehler: Eigenschaft `hint` des geworfenen Objekts (Text, höchstens 300 Zeichen)
+    static func hint(of error: JSValue?) -> String? {
+        guard let error, error.isObject, error.hasProperty("hint"),
+              let value = error.forProperty("hint"), value.isString else { return nil }
+        let text = (value.toString() ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : String(text.prefix(300))
+    }
+
     static func describe(_ error: JSValue?) -> String {
         guard let error, !error.isUndefined, !error.isNull else { return "Error" }
         guard error.isObject, error.hasProperty("message") else { return error.toString() ?? "Error" }
@@ -468,6 +486,16 @@ final class PluginRuntime {
         }
         set("download", download)
 
+        // Programm suchen, wie `which`, aber an allen Orten, die auch `run` kennt; lädt nichts
+        let findProgram: @convention(block) (JSValue) -> JSValue = { [weak self] name in
+            guard let self, let ctx = JSContext.current() else { return JSValue(undefinedIn: JSContext.current()) }
+            guard name.isString else { return JSValue(nullIn: ctx) }
+            let found = self.findProgram(name.toString() ?? "")
+            PluginLog.shared.record(self.plugin.id, "programm", "suche \(name.toString() ?? ""): \(found ?? "nicht gefunden")")
+            return found.map { JSValue(object: $0, in: ctx) } ?? JSValue(nullIn: ctx)
+        }
+        set("findProgram", findProgram)
+
         let sleep: @convention(block) (JSValue) -> JSValue = { [weak self] ms in
             let seconds = max(0, min(ms.isNumber ? ms.toDouble() / 1000 : 0, 3600))
             return self?.promise { resolve, _ in
@@ -487,7 +515,7 @@ final class PluginRuntime {
         let done: @convention(block) () -> Void = { [weak self] in self?.finish(.success([])) }
         context.setObject(done, forKeyedSubscript: "__bardropDone" as NSString)
         let fail: @convention(block) (JSValue) -> Void = { [weak self] error in
-            self?.finish(.failure(.script(PluginRuntime.describe(error))))
+            self?.finish(.failure(.script(PluginRuntime.describe(error), hint: PluginRuntime.hint(of: error))))
         }
         context.setObject(fail, forKeyedSubscript: "__bardropFail" as NSString)
     }
@@ -705,7 +733,39 @@ final class PluginRuntime {
     // MARK: Programme
 
     /// Orte für Programme ohne Pfad: System und Homebrew
-    private static let searchPaths = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin", "/usr/local/bin"]
+    /// Orte für Programme ohne Pfad: System, Homebrew und die Programmordner im
+    /// Benutzerordner (`~/.<werkzeug>/bin`, `~/.local/bin`): Viele Laufzeiten und
+    /// Paketverwaltungen installieren dorthin, wenn nicht über Homebrew
+    static let searchPaths: [String] = {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser
+        let hidden = ((try? fm.contentsOfDirectory(atPath: home.path)) ?? [])
+            .filter { $0.hasPrefix(".") && $0 != "." && $0 != ".." && $0 != ".Trash" }
+            .sorted()
+            .map { home.appendingPathComponent($0).appendingPathComponent("bin").path }
+            .filter { var dir: ObjCBool = false; return fm.fileExists(atPath: $0, isDirectory: &dir) && dir.boolValue }
+        return ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin", "/usr/local/bin"]
+            + hidden + [home.appendingPathComponent(".local/bin").path].filter { !hidden.contains($0) }
+    }()
+
+    /// Wo nach einem Programm ohne Pfad gesucht wird, in dieser Reihenfolge: eigene Werkzeuge,
+    /// System und Homebrew, Benutzerordner, zuletzt Werkzeuge, die andere Plugins schon geladen
+    /// haben (geprüfte Downloads; so findet ein Plugin eine Laufzeit, die es nicht selbst lädt).
+    /// Auch PATH der gestarteten Programme, damit `which` dasselbe findet.
+    private var programFolders: [String] {
+        let own = tools.folders(for: plugin.manifest.tools ?? [])
+        return own + Self.searchPaths + tools.sharedFolders().filter { !own.contains($0) }
+    }
+
+    /// Programm suchen, ohne etwas zu laden: Pfad oder nil
+    private func findProgram(_ name: String) -> String? {
+        if let tool = plugin.manifest.tools?.first(where: { $0.id == name }), let url = tools.installed(tool) {
+            return url.path
+        }
+        if name.hasPrefix("/") { return FileManager.default.isExecutableFile(atPath: name) ? name : nil }
+        guard !name.isEmpty, !name.contains("/") else { return nil }
+        return programFolders.map { $0 + "/" + name }.first(where: FileManager.default.isExecutableFile)
+    }
 
     private func run(_ command: JSValue, _ args: JSValue, _ options: JSValue,
                      _ resolve: @escaping (Any?) -> Void, _ reject: @escaping (String) -> Void) {
@@ -770,7 +830,7 @@ final class PluginRuntime {
             return URL(fileURLWithPath: name)
         }
         guard !name.contains("/"),
-              let path = Self.searchPaths.map({ $0 + "/" + name }).first(where: FileManager.default.isExecutableFile) else {
+              let path = programFolders.map({ $0 + "/" + name }).first(where: FileManager.default.isExecutableFile) else {
             throw PluginRunError.script(L("Program not found: \(name)", "Programm nicht gefunden: \(name)"))
         }
         return URL(fileURLWithPath: path)
@@ -781,7 +841,7 @@ final class PluginRuntime {
         var environment = ProcessInfo.processInfo.environment
         // Programme dieses Plugins zuerst (so findet z. B. ein Werkzeug eine mitgeladene
         // Laufzeit), dann System und Homebrew
-        environment["PATH"] = (tools.folders(for: plugin.manifest.tools ?? []) + Self.searchPaths).joined(separator: ":")
+        environment["PATH"] = programFolders.joined(separator: ":")
         environment["BARDROP_OUTPUT"] = outputDirectory.path
         let out = Pipe(), err = Pipe()
         // Eigener Start statt Process: Argumente wörtlich (siehe PluginProcess)

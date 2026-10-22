@@ -53,10 +53,19 @@ enum PluginDialogs {
         return run(alert, ui: ui) == .alertFirstButtonReturn
     }
 
-    static func showError(_ message: String, of plugin: InstalledPlugin, ui: ShelfUIModel?) {
+    static func showError(_ message: String, hint: String? = nil, of plugin: InstalledPlugin, ui: ShelfUIModel?) {
         let alert = makeAlert(plugin.manifest)
         alert.messageText = L("“\(plugin.manifest.name.text)” didn’t work", "„\(plugin.manifest.name.text)“ hat nicht geklappt")
         alert.informativeText = String(message.prefix(600))
+        // Tipp des Plugins abgesetzt unter der Meldung, kleiner und grau
+        if let hint {
+            let label = NSTextField(wrappingLabelWithString: hint)
+            label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            label.textColor = .secondaryLabelColor
+            label.preferredMaxLayoutWidth = 260
+            label.frame = NSRect(x: 0, y: 0, width: 260, height: label.fittingSize.height)
+            alert.accessoryView = label
+        }
         alert.addButton(withTitle: "OK")
         run(alert, ui: ui)
     }

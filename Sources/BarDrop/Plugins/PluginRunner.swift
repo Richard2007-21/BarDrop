@@ -19,7 +19,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     private let manager: PluginManager
     private weak var actions: ShelfActions?
     private var runtimes: [UUID: PluginRuntime] = [:]
-    private lazy var tools = PluginTools(directory: manager.toolsDirectory)
+    private var tools: PluginTools { manager.tools }
     /// Höchstens so viele Plugins gleichzeitig; weitere warten (schont den Mac)
     static let maxConcurrent = 3
     private var waiting: [PluginJob] = []
@@ -72,6 +72,13 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         return active.filter { plugin in items.contains { PluginMatcher.matches(plugin.manifest.match, $0) } }
     }
 
+    /// So lange nach dem Start bleibt ein Lauf unsichtbar (kein Platzhalter, kein „Plugin läuft“)
+    static let showDelay: TimeInterval = 0.3
+
+    /// Läufe, die schon zu sehen sind
+    var visibleJobs: [PluginJob] { jobs.filter(\.shown) }
+    var hasVisibleJobs: Bool { jobs.contains(where: \.shown) }
+
     func job(for id: UUID?) -> PluginJob? {
         guard let id else { return nil }
         return jobs.first { $0.id == id }
@@ -81,7 +88,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     func jobs(nextTo fileIDs: [UUID]) -> [PluginJob] {
         guard !jobs.isEmpty else { return [] }
         let ids = Set(fileIDs)
-        return jobs.filter { ids.contains($0.anchorFileID) && !$0.replacesOriginal }
+        return jobs.filter { $0.shown && ids.contains($0.anchorFileID) && !$0.replacesOriginal }
     }
 
     // MARK: Starten
@@ -182,7 +189,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     /// Platzhalter, der an der Stelle dieser Datei steht (sie selbst ist dann nicht zu sehen)
     func replacingJob(for fileID: UUID) -> PluginJob? {
         guard !jobs.isEmpty else { return nil }
-        return jobs.first { $0.replacesOriginal && $0.anchorFileID == fileID }
+        return jobs.first { $0.shown && $0.replacesOriginal && $0.anchorFileID == fileID }
     }
 
     /// Hat das Plugin alles, um ohne Rückfrage zu laufen?
@@ -192,7 +199,15 @@ final class PluginRunner: ObservableObject, PluginPrompter {
     }
 
     private func enqueue(_ job: PluginJob) {
-        withAnimation(.easeOut(duration: 0.2)) { jobs.append(job) }
+        jobs.append(job)
+        // Erst nach einem Augenblick zeigen; ist der Lauf bis dahin fertig, sieht man nichts
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.showDelay) { [weak self] in
+            guard let self, self.jobs.contains(where: { $0 === job }) else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                job.shown = true
+                self.objectWillChange.send()
+            }
+        }
         if runtimes.count < Self.maxConcurrent { launch(job) } else { waiting.append(job) }
     }
 
@@ -243,10 +258,11 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             removeJob(job)   // ohne Meldung: Die Kachel verschwindet
         case .failure(let error):
             PluginLog.shared.record(job.plugin.id, "fehler", error.message)
-            manager.lastErrors[job.plugin.id] = String(error.message.prefix(600))
+            if let hint = error.hint { PluginLog.shared.record(job.plugin.id, "hinweis", hint) }
+            manager.lastErrors[job.plugin.id] = String(error.message.prefix(600)) + (error.hint.map { "\n\n" + $0 } ?? "")
             // Erst kurz rütteln, damit man sieht, welcher Platzhalter es war, dann weg
             // (Ohne Dialoge, etwa in Tests, gleich weg)
-            if showsErrorDialogs {
+            if showsErrorDialogs && job.shown {
                 job.failed = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + PluginJobTile.failureDuration) { [weak self] in
                     self?.removeJob(job)
@@ -446,7 +462,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
 
     private func showError(_ error: PluginRunError, of plugin: InstalledPlugin) {
         DispatchQueue.main.async { [weak self] in
-            PluginDialogs.showError(error.message, of: plugin, ui: self?.actions?.ui)
+            PluginDialogs.showError(error.message, hint: error.hint, of: plugin, ui: self?.actions?.ui)
         }
     }
 }

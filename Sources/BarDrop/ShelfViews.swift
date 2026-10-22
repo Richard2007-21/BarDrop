@@ -482,7 +482,7 @@ struct ShelfContent: View {
                 .help(backHelp)
                 Spacer(minLength: 8)
                 let selected = ui.memberSelection.intersection(stack.files.map(\.id)).count
-                if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
+                if ui.notice == nil && selected == 0 && runner.hasVisibleJobs {
                     runningPlugins
                 } else {
                     status(selected > 0 ? L("\(selected) selected", "\(selected) ausgewählt")
@@ -511,7 +511,7 @@ struct ShelfContent: View {
                         ProgressView().controlSize(.mini)
                         countLabel(L("Importing", "Importieren"))
                     }
-                } else if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
+                } else if ui.notice == nil && selected == 0 && runner.hasVisibleJobs {
                     // Plugins arbeiten: das statt der Anzahl
                     runningPlugins
                 } else {
@@ -527,7 +527,7 @@ struct ShelfContent: View {
     /// Plugins mit Anzahl. Meldungen und eine Auswahl haben Vorrang.
     @ViewBuilder
     private var runningPlugins: some View {
-        let running = Set(runner.jobs.map(\.plugin.id)).count
+        let running = Set(runner.visibleJobs.map(\.plugin.id)).count
         if running > 0 {
             countLabel(running == 1 ? L("Plugin running", "Plugin läuft")
                                     : L("\(running) plugins running", "\(running) Plugins laufen"))
@@ -574,7 +574,7 @@ struct ShelfContent: View {
         let selected = ui.memberSelection.intersection(stack.files.map(\.id)).count
         let count = stack.files.count
         Group {
-            if ui.notice == nil && selected == 0 && !runner.jobs.isEmpty {
+            if ui.notice == nil && selected == 0 && runner.hasVisibleJobs {
                 runningPlugins
             } else if ui.notice == nil && selected == 0 {
                 if !folder.isLoading {

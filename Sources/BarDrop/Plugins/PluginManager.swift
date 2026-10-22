@@ -109,6 +109,36 @@ final class PluginManager: ObservableObject {
     @Published private(set) var broken: [String: String] = [:]
     /// Letzter Fehler je Plugin (nur bis zum Beenden), sichtbar in den Einstellungen
     @Published var lastErrors: [String: String] = [:]
+    /// Geladene Programme, gemeinsam für alle Läufe (lädt jedes Programm nur einmal gleichzeitig)
+    lazy var tools = PluginTools(directory: toolsDirectory)
+    /// „Programme aktualisieren“ je Plugin: läuft gerade bzw. Ergebnis
+    enum ToolRefresh: Equatable { case running, done, failed(String) }
+    @Published var toolRefresh: [String: ToolRefresh] = [:]
+
+    /// Programme eines Plugins neu laden (nur die, die es schon geladen und erlaubt hat).
+    /// Läuft im Hintergrund; Stand in `toolRefresh`.
+    func refreshTools(of plugin: InstalledPlugin) {
+        let approved = Set(state(plugin.id).approvedTools)
+        let list = (plugin.manifest.tools ?? []).filter { approved.contains($0.approvalKey) }
+        guard !list.isEmpty, toolRefresh[plugin.id] != .running else { return }
+        toolRefresh[plugin.id] = .running
+        PluginLog.shared.record(plugin.id, "programm", "aktualisiere: " + list.map(\.id).joined(separator: ", "))
+        let tools = self.tools
+        tools.markOutdated(list)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var failure: String?
+            for tool in list {
+                do {
+                    _ = try tools.ensure(tool, owner: plugin.id, ask: { false }, cancelled: { false })
+                } catch {
+                    failure = (error as? PluginTools.ToolError)?.message ?? error.localizedDescription
+                }
+            }
+            DispatchQueue.main.async {
+                self?.toolRefresh[plugin.id] = failure.map { .failed($0) } ?? .done
+            }
+        }
+    }
     /// Laufende und wartende Läufe je Plugin (für „Läuft gerade“ in den Einstellungen)
     @Published var runningCounts: [String: Int] = [:]
     /// Beendet alle Läufe eines Plugins (gesetzt von der Ablage, die sie startet)
