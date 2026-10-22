@@ -242,6 +242,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.setFrameOrigin(NSPoint(x: (area.midX - size.width / 2).rounded(),
                                           y: (area.midY - size.height / 2).rounded()))
         }
+        // Solange die Einstellungen offen sind, ist BarDrop eine normale App (Dock-Symbol,
+        // ⌘⇥). Ohne Dock-Symbol behandelt macOS das Fenster nicht wie ein normales: Nach dem
+        // Kontrollzentrum oder einem Menü der Menüleiste bekam die App davor den Fokus, und
+        // die Einstellungen rutschten hinter andere Fenster oder waren nicht mehr aktiv
+        if NSApp.activationPolicy() != .regular {
+            NSApp.setActivationPolicy(.regular)
+            Diagnostics.shared.record("focus", "Einstellungen offen: normale App mit Dock-Symbol")
+        }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
         // Neue Version? Dann zeigt „Über BarDrop“ einen dezenten Hinweis, ohne eigenes Fenster
@@ -250,7 +258,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         if (notification.object as? NSWindow) === settingsWindow {
-            DispatchQueue.main.async { NSApp.deactivate() }
+            DispatchQueue.main.async {
+                // Wieder ohne Dock-Symbol, wie sonst
+                if NSApp.activationPolicy() != .accessory {
+                    NSApp.setActivationPolicy(.accessory)
+                    Diagnostics.shared.record("focus", "Einstellungen zu: wieder ohne Dock-Symbol")
+                }
+                NSApp.deactivate()
+            }
         }
     }
 
