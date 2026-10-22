@@ -779,28 +779,36 @@ final class PluginRuntime {
                 onOutput.call(withArguments: [line])
             }
         }
-        out.fileHandleForReading.readabilityHandler = { handle in
-            collected.add(handle.availableData, stderr: false, lines: lineHandler)
+        // Jede Ausgabe hat genau einen Leser, bis zu ihrem Ende. Fertig ist der Aufruf erst,
+        // wenn beide zu Ende gelesen sind und das Programm beendet ist. (Las beim Ende ein
+        // zweiter Faden den Rest, während der erste noch das letzte Stück verarbeitete,
+        // kamen Zeilen in falscher Reihenfolge an.)
+        let finished = DispatchGroup()
+        finished.enter(); finished.enter(); finished.enter()
+        func read(_ pipe: Pipe, stderr isErr: Bool) {
+            Thread.detachNewThread {
+                let handle = pipe.fileHandleForReading
+                while true {
+                    let data = handle.availableData
+                    if data.isEmpty { break }
+                    collected.add(data, stderr: isErr, lines: lineHandler)
+                }
+                finished.leave()
+            }
         }
-        err.fileHandleForReading.readabilityHandler = { handle in
-            collected.add(handle.availableData, stderr: true, lines: lineHandler)
-        }
-        process.terminationHandler = { [weak self] finished in
-            out.fileHandleForReading.readabilityHandler = nil
-            err.fileHandleForReading.readabilityHandler = nil
-            collected.add(out.fileHandleForReading.readDataToEndOfFile(), stderr: false, lines: lineHandler)
-            collected.add(err.fileHandleForReading.readDataToEndOfFile(), stderr: true, lines: lineHandler)
+        process.terminationHandler = { _ in finished.leave() }
+        let ended: () -> Void = { [weak self] in
             collected.flush(lines: lineHandler)
             if let self {
-                self.lock.lock(); self.processes.removeAll { $0 === finished }; self.lock.unlock()
+                self.lock.lock(); self.processes.removeAll { $0 === process }; self.lock.unlock()
             }
             let result = collected.result
             if let self {
                 let tail = result.stderr.split(whereSeparator: \.isNewline).suffix(3).joined(separator: " | ")
                 PluginLog.shared.record(self.plugin.id, "programm",
-                                        "\(executable.lastPathComponent) beendet: Code \(finished.terminationStatus), \(String(format: "%.1f", Date().timeIntervalSince(started))) s\(tail.isEmpty ? "" : ", stderr: " + tail)")
+                                        "\(executable.lastPathComponent) beendet: Code \(process.terminationStatus), \(String(format: "%.1f", Date().timeIntervalSince(started))) s\(tail.isEmpty ? "" : ", stderr: " + tail)")
             }
-            resolve(["code": Int(finished.terminationStatus), "stdout": result.stdout, "stderr": result.stderr])
+            resolve(["code": Int(process.terminationStatus), "stdout": result.stdout, "stderr": result.stderr])
         }
         lock.lock()
         // Auch nach dem Ende nichts mehr starten: Ein Programm, auf das das Skript nicht
@@ -813,10 +821,11 @@ final class PluginRuntime {
             processes.append(process)
             if _paused { kill(process.processIdentifier, SIGSTOP) }
             lock.unlock()
+            read(out, stderr: false)
+            read(err, stderr: true)
+            finished.notify(queue: .global(qos: .userInitiated), execute: ended)
         } catch {
             lock.unlock()
-            out.fileHandleForReading.readabilityHandler = nil
-            err.fileHandleForReading.readabilityHandler = nil
             reject(error.localizedDescription)
         }
     }
