@@ -67,6 +67,9 @@ final class ContentImporter {
             // zieht man ein Bild (Google-Bildersuche, Bilder im Web), und der Text ist bloß
             // die Seite dazu. Sonst landete statt des Bildes ein Link in der Ablage.
             let incidental = snapshot.webURLFromText && (!promises.isEmpty || snapshot.image != nil)
+            if snapshot.prefersLink {
+                Diagnostics.shared.record("import", "Plugin möchte den Link: nebenbei=\(incidental) versprechen=\(promises.count) bild=\(snapshot.image != nil) nurText=\(snapshot.webURLFromText)")
+            }
             if snapshot.prefersLink, !incidental, let link = snapshot.webURL,
                let webloc = writeWebloc(link, title: snapshot.urlTitle) {
                 Log.importing.info("Link für ein Plugin übernommen")
@@ -88,6 +91,7 @@ final class ContentImporter {
                     Log.importing.info("Versprechen leer, nehme Dateiadressen")
                     self.importFiles(fileURLs, completion: completion)
                 } else {
+                    Diagnostics.shared.record("import", "Versprechen leer, nehme übrige Inhalte")
                     Log.importing.info("Versprechen leer, nehme übrige Inhalte")
                     self.importSnapshot(snapshot, completion: completion)
                 }
@@ -289,9 +293,12 @@ final class ContentImporter {
         let convert = convertImages
 
         for promise in promises {
+            // Diagnose: welche Art Datei versprochen ist (nur Typ und Endung, keine Namen)
+            Diagnostics.shared.record("import", "Versprechen typen=\(promise.fileTypes.joined(separator: ",")) endungen=\(promise.fileNames.map { ($0 as NSString).pathExtension }.joined(separator: ","))")
             promise.receivePromisedFiles(atDestination: dir, options: [:], operationQueue: promiseQueue) { received, error in
                 var url: URL?
                 if let error {
+                    Diagnostics.shared.record("import", "Versprechen nicht erfüllt: \((error as NSError).domain)#\((error as NSError).code)")
                     Log.importing.error("Versprechen nicht erfüllt: \(error.localizedDescription, privacy: .public)")
                 } else if ImporterChecks.isUsableFile(received) {
                     // Vom Browser geschrieben: als saubere Datei neu anlegen
@@ -679,6 +686,8 @@ struct PasteboardSnapshot {
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
            let first = urls.first(where: { !$0.isFileURL }) {
             webURL = first
+            // AppKit liest eine Adresse auch aus bloßem Text: Dann zählt sie nur als Text
+            webURLFromText = !Self.hasLinkType(pb)
         }
         if let html = pb.string(forType: .html) {
             imageSource = Self.imageSource(in: html, relativeTo: webURL)
@@ -693,6 +702,13 @@ struct PasteboardSnapshot {
         if let webURL, let wanted = Self.linkWanted, Thread.isMainThread {
             prefersLink = wanted(webURL)
         }
+    }
+
+    /// Liegt ein echter Link bei (gezogener Link, Lesezeichen), nicht nur Text mit einer Adresse?
+    static func hasLinkType(_ pb: NSPasteboard) -> Bool {
+        let linkTypes: Set<String> = ["public.url", "WebURLsWithTitlesPboardType", "Apple URL pasteboard type",
+                                      "CorePasteboardFlavorType 0x75726C20"]
+        return (pb.types ?? []).contains { linkTypes.contains($0.rawValue) }
     }
 
     /// Ein Bildobjekt, das AppKit aus dem Pasteboard lesen kann, als PNG.
