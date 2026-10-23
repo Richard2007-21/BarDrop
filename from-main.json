@@ -1,3 +1,5 @@
 {
-  "plugins": []
+  "plugins": [
+    "io.github.richard2007-21.stems"
+  ]
 }

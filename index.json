@@ -1,4 +1,31 @@
 {
   "schema": 1,
-  "plugins": []
+  "plugins": [
+    {
+      "id": "io.github.richard2007-21.stems",
+      "version": "1.0.0",
+      "name": {
+        "en": "Separate Vocals",
+        "de": "Gesang und Musik trennen"
+      },
+      "url": "https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/plugins/io.github.richard2007-21.stems/io.github.richard2007-21.stems-1.0.0.bdrop",
+      "sha256": "66bed2a8173b284526246e703105652f23a26a918bbf318be37516446232f84d",
+      "size": 3993,
+      "updated": "2026-10-23",
+      "permissions": [
+        "run"
+      ],
+      "tools": [],
+      "description": {
+        "en": "Splits songs and video sound into vocals and music (or vocals, drums, bass, rest) with a local AI model (Demucs). Nothing leaves the Mac.",
+        "de": "Teilt Songs und Videoton in Gesang und Musik (oder Gesang, Schlagzeug, Bass, Rest), mit einem lokalen KI-Modell (Demucs). Nichts verlässt den Mac."
+      },
+      "icon": {
+        "symbol": "waveform.and.person.filled",
+        "color": "#FF9500"
+      },
+      "author": "Richard",
+      "minAppVersion": "1.31.0"
+    }
+  ]
 }
