@@ -157,7 +157,7 @@ struct PluginSettings: View {
                 // Noch nichts installiert: gleich zeigen, was es gibt
                 GalleryPage(manager: manager, title: L("Available", "Verfügbar")) { id in open(.plugin(id)) }
             } else {
-                SettingsSection(L("Installed", "Installiert")) {
+                SettingsSection(L("Installed", "Installiert"), trailing: { UpdateCheckButton(manager: manager) }) {
                     ForEach(manager.plugins) { plugin in
                         InstalledRow(plugin: plugin, manager: manager) { open(.plugin(plugin.id)) }
                     }
@@ -189,19 +189,21 @@ struct PluginSettings: View {
     private var footer: some View {
         HStack(spacing: 8) {
             Spacer(minLength: 0)
-            Menu {
-                Toggle(L("Record Plugin Log", "Plugin-Protokoll aufzeichnen"), isOn: pluginLog)
+            // Einfache Knöpfe statt eines Menüs: Ein Menü mit Häkchen sah nach einer Auswahl aus.
+            // Aus: einschalten. An (nur bei der Fehlersuche): sichern oder beenden.
+            if settings.pluginLogEnabled {
+                Button(L("Stop Log", "Protokoll beenden")) { pluginLog.wrappedValue = false }
+                    .buttonStyle(KlackButtonStyle())
+                    .help(L("Stops recording and deletes the plugin log.",
+                            "Beendet die Aufzeichnung und löscht das Plugin-Protokoll."))
                 Button(L("Save Log", "Protokoll sichern")) { PluginLog.shared.saveReport() }
-                    .disabled(!settings.pluginLogEnabled)
-            } label: {
-                Text(settings.pluginLogEnabled ? L("Log On", "Protokoll an") : L("Log", "Protokoll"))
+                    .buttonStyle(KlackButtonStyle())
+            } else {
+                Button(L("Record Log", "Protokoll aufzeichnen")) { pluginLog.wrappedValue = true }
+                    .buttonStyle(KlackButtonStyle())
+                    .help(L("Records what plugins do, including file names and error messages, to help find problems. Stays on this Mac until you save it.",
+                            "Hält fest, was Plugins tun, mit Dateinamen und Fehlermeldungen, um Probleme zu finden. Bleibt auf diesem Mac, bis du es sicherst."))
             }
-            .menuStyle(.button)
-            .menuIndicator(.hidden)
-            .buttonStyle(KlackButtonStyle())
-            .fixedSize()
-            .help(L("Records what plugins do, including file names and error messages, to help find problems. Stays on this Mac until you save it.",
-                    "Hält fest, welches Plugin wann läuft, was klappt und was fehlschlägt, um Probleme zu finden. Bleibt auf diesem Mac, bis du es sicherst."))
             importButton
         }
     }
@@ -211,6 +213,52 @@ struct PluginSettings: View {
             .buttonStyle(KlackButtonStyle())
             .help(L("Install a .bdrop file. You can also double-click it.",
                     "Installiert eine .bdrop-Datei. Du kannst sie auch im Finder doppelklicken."))
+    }
+}
+
+/// „Nach Updates suchen“ rechts über der Liste: fragt die Galerie sofort statt beim nächsten
+/// Abgleich. Danach steht dort kurz, was dabei herauskam.
+private struct UpdateCheckButton: View {
+    @ObservedObject var manager: PluginManager
+    @State private var result: String?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if manager.syncing {
+                ProgressView().controlSize(.small)
+            } else if let result {
+                Text(result)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .transition(.opacity)
+            }
+            Button(L("Check for Updates", "Nach Updates suchen"), action: check)
+                .buttonStyle(.plain)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(Color(nsColor: .controlAccentColor))
+                .disabled(manager.syncing)
+                .help(L("Plugins from the gallery also update by themselves, at most once a day.",
+                        "Plugins aus der Galerie aktualisieren sich auch von selbst, höchstens einmal am Tag."))
+        }
+    }
+
+    private func check() {
+        let before = manager.recentlyUpdated
+        withAnimation { result = nil }
+        manager.syncCatalog(force: true) {
+            let updated = manager.recentlyUpdated.filter { before[$0.key] != $0.value }.count
+            let text: String
+            if manager.syncFailed {
+                text = L("No connection", "Keine Verbindung")
+            } else if updated == 0 {
+                text = L("All up to date", "Alles aktuell")
+            } else {
+                text = updated == 1 ? L("1 plugin updated", "1 Plugin aktualisiert")
+                                    : L("\(updated) plugins updated", "\(updated) Plugins aktualisiert")
+            }
+            withAnimation { result = text }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { withAnimation { result = nil } }
+        }
     }
 }
 
@@ -275,6 +323,9 @@ private struct InstalledRow: View {
             return (L("Needs your permission", "Braucht deine Erlaubnis"), .orange)
         }
         if manager.lastErrors[plugin.id] != nil { return (L("Last run failed", "Letzter Lauf fehlgeschlagen"), .orange) }
+        if let version = manager.recentlyUpdated[plugin.id] {
+            return (L("Updated to \(version)", "Aktualisiert auf \(version)"), Color(nsColor: .controlAccentColor))
+        }
         var parts = [L("Version \(plugin.manifest.version)", "Version \(plugin.manifest.version)")]
         if let size { parts.append(PluginSize.text(size)) }
         return (parts.joined(separator: " · "), .secondary)
@@ -504,20 +555,8 @@ private struct PluginPageView: View {
         Binding(get: { state.replaceOriginal }, set: { on in manager.update(plugin.id) { $0.replaceOriginal = on } })
     }
 
-    private var inActionBar: Binding<Bool> {
-        Binding(get: { settings.quickActions.contains { $0.kind == .plugin && $0.path == plugin.id } },
-                set: { on in
-                    if on {
-                        guard settings.quickActions.count < QuickAction.limit else { return NSSound.beep() }
-                        settings.quickActions.append(QuickAction(kind: .plugin, path: plugin.id))
-                    } else {
-                        settings.quickActions.removeAll { $0.kind == .plugin && $0.path == plugin.id }
-                    }
-                })
-    }
-
     private var hasTriggers: Bool {
-        manifest.allTriggers.contains(.action) || manifest.allTriggers.contains(.automatic) || manifest.canReplaceOriginal == true
+        manifest.allTriggers.contains(.automatic) || manifest.canReplaceOriginal == true
     }
 
     var body: some View {
@@ -570,11 +609,7 @@ private struct PluginPageView: View {
         .onChange(of: manager.toolRefresh[plugin.id]) { _, _ in sizes = PluginSize.parts(of: plugin, tools: manager.tools) }
 
         if hasTriggers {
-            SettingsSection(L("When it runs", "Wann es läuft"),
-                            note: matchesNote) {
-                if manifest.allTriggers.contains(.action) {
-                    ToggleRow(L("In the action bar", "In der Aktionsleiste"), isOn: inActionBar)
-                }
+            SettingsSection(L("When it runs", "Wann es läuft")) {
                 if manifest.allTriggers.contains(.automatic) {
                     SettingsRow(L("Automatically when dropped", "Automatisch beim Ablegen"),
                                 subtitle: L("Runs as soon as you drop a matching item.",
@@ -605,9 +640,7 @@ private struct PluginPageView: View {
         // Info: nur, was man wissen oder tun will; der Rest als eine graue Zeile darunter
         SettingsSection(L("Info", "Info"), note: infoLine) {
             InfoValueRow(L("Internet", "Internet"), PluginConnectivity(manifest: manifest).answer)
-            if !hasTriggers {
-                InfoValueRow(L("Works with", "Passt zu"), PluginSummary.matches(manifest.match))
-            }
+            InfoValueRow(L("Works with", "Passt zu"), PluginSummary.matches(manifest.match))
             if let tools = manifest.tools, !tools.isEmpty {
                 SettingsRow(tools.count == 1 ? L("Program", "Programm") : L("Programs", "Programme")) {
                     HStack(spacing: 8) {
@@ -640,12 +673,6 @@ private struct PluginPageView: View {
             }
             .padding(.horizontal, 4)
         }
-    }
-
-    /// Unter „Wann es läuft“: wofür das Plugin da ist, und dass es im Rechtsklick-Menü steht
-    private var matchesNote: String {
-        L("Works with \(PluginSummary.matches(manifest.match)). Always in the right-click menu of matching items.",
-          "Passt zu: \(PluginSummary.matches(manifest.match)). Steht immer im Rechtsklick-Menü passender Objekte.")
     }
 
     /// „Version 1.2.0 · zzuuuiii · 8 KB“
@@ -790,8 +817,10 @@ private struct PluginPermissionsPage: View {
         }
 
         if let consent = manifest.consent {
-            SettingsSection(L("Notice", "Hinweis")) {
-                AccessRow(symbol: "text.bubble", title: consent.text, subtitle: nil,
+            // Kurze Zeile mit dem Stand, der lange Text des Plugins darunter in voller Breite
+            // (in der Zeile stand er schmal zwischen Zeichen und Stand und wirkte verschoben)
+            SettingsSection(L("Notice", "Hinweis"), note: consent.text) {
+                AccessRow(symbol: "text.bubble", title: L("Plugin’s notice", "Hinweis des Plugins"), subtitle: nil,
                           granted: manager.hasConsented(plugin), allowed: L("Agreed", "Zugestimmt"))
             }
         }

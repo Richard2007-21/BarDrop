@@ -42,6 +42,9 @@ struct PluginState: Codable, Equatable {
     var isStandard = false
     /// Aus dem Katalog geladen (nicht importiert): bekommt neue Versionen von dort
     var fromCatalog = false
+    /// Stand in der Aktionsleiste, als das Plugin ausgeschaltet wurde: kommt beim
+    /// Einschalten wieder dorthin
+    var parkedInActionBar = false
 
     init() {}
 
@@ -59,6 +62,7 @@ struct PluginState: Codable, Equatable {
         approvedTools = try c.decodeIfPresent([String].self, forKey: .approvedTools) ?? []
         isStandard = try c.decodeIfPresent(Bool.self, forKey: .isStandard) ?? false
         fromCatalog = try c.decodeIfPresent(Bool.self, forKey: .fromCatalog) ?? false
+        parkedInActionBar = try c.decodeIfPresent(Bool.self, forKey: .parkedInActionBar) ?? false
     }
 }
 
@@ -124,6 +128,9 @@ final class PluginManager: ObservableObject {
     /// Alles, was die Galerie zeigt (auch schon installierte Plugins), in der Reihenfolge des Katalogs
     @Published private(set) var catalogEntries: [PluginCatalogEntry] = []
     @Published private(set) var syncing = false
+    /// Gerade aus der Galerie aktualisiert (bis zum Beenden): id → neue Version. Die Liste
+    /// zeigt dann „Aktualisiert auf …“ statt Version und Größe.
+    @Published private(set) var recentlyUpdated: [String: String] = [:]
     /// Der letzte Abgleich mit dem Katalog ist gescheitert (kein Internet)
     @Published private(set) var syncFailed = false
     /// Plugins, deren Ordner nicht mehr lesbar ist (z. B. nach dem Bearbeiten): Fehlertext
@@ -189,12 +196,20 @@ final class PluginManager: ObservableObject {
     }
 
     /// Beim Start der App: Katalog abgleichen, wenn die Plugins an sind (höchstens täglich)
+    /// Nur der Manager der App räumt die Aktionsleiste auf (nicht die in Tests)
+    private var managesActionBar = false
+
     func start(settings: AppSettings = .shared) {
+        managesActionBar = true
+        syncActionBar()
         enabledObserver = settings.$pluginsEnabled
             .removeDuplicates()
             .dropFirst()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] on in if on { self?.syncCatalog(force: true) } }
+            .sink { [weak self] on in
+                self?.syncActionBar()
+                if on { self?.syncCatalog(force: true) }
+            }
         if settings.pluginsEnabled {
             DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.syncCatalog() }
         }
@@ -284,10 +299,43 @@ final class PluginManager: ObservableObject {
 
     func update(_ id: String, _ change: (inout PluginState) -> Void) {
         var state = states[id] ?? PluginState()
+        let wasEnabled = state.enabled
         change(&state)
         guard state != states[id] else { return }
         states[id] = state
         saveState()
+        if state.enabled != wasEnabled { syncActionBar() }
+    }
+
+    /// Aktionen ausgeschalteter Plugins stehen weder in der Ablage noch in Einstellungen →
+    /// Aktionen und zählen nicht zur Grenze der Leiste. Das Plugin merkt sich, dass es dort
+    /// stand, und kommt beim Einschalten wieder ans Ende (wenn Platz ist).
+    func syncActionBar(settings: AppSettings = .shared) {
+        guard managesActionBar else { return }
+        var actions = settings.quickActions
+        var changed = false
+        // Nur installierte Plugins: Ein Standard-Plugin, das gerade nicht geladen ist, oder
+        // eines, das sich nicht lesen lässt, behält seinen Platz (Entfernen räumt selbst auf)
+        for action in actions where action.kind == .plugin && plugin(action.path) != nil
+            && !isActive(action.path, settings: settings) {
+            var s = states[action.path] ?? PluginState()
+            s.parkedInActionBar = true
+            states[action.path] = s
+            actions.removeAll { $0.id == action.id }
+            changed = true
+        }
+        for plugin in plugins where state(plugin.id).parkedInActionBar && isActive(plugin.id, settings: settings) {
+            var s = state(plugin.id)
+            s.parkedInActionBar = false
+            states[plugin.id] = s
+            changed = true
+            guard actions.count < QuickAction.limit,
+                  !actions.contains(where: { $0.kind == .plugin && $0.path == plugin.id }) else { continue }
+            actions.append(QuickAction(kind: .plugin, path: plugin.id))
+        }
+        guard changed else { return }
+        saveState()
+        if actions != settings.quickActions { settings.quickActions = actions }
     }
 
     /// Ist das Plugin eingeschaltet (und die Plugins überhaupt)?
@@ -627,10 +675,13 @@ final class PluginManager: ObservableObject {
         let group = DispatchGroup()
         for entry in needed {
             group.enter()
+            let wasInstalled = plugin(entry.id) != nil
             download(entry) { [weak self] result in
-                if let self, let unpacked = result {
-                    _ = try? self.install(unpacked, standard: entry.standard == true || self.state(entry.id).isStandard,
-                                          keepPermissions: true)
+                if let self, let unpacked = result,
+                   (try? self.install(unpacked, standard: entry.standard == true || self.state(entry.id).isStandard,
+                                      keepPermissions: true)) != nil, wasInstalled {
+                    self.recentlyUpdated[entry.id] = unpacked.manifest.version
+                    PluginLog.shared.record(entry.id, "install", "aktualisiert auf \(unpacked.manifest.version)")
                 }
                 group.leave()
             }

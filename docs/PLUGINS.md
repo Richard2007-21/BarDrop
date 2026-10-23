@@ -143,7 +143,7 @@ BarDrop always stores links itself as `.webloc`.
 
 **Right-click (`menu`):** matching, turned-on plugins appear below the usual entries after a separator, with their icon and `actionTitle`. Up to three directly, from four on in a “Plugins” submenu. With several items selected, a plugin appears if it matches at least one; it then runs once for every matching item, or once with all of them with `batch`.
 
-**Action bar (`action`):** Settings → Plugins → plugin → “In the action bar”, or Settings → Actions → Add Action. The action is only visible while the plugin is turned on. Drag onto it: runs for the dragged items; a click doesn’t run it. If nothing matches, BarDrop beeps.
+**Action bar (`action`):** Settings → Actions → “Add Action” (or `defaults.actionBar`, 3.1). While the plugin is off, its action is neither in the shelf nor in Settings → Actions and doesn’t count toward the bar’s limit; turning the plugin on puts it back at the end if there is room. Drag onto it: runs for the dragged items; a click doesn’t run it. If nothing matches, BarDrop beeps.
 
 **Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. Settings → Plugins → “Order when dropped” changes the order (shown from two automatic plugins on). Where the shelf usually shows the number of items, it then shows “Plugin running”.
 
@@ -279,7 +279,7 @@ Every call used with `await` returns a promise.
 
 ### 9.4 File names
 
-For `writeFile`, `createLink` and `download`: only the last part of a path counts; `/` and `:` become `-`, line breaks become spaces; spaces at the ends are removed; leading dots are removed; at most 80 characters; empty becomes “Item” (or “Objekt” in German). Programs that write into the output folder themselves aren’t affected.
+For `writeFile`, `writeData`, `createLink` and `download`: only the last part of a path counts; `/` and `:` become `-`, line breaks become spaces; spaces at the ends are removed; leading dots are removed; at most 80 characters (longer names are shortened before the extension, so `.txt` or `.webloc` stays); empty becomes “Item” (or “Objekt” in German). Programs that write into the output folder themselves aren’t affected.
 
 ## 10. Catalog (gallery)
 
@@ -338,7 +338,7 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
 * If no plugin is installed yet, Settings → Plugins shows the available ones right away under “Available”. Otherwise “More plugins” (with the number of new ones on the right) leads there; the list shows all entries not installed yet (with a search field from seven on), each with its name, “Offline”, “Offline after setup” (downloads a program once) or “Uses the internet”, its size and “Get”; the description shows on hover. After “Get” the allow window follows (if the plugin needs anything); then the plugin is on, set up according to `defaults`, and its page opens. If you cancel, it is installed but off.
 * `removed: true`: standard plugins are removed at the next check; others disappear from the gallery but stay installed.
 * Entries with a `minAppVersion` newer than BarDrop are skipped.
-* Settings → Plugins works like System Settings: the list shows each plugin’s name, version and size (or what needs attention) and “On” or “Off”; clicking opens its page, and ‹ in the title bar (or Esc) goes back; clicking “Plugins” in the sidebar again returns to the start page. The page starts with a card showing the icon, name, description and switch; below it in the same card, when needed, “Running” (with “Stop”), “Needs your permission” (with “Allow”) and “Last run failed” (with “Copy Error”; the message shows on hover). Then “When it runs” with a note on what the plugin works with, the plugin’s settings and Info: Internet (“No, works fully offline”, “Only once, to download programs” or “Yes, uses the internet”), Programs (size, “Update” downloads their latest version) and Access; version, developer and size are a gray line below. At the bottom right of the start page: “Log” (a menu, see 14) and “Import From Files”.
+* Settings → Plugins works like System Settings: the list shows each plugin’s name, version and size (or what needs attention) and “On” or “Off”; clicking opens its page, and ‹ in the title bar (or Esc) goes back; clicking “Plugins” in the sidebar again returns to the start page. The page starts with a card showing the icon, name, description and switch; below it in the same card, when needed, “Running” (with “Stop”), “Needs your permission” (with “Allow”) and “Last run failed” (with “Copy Error”; the message shows on hover). Then “When it runs” (automatically when dropped, replace original), the plugin’s settings and Info: Internet (“No, works fully offline”, “Only once, to download programs” or “Yes, uses the internet”), Works with, Programs (size, “Update” downloads their latest version) and Access; version, developer and size are a gray line below. Above the list, “Check for Updates” asks the gallery right away (plugins just updated show “Updated to …”). At the bottom right of the start page: “Record Log” (see 14) and “Import From Files”.
 * Submit with a pull request that adds the `.bdrop` to `Plugins/` on `main`; every plugin is reviewed before it is merged. Everything in `Plugins/` is public.
 
 ## 11. Checking before sharing
@@ -356,7 +356,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 1. Import it in BarDrop and turn it on.
 2. Try it with a right-click on a matching item; if it doesn’t appear, `match` doesn’t match.
 3. Errors appear under Settings → Plugins → plugin → “Last error” and in the log.
-4. More detail: Settings → Plugins → “Log” → “Record Plugin Log”, then `bardrop.log`/`console.log` in the script (section 14).
+4. More detail: Settings → Plugins → “Record Log” (bottom right), then `bardrop.log`/`console.log` in the script (section 14).
 5. Only then try “Automatically when dropped”.
 
 ## 12. Common mistakes
@@ -422,7 +422,7 @@ function run(item) {
 
 ## 14. Plugin log
 
-Settings → Plugins → “Log” (bottom right) → “Record Plugin Log” (off by default), built like the diagnostic log: turning it on shows a note on what is recorded; “Save Log” saves it as a text file wherever you like; turning it off deletes it. The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`; “Save Log” includes both).
+Settings → Plugins → “Record Log” (bottom right, off by default; then “Save Log” and “Stop Log”), built like the diagnostic log: turning it on shows a note on what is recorded; “Save Log” saves it as a text file wherever you like; turning it off deletes it. The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`; “Save Log” includes both).
 
 It is **separate from BarDrop’s diagnostic log**: its own file, its own switch, available in all versions. Plugin events appear only here, not in the diagnostic log. Unlike that one, it names files, addresses and error messages. It stays on the Mac.
 

@@ -63,8 +63,8 @@ struct GeneralSettings: View {
     private func confirmReset() {
         let alert = NSAlert()
         alert.messageText = L("Reset all settings?", "Alle Einstellungen zurücksetzen?")
-        alert.informativeText = L("All settings go back to their defaults, including the language, the shortcut, the action bar, updates and beta versions. Only the items in the shelf are kept. This can’t be undone.",
-                                  "Alle Einstellungen werden auf die Standardwerte zurückgesetzt, auch Sprache, Kurzbefehl, Aktionsleiste, Updates und Beta-Versionen. Nur die Objekte in der Ablage bleiben. Das lässt sich nicht widerrufen.")
+        alert.informativeText = L("All settings go back to their defaults, including the language, the shortcut, the action bar, updates and beta versions. Plugins stay installed but are turned off and lose their permissions. Only the items in the shelf are kept. This can’t be undone.",
+                                  "Alle Einstellungen werden auf die Standardwerte zurückgesetzt, auch Sprache, Kurzbefehl, Aktionsleiste, Updates und Beta-Versionen. Plugins bleiben installiert, sind aber aus und ohne Berechtigungen. Nur die Objekte in der Ablage bleiben. Das lässt sich nicht widerrufen.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: L("Reset", "Zurücksetzen"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
@@ -240,10 +240,13 @@ struct OpeningSettings: View {
                           options: DisplayMode.allCases.map { ($0, $0.title) })
             }
 
-            SettingsSection(L("When", "Wann")) {
+            SettingsSection(L("When", "Wann"),
+                            note: settings.exactPointer
+                                ? L("“Strip while dragging” has no effect while “Open only at the strip” is on.",
+                                    "„Streifen beim Ziehen“ wirkt nicht, solange „Nur direkt am Streifen öffnen“ an ist.") : nil) {
                 PickerRow(L("Open shelf", "Ablage öffnen"),
-                          info: L("With a delay, clicking the strip still opens the shelf right away.",
-                                  "Mit Wartezeit öffnet ein Klick auf den Streifen die Ablage trotzdem sofort."),
+                          info: L("From a 1 second delay on, clicking the strip still opens the shelf right away.",
+                                  "Ab 1 Sekunde Wartezeit öffnet ein Klick auf den Streifen die Ablage trotzdem sofort."),
                           selection: $settings.openChoice,
                           options: OpenChoice.all.map { ($0, $0.title) })
                 ToggleRow(L("Open only at the strip", "Nur direkt am Streifen öffnen"),
@@ -252,8 +255,12 @@ struct OpeningSettings: View {
                           isOn: $settings.exactPointer)
                 // Als Menü: Für einen Umschalter sind die Texte zu lang, er drückte den Titel
                 // auf mehrere Zeilen zusammen
-                PickerRow(L("Strip while dragging", "Streifen beim Ziehen"), selection: $settings.dragReveal,
+                // „Nur direkt am Streifen“ gilt auch beim Ziehen: Dann gibt es keinen Streifen in
+                // Randnähe, die Wahl hier wirkt nicht und ist grau
+                PickerRow(L("Strip while dragging", "Streifen beim Ziehen"),
+                          selection: $settings.dragReveal,
                           options: DragReveal.selectable.map { ($0, $0.title) }, menu: true)
+                    .disabled(settings.exactPointer)
                 ToggleRow(L("Open where you left off", "An letzter Stelle öffnen"),
                           info: L("The shelf opens where you were last: at the same place in the list, in the same stack or folder.",
                                   "Die Ablage öffnet sich dort, wo du zuletzt warst: an derselben Stelle in der Liste, im selben Stapel oder Ordner."),
@@ -481,9 +488,16 @@ struct ItemSettings: View {
                           options: [(0, L("Never", "Nie"))] + stackThresholds.map { ($0, L("\($0) or more items", "Ab \($0) Objekten")) })
             }
 
-            SettingsSection(L("Using items", "Objekte verwenden"), info: afterUseNote) {
+            // Alles, was Objekte aus der Ablage nimmt, an einer Stelle: nach dem Verwenden
+            // und nach Zeit (vorher zwei Abschnitte mit ähnlichen Namen)
+            SettingsSection(L("Using and removing", "Verwenden und entfernen"), info: afterUseNote) {
                 PickerRow(L("After use", "Nach dem Verwenden"), selection: afterUse,
                           options: AfterUse.allCases.map { ($0, $0.title) })
+                PickerRow(L("Remove automatically", "Automatisch entfernen"),
+                          info: L("Removing (⌫) only takes items out of the shelf; files stay in the Finder. Copies, images, links and text that exist only in BarDrop are deleted once ⌘Z can no longer bring them back, at the latest 15 minutes after you drag them out or use them in an action. ⌘⌫ moves files to the Trash; ⌘Z puts them back.",
+                                  "Entfernen (⌫) nimmt Objekte nur aus der Ablage, Dateien im Finder bleiben. Was nur in BarDrop liegt (Kopien, Bilder, Links, Texte), wird gelöscht, sobald ⌘Z es nicht mehr zurückholen kann, spätestens 15 Minuten nach dem Herausziehen oder einer Aktion. ⌘⌫ legt Dateien in den Papierkorb, ⌘Z legt sie zurück."),
+                          selection: autoRemove,
+                          options: AutoRemoveOption.allCases.map { ($0, $0.title) })
                 ToggleRow(L("Always copy when dragging out", "Beim Herausziehen immer kopieren"), isOn: $settings.dragOutCopyOnly)
             }
 
@@ -496,15 +510,15 @@ struct ItemSettings: View {
                           selection: finderFiles,
                           options: FinderFiles.allCases.map { ($0, $0.title) },
                           menu: true)
-                ToggleRow(L("Convert web images to PNG or JPEG", "Bilder aus dem Web in PNG oder JPEG umwandeln"),
-                          info: L("Images in WebP, AVIF or HEIC format are converted so any app can open them.",
-                                  "Bilder im Format WebP, AVIF oder HEIC werden umgewandelt, damit jede App sie öffnen kann."),
+                ToggleRow(L("Convert web images", "Webbilder umwandeln"),
+                          info: L("Images from the web in WebP, AVIF or HEIC format are saved as PNG or JPEG, so any app can open them.",
+                                  "Bilder aus dem Web im Format WebP, AVIF oder HEIC werden als PNG oder JPEG gespeichert, damit jede App sie öffnen kann."),
                           isOn: $settings.convertWebImages)
                 ToggleRow(L("Add new screenshots", "Neue Bildschirmfotos hinzufügen"),
                           isOn: $settings.addScreenshots)
-                ToggleRow(L("Add files received with AirDrop", "Mit AirDrop empfangene Dateien hinzufügen"),
-                          info: L("Files that arrive in the Downloads folder via AirDrop also appear in the shelf. They stay there.",
-                                  "Dateien, die per AirDrop im Ordner „Downloads“ ankommen, erscheinen auch in der Ablage. Sie bleiben dort liegen."),
+                ToggleRow(L("Add AirDrop files", "AirDrop-Dateien hinzufügen"),
+                          info: L("Files you receive with AirDrop go straight into the shelf instead of the Downloads folder.",
+                                  "Per AirDrop empfangene Dateien kommen direkt in die Ablage statt in den Ordner „Downloads“."),
                           isOn: $settings.addAirDrop)
                 // macOS lässt BarDrop den Ordner nicht lesen: sagen, welcher, und wohin
                 ForEach(deniedFolders, id: \.self) { folder in
@@ -515,13 +529,6 @@ struct ItemSettings: View {
                             .buttonStyle(KlackButtonStyle())
                     }
                 }
-            }
-
-            SettingsSection(L("Cleanup", "Aufräumen"),
-                            info: L("Removing (⌫) only takes items out of the shelf; files stay in the Finder. Copies, images, links and text that exist only in BarDrop are deleted once ⌘Z can no longer bring them back, at the latest 15 minutes after you drag them out or use them in an action. ⌘⌫ moves files to the Trash; ⌘Z puts them back.",
-                                    "Entfernen (⌫) nimmt Objekte nur aus der Ablage, Dateien im Finder bleiben. Was nur in BarDrop liegt (Kopien, Bilder, Links, Texte), wird gelöscht, sobald ⌘Z es nicht mehr zurückholen kann, spätestens 15 Minuten nach dem Herausziehen oder einer Aktion. ⌘⌫ legt Dateien in den Papierkorb, ⌘Z legt sie zurück.")) {
-                PickerRow(L("Remove automatically", "Automatisch entfernen"), selection: autoRemove,
-                          options: AutoRemoveOption.allCases.map { ($0, $0.title) })
             }
         }
     }
@@ -641,7 +648,6 @@ struct ActionSettings: View {
             menu.addItem(.separator())
             for plugin in plugins {
                 let item = ClosureMenuItem(plugin.manifest.title) { add(QuickAction(kind: .plugin, path: plugin.id)) }
-                item.image = PluginMenuIcons.image(for: plugin)
                 if settings.quickActions.contains(where: { $0.kind == .plugin && $0.path == plugin.id }) {
                     item.action = nil
                 }

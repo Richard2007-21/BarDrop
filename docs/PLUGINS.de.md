@@ -143,7 +143,7 @@ Links legt BarDrop selbst immer als `.webloc` ab.
 
 **Rechtsklick (`menu`):** Passende, eingeschaltete Plugins erscheinen unter den gewohnten Einträgen, nach einer Trennlinie, mit ihrem Symbol und `actionTitle`. Bis zu drei direkt, ab vier gesammelt im Untermenü „Plugins“. Bei mehreren ausgewählten Objekten erscheint ein Plugin, wenn es zu mindestens einem passt; es läuft dann für jedes passende Objekt einmal, mit `batch` einmal mit allen.
 
-**Aktionsleiste (`action`):** Einstellungen → Plugins → Plugin → „In der Aktionsleiste“ oder Einstellungen → Aktionen → Aktion hinzufügen. Die Aktion ist nur zu sehen, solange das Plugin eingeschaltet ist. Darauf ziehen: läuft für die gezogenen Objekte; ein Klick führt es nicht aus. Passt nichts, gibt es einen Warnton.
+**Aktionsleiste (`action`):** Einstellungen → Aktionen → „Aktion hinzufügen“ (oder `defaults.actionBar`, 3.1). Ist das Plugin aus, steht seine Aktion weder in der Ablage noch in Einstellungen → Aktionen und zählt nicht zur Grenze der Leiste; beim Einschalten kommt sie wieder ans Ende, wenn Platz ist. Darauf ziehen: läuft für die gezogenen Objekte; ein Klick führt es nicht aus. Passt nichts, gibt es einen Warnton.
 
 **Automatisch beim Ablegen (`automatic`):** Je Plugin ein Schalter, standardmäßig aus (Ausnahme 3.1 `automaticByDefault`). Es zählt nur, was der Nutzer selbst in die Ablage legt: Ziehen und ⌘V. Nicht: Bildschirmfotos, Ergebnisse von Aktionen und Plugins, Widerrufen, die Einführung. Für jedes abgelegte Objekt läuft **höchstens ein** Plugin: das erste in der Liste der Einstellungen, das eingeschaltet ist, automatisch läuft und passt. Die Reihenfolge ändert Einstellungen → Plugins → „Reihenfolge beim Ablegen“ (erscheint ab zwei automatischen Plugins). Oben in der Ablage, wo sonst die Anzahl steht, steht dann „Plugin läuft“.
 
@@ -279,7 +279,7 @@ Alle Aufrufe mit `await` liefern ein Versprechen.
 
 ### 9.4 Dateinamen
 
-Für `writeFile`, `createLink` und `download` gilt: nur der letzte Teil eines Pfads zählt; `/` und `:` werden zu `-`, Zeilenumbrüche zu Leerzeichen; Leerzeichen am Rand fallen weg; führende Punkte werden entfernt; höchstens 80 Zeichen; leer wird zu „Item“ bzw. „Objekt“. Programme, die selbst in den Ausgabeordner schreiben, sind davon nicht betroffen.
+Für `writeFile`, `writeData`, `createLink` und `download` gilt: nur der letzte Teil eines Pfads zählt; `/` und `:` werden zu `-`, Zeilenumbrüche zu Leerzeichen; Leerzeichen am Rand fallen weg; führende Punkte werden entfernt; höchstens 80 Zeichen (längere Namen werden vor der Endung gekürzt, `.txt` oder `.webloc` bleibt); leer wird zu „Item“ bzw. „Objekt“. Programme, die selbst in den Ausgabeordner schreiben, sind davon nicht betroffen.
 
 ## 10. Katalog (Galerie)
 
@@ -338,7 +338,7 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
 * Ist noch kein Plugin installiert, zeigt Einstellungen → Plugins gleich die verfügbaren unter „Verfügbar“. Sonst führt „Weitere Plugins“ (rechts die Zahl der neuen) dorthin; die Liste zeigt alle noch nicht installierten Einträge (ab sieben mit Suche), je mit Name, „Offline“, „Offline nach dem Einrichten“ (lädt einmal ein Programm) oder „Nutzt das Internet“ und der Größe, dazu „Laden“; die Beschreibung steht beim Darüberfahren. Nach „Laden“ kommt das Erlauben-Fenster (falls das Plugin etwas braucht); danach ist das Plugin an, nach `defaults` eingestellt, und seine Seite öffnet sich. Wer abbricht, hat es installiert, aber aus.
 * `removed: true`: Standard-Plugins werden beim nächsten Abgleich entfernt; andere verschwinden aus der Galerie, bleiben aber installiert.
 * Einträge mit einer `minAppVersion`, die neuer ist als BarDrop, werden übergangen.
-* Einstellungen → Plugins ist wie die Systemeinstellungen aufgebaut: In der Liste steht je Plugin Name, Version und Größe (oder was ansteht) und „Ein“ bzw. „Aus“; ein Klick öffnet seine Seite, oben in der Titelzeile führt ‹ (oder Esc) zurück, ein erneuter Klick auf „Plugins“ in der Seitenleiste zur Startseite. Die Seite zeigt oben eine Karte mit Symbol, Name, Beschreibung und Schalter; darunter in derselben Karte, falls nötig, „Läuft gerade“ (mit „Beenden“), „Braucht deine Erlaubnis“ (mit „Erlauben“) und „Letzter Lauf fehlgeschlagen“ (mit „Fehler kopieren“; der Text steht beim Darüberfahren). Dann „Wann es läuft“ mit dem Hinweis, wozu das Plugin passt, die Einstellungen des Plugins und die Info: Internet („Nein, läuft ganz offline“, „Nur einmal, um Programme zu laden“ oder „Ja, nutzt das Internet“), Programme (Größe, „Aktualisieren“ lädt ihre neueste Version) und Zugriff; Version, Entwickler und Größe stehen als graue Zeile darunter. Unten rechts auf der Startseite: „Protokoll“ (Menü, siehe 14) und „Aus Dateien importieren“.
+* Einstellungen → Plugins ist wie die Systemeinstellungen aufgebaut: In der Liste steht je Plugin Name, Version und Größe (oder was ansteht) und „Ein“ bzw. „Aus“; ein Klick öffnet seine Seite, oben in der Titelzeile führt ‹ (oder Esc) zurück, ein erneuter Klick auf „Plugins“ in der Seitenleiste zur Startseite. Die Seite zeigt oben eine Karte mit Symbol, Name, Beschreibung und Schalter; darunter in derselben Karte, falls nötig, „Läuft gerade“ (mit „Beenden“), „Braucht deine Erlaubnis“ (mit „Erlauben“) und „Letzter Lauf fehlgeschlagen“ (mit „Fehler kopieren“; der Text steht beim Darüberfahren). Dann „Wann es läuft“ (automatisch beim Ablegen, Original ersetzen), die Einstellungen des Plugins und die Info: Internet („Nein, läuft ganz offline“, „Nur einmal, um Programme zu laden“ oder „Ja, nutzt das Internet“), Passt zu, Programme (Größe, „Aktualisieren“ lädt ihre neueste Version) und Zugriff; Version, Entwickler und Größe stehen als graue Zeile darunter. Über der Liste „Nach Updates suchen“ (fragt die Galerie sofort; gerade aktualisierte Plugins zeigen „Aktualisiert auf …“). Unten rechts auf der Startseite: „Protokoll aufzeichnen“ (siehe 14) und „Aus Dateien importieren“.
 * Einreichen per Pull Request mit der `.bdrop` in `Plugins/` auf `main`; jedes Plugin wird vor dem Aufnehmen geprüft. Alles in `Plugins/` ist öffentlich.
 
 ## 11. Prüfen vor dem Weitergeben
@@ -356,7 +356,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 1. In BarDrop importieren, Plugin einschalten.
 2. Per Rechtsklick an einem passenden Objekt ausprobieren; erscheint es nicht, passt `match` nicht.
 3. Fehler stehen unter Einstellungen → Plugins → Plugin → „Letzter Fehler“ und im Protokoll.
-4. Mehr Einzelheiten: Einstellungen → Plugins → „Protokoll“ → „Plugin-Protokoll aufzeichnen“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
+4. Mehr Einzelheiten: Einstellungen → Plugins → „Protokoll aufzeichnen“ (unten rechts), dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
 5. Erst dann „Automatisch beim Ablegen“ ausprobieren.
 
 ## 12. Häufige Fehler
@@ -422,7 +422,7 @@ function run(item) {
 
 ## 14. Plugin-Protokoll
 
-Einstellungen → Plugins → „Protokoll“ (unten rechts) → „Plugin-Protokoll aufzeichnen“ (standardmäßig aus), aufgebaut wie das Diagnoseprotokoll: Beim Einschalten erklärt ein Hinweis, was erfasst wird; „Protokoll sichern“ speichert es als Textdatei, wohin man will; Ausschalten löscht es. Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`; „Protokoll sichern“ nimmt beide).
+Einstellungen → Plugins → „Protokoll aufzeichnen“ (unten rechts, standardmäßig aus; danach „Protokoll sichern“ und „Protokoll beenden“), aufgebaut wie das Diagnoseprotokoll: Beim Einschalten erklärt ein Hinweis, was erfasst wird; „Protokoll sichern“ speichert es als Textdatei, wohin man will; Ausschalten löscht es. Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`; „Protokoll sichern“ nimmt beide).
 
 Es ist **getrennt vom Diagnoseprotokoll** von BarDrop: eigene Datei, eigener Schalter, in allen Versionen verfügbar. Plugin-Ereignisse stehen nur hier, nicht im Diagnoseprotokoll. Anders als dieses nennt es Dateinamen, Adressen und Fehlermeldungen. Es bleibt auf dem Mac.
 
