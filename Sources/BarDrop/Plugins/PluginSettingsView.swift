@@ -157,7 +157,7 @@ struct PluginSettings: View {
                 // Noch nichts installiert: gleich zeigen, was es gibt
                 GalleryPage(manager: manager, title: L("Available", "Verfügbar")) { id in open(.plugin(id)) }
             } else {
-                SettingsSection(L("Installed", "Installiert"), trailing: { UpdateCheckButton(manager: manager) }) {
+                SettingsSection(L("Installed", "Installiert")) {
                     ForEach(manager.plugins) { plugin in
                         InstalledRow(plugin: plugin, manager: manager) { open(.plugin(plugin.id)) }
                     }
@@ -178,6 +178,8 @@ struct PluginSettings: View {
                     if manager.plugins.filter({ manager.isAutomatic($0) }).count > 1 {
                         NavigationRow(L("Order when dropped", "Reihenfolge beim Ablegen")) { open(.order) }
                     }
+                    // Direkt unter der Liste: Updates gleich holen statt beim nächsten Abgleich
+                    UpdateRow(manager: manager)
                 }
             }
             footer
@@ -186,60 +188,50 @@ struct PluginSettings: View {
 
     /// Unten rechts, klein: Protokoll und Import. Die meisten nehmen Plugins aus der
     /// Galerie, das Protokoll braucht man nur bei Problemen.
+    /// Unten rechts, klein: ganz rechts Importieren, links davon das Protokoll (nur bei der
+    /// Fehlersuche an: dann zusätzlich „Sichern“)
     private var footer: some View {
         HStack(spacing: 8) {
             Spacer(minLength: 0)
-            // Einfache Knöpfe statt eines Menüs: Ein Menü mit Häkchen sah nach einer Auswahl aus.
-            // Aus: einschalten. An (nur bei der Fehlersuche): sichern oder beenden.
             if settings.pluginLogEnabled {
                 Button(L("Stop Log", "Protokoll beenden")) { pluginLog.wrappedValue = false }
-                    .buttonStyle(KlackButtonStyle())
                     .help(L("Stops recording and deletes the plugin log.",
                             "Beendet die Aufzeichnung und löscht das Plugin-Protokoll."))
                 Button(L("Save Log", "Protokoll sichern")) { PluginLog.shared.saveReport() }
-                    .buttonStyle(KlackButtonStyle())
             } else {
                 Button(L("Record Log", "Protokoll aufzeichnen")) { pluginLog.wrappedValue = true }
-                    .buttonStyle(KlackButtonStyle())
                     .help(L("Records what plugins do, including file names and error messages, to help find problems. Stays on this Mac until you save it.",
                             "Hält fest, was Plugins tun, mit Dateinamen und Fehlermeldungen, um Probleme zu finden. Bleibt auf diesem Mac, bis du es sicherst."))
             }
-            importButton
+            Button(L("Import", "Importieren")) { PluginImporter.chooseAndImport() }
+                .help(L("Install a .bdrop file. You can also double-click it in the Finder.",
+                        "Installiert eine .bdrop-Datei. Du kannst sie auch im Finder doppelklicken."))
         }
-    }
-
-    private var importButton: some View {
-        Button(L("Import From Files", "Aus Dateien importieren")) { PluginImporter.chooseAndImport() }
-            .buttonStyle(KlackButtonStyle())
-            .help(L("Install a .bdrop file. You can also double-click it.",
-                    "Installiert eine .bdrop-Datei. Du kannst sie auch im Finder doppelklicken."))
+        // Nie gekürzt („Protokoll been…“): jeder Knopf so breit wie sein Text
+        .buttonStyle(KlackButtonStyle())
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
-/// „Nach Updates suchen“ rechts über der Liste: fragt die Galerie sofort statt beim nächsten
-/// Abgleich. Danach steht dort kurz, was dabei herauskam.
-private struct UpdateCheckButton: View {
+/// „Plugins aktualisieren“ unter der Liste: fragt die Galerie sofort statt beim nächsten
+/// Abgleich. Rechts steht danach kurz, was dabei herauskam.
+private struct UpdateRow: View {
     @ObservedObject var manager: PluginManager
     @State private var result: String?
 
     var body: some View {
-        HStack(spacing: 6) {
+        SettingsRow(L("Update plugins", "Plugins aktualisieren"),
+                    subtitle: result ?? L("Also happens by itself once a day.", "Passiert auch von selbst einmal am Tag.")) {
             if manager.syncing {
                 ProgressView().controlSize(.small)
-            } else if let result {
-                Text(result)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .transition(.opacity)
+            } else {
+                Button(L("Update", "Aktualisieren"), action: check)
+                    .buttonStyle(KlackButtonStyle())
+                    .fixedSize()
             }
-            Button(L("Check for Updates", "Nach Updates suchen"), action: check)
-                .buttonStyle(.plain)
-                .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(Color(nsColor: .controlAccentColor))
-                .disabled(manager.syncing)
-                .help(L("Plugins from the gallery also update by themselves, at most once a day.",
-                        "Plugins aus der Galerie aktualisieren sich auch von selbst, höchstens einmal am Tag."))
         }
+        .padding(.vertical, 4)
     }
 
     private func check() {
