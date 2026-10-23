@@ -316,11 +316,11 @@ final class PluginManager: ObservableObject {
         var changed = false
         // Nur installierte Plugins: Ein Standard-Plugin, das gerade nicht geladen ist, oder
         // eines, das sich nicht lesen lässt, behält seinen Platz (Entfernen räumt selbst auf)
-        for action in actions where action.kind == .plugin && plugin(action.path) != nil
-            && !isActive(action.path, settings: settings) {
-            var s = states[action.path] ?? PluginState()
+        for action in actions where action.kind == .plugin {
+            guard let id = action.path, plugin(id) != nil, !isActive(id, settings: settings) else { continue }
+            var s = states[id] ?? PluginState()
             s.parkedInActionBar = true
-            states[action.path] = s
+            states[id] = s
             actions.removeAll { $0.id == action.id }
             changed = true
         }

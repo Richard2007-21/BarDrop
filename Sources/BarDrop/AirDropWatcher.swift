@@ -101,9 +101,9 @@ final class AirDropWatcher {
         // Nur in die Ablage, nicht auch in „Downloads“: BarDrop nimmt die Dateien heraus und
         // behält sie selbst (wie Ergebnisse von Plugins). Herausziehen legt sie dann ab, wo
         // man will; Entfernen löscht sie wie andere eigene Objekte erst nach dem Widerrufen.
-        let files = store.adoptResults(ready)
-        guard !files.isEmpty else { return }
-        store.add(files)
+        let adopted = store.adoptResults(ready)
+        guard !adopted.isEmpty else { return }
+        store.add(adopted)
         onAdded()
     }
 

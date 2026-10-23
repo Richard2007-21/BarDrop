@@ -389,7 +389,7 @@ struct ShelfContent: View {
                             let saved = scrollBeforeOpen
                             scrollBeforeOpen = nil
                             if let saved {
-                                scroll(to: saved, proxy: proxy, viewport: geo.size.height)
+                                restore(saved, proxy: proxy, viewport: geo.size.height)
                             } else {
                                 scrollToTop(proxy)
                             }
@@ -866,11 +866,11 @@ struct ShelfContent: View {
     /// Beim Öffnen: dieselbe Kachel wieder an dieselbe Stelle scrollen, ohne Bewegung
     private func restoreScroll(proxy: ScrollViewProxy, viewport: CGFloat) {
         guard !shelfDemo, settings.reopenWhereLeft, let saved = ui.savedScroll else { return }
-        scroll(to: saved, proxy: proxy, viewport: viewport)
+        restore(saved, proxy: proxy, viewport: viewport)
     }
 
     /// Kachel `saved.id` wieder an ihre gemerkte Lage, ohne Bewegung
-    private func scroll(to saved: (id: UUID, top: CGFloat, height: CGFloat), proxy: ScrollViewProxy, viewport: CGFloat) {
+    private func restore(_ saved: (id: UUID, top: CGFloat, height: CGFloat), proxy: ScrollViewProxy, viewport: CGFloat) {
         let ids = stack.map { $0.files.map(\.id) } ?? actions.orderedEntries.map(\.id)
         guard ids.contains(saved.id) else { return scrollToTop(proxy) }
         let span = viewport - saved.height
