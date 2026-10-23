@@ -31,7 +31,7 @@ BarDrop unpacks with `/usr/bin/ditto`. An installed plugin lives in `~/Library/A
 
 **Making one:** `python3 scripts/check_plugin.py MyPlugin/ --pack` checks the folder and writes `MyPlugin.bdrop`. By hand: `ditto -c -k --norsrc --noextattr MyPlugin MyPlugin.bdrop`, or “Compress” in the Finder and rename `.zip` to `.bdrop`.
 
-**Installing:** double-click the file, or Settings → Plugins → “Import From File”. BarDrop shows the name, permissions, programs to load and the script, with a note that the plugin isn’t from the catalog. Nothing is installed before “Install”. If a plugin with the same `id` exists, the button says “Update”. A standard plugin from the catalog can’t be replaced by an import. After importing, BarDrop turns on “Use plugins”; the plugin itself stays off. If an installed plugin can no longer be read (for example after editing it), it appears in the list with the error, with “Show in Finder” and, except for standard plugins, “Remove”.
+**Installing:** double-click the file, or Settings → Plugins → “Import From Files”. BarDrop shows the name, permissions, programs to load and the script, with a note that the plugin isn’t from the catalog. Nothing is installed before “Install”. If a plugin with the same `id` exists, the button says “Update”. A standard plugin from the catalog can’t be replaced by an import. After importing, BarDrop turns on “Use plugins” and the new plugin, set up according to `defaults` (3.1). An update leaves on/off and the settings as they are. If an installed plugin can no longer be read (for example after editing it), it appears in the list with the error, with “Show in Finder” and, except for standard plugins, “Remove”.
 
 ## 3. manifest.json
 
@@ -44,7 +44,7 @@ Unknown keys are ignored. A key with the wrong type (for example a number instea
 | `schema` | number | no | Must be `1`. Missing means 1. |
 | `id` | text | yes | Unique identifier, e.g. `io.github.name.my-plugin`. Pattern `^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$`: at least one dot, only letters, digits and hyphens; at most 120 characters. Stays the same across updates. |
 | `name` | text (3.2) | yes | Name in Settings and dialogs. The English text must not be empty. |
-| `description` | text (3.2) | no | One line under the name in Settings, and the action’s help text. |
+| `description` | text (3.2) | no | Shown at the top of the plugin’s page, in the gallery and as the action’s help text. |
 | `version` | text | yes | `1`, `1.2` or `1.2.3`, as text in quotes. Pattern `^\d+(\.\d+){0,2}$`. No beta suffix. |
 | `author` | text | no | Shown next to the version. |
 | `homepage` | text | no | Stored, not shown at the moment. |
@@ -54,13 +54,14 @@ Unknown keys are ignored. A key with the wrong type (for example a number instea
 | `script` | text | no | File name of the script, default `"main.js"`. Must end in `.js`, contain no `/` and not start with `.`. |
 | `match` | object | yes | What the plugin handles, see 4. |
 | `triggers` | list | no | Subset of `"menu"`, `"action"`, `"automatic"`. Missing means all three. Unknown values are skipped. If no known value is left (also with `[]`), BarDrop rejects the plugin. |
-| `automaticByDefault` | boolean | no | “Automatically when dropped” starts on. **Only** when `triggers` allows `automatic` and the plugin has neither `network` nor `run` nor `tools`. |
+| `automaticByDefault` | boolean | no | Older key, prefer `defaults.automatic`. “Automatically when dropped” is on even without installing and allowing (standard plugins from the catalog), but **only** when `triggers` allows `automatic` and the plugin has neither `network` nor `run` nor `tools`. |
 | `permissions` | list | no | Subset of `"network"`, `"run"`, `"clipboard"`, see 6. An **unknown** value rejects the whole plugin. |
 | `tools` | list | no | Programs BarDrop loads, see 7. Requires the `run` permission. |
 | `settings` | list | no | The plugin’s settings, see 3.3. |
 | `canReplaceOriginal` | boolean | no | Shows a “Replace original” switch (off by default), see 8. Has no effect together with `batch`. |
 | `batch` | boolean | no | With several items, run **once** with all of them instead of once per item: `run(item, items)`, see 9.2. The result appears next to the first item. Also for items dropped together with “Automatically when dropped”. |
 | `consent` | text (3.2) | no | A note the user has to agree to **once** before the plugin can be turned on or run. If an update changes the text, BarDrop asks again. |
+| `defaults` | object | no | How the plugin is set up after installing: `actionBar` (added to the action bar if there is room; only with the `action` trigger), `automatic` (“Automatically when dropped”; only with `automatic`), `replaceOriginal` (“Replace original”; only with `canReplaceOriginal`), each `true` or `false`. Applies after “Install” (import) or after “Get” and “Allow” (gallery), also for plugins with `network`, `run` or `tools`, because the user has just allowed everything. After that only the user changes anything; updates leave the settings alone. The plugin’s own settings (`settings`) have their default in `default`, see 3.3. |
 
 ### 3.2 Text in two languages
 
@@ -163,7 +164,7 @@ A plugin only starts if it can run **without asking**: consent given (`consent`)
 * When importing a `.bdrop` file, permissions, programs and the notice are already listed in the install window: “Install” or “Update” grants them, and no further window follows.
 * `clipboard` always counts as granted once it is listed in `permissions` (putting text on the clipboard isn’t asked for by macOS either).
 * Granted permissions apply to **exactly this code**: a SHA-256 over **all files** of the plugin (path and content; only `.DS_Store` doesn’t count), because the script can read other files and run them as code. Any change to any file on disk resets all permissions. Updates from the catalog keep the permissions the plugin still needs and only ask for new ones; an import grants the permissions in its list.
-* If a turned-on plugin is missing something, the list shows “Needs your permission” below its name, and its page has “Allow” at the top, which asks for everything missing right away (for example after an edited script lost its permissions). Info → “Permissions” on the plugin’s page shows “Allowed” or “Not yet” for each permission, notice and program, with “Allow” and “Reset”.
+* If a turned-on plugin is missing something, the list shows “Needs your permission” below its name, and its page has “Allow” at the top, which asks for everything missing right away (for example after an edited script lost its permissions). Info → “Access” on the plugin’s page sums up the state in one sentence with “Allow” or “Revoke”, and below lists permissions, programs and notice separately, each “Allowed” or “Not yet”. “Revoke” takes back permissions, programs and consent; the plugin asks again before its next run.
 * There is **no macOS sandbox** around plugins. Without permissions, the script can only use the calls in 9. A program started with `run`, however, has the user’s full rights.
 
 ## 7. tools: programs loaded on demand
@@ -282,9 +283,18 @@ For `writeFile`, `createLink` and `download`: only the last part of a path count
 
 ## 10. Catalog (gallery)
 
-The catalog lives on its own branch **`plugin-katalog`** of this repository: `https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/index.json`, with the plugins next to it under `plugins/<id>/<id>-<version>.bdrop`. A push there doesn’t build an app release (a push to `main` would). BarDrop up to Beta 7 still reads the empty `Plugins/index.json` on `main`.
+The catalog lives on its own branch **`plugin-katalog`** of this repository: `https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/index.json`, with the plugins next to it under `plugins/<id>/<id>-<version>.bdrop`. The gallery isn’t edited by hand. BarDrop up to Beta 7 still reads the empty `Plugins/index.json` on `main`; it stays unchanged.
 
-**Add plugins** only with the script, not by hand:
+**Add plugins through `Plugins/`** (simplest way, browser only): upload the `.bdrop` file on GitHub to the `Plugins/` folder on `main` (Add file → Upload files, commit). The workflow `plugin-gallery.yml` (`scripts/build_gallery.py`) copies it to `plugin-katalog` in about a minute; a push that only changes `Plugins/` doesn’t build an app release.
+
+* Every `.bdrop` in `Plugins/` (subfolders included) is checked as with `check_plugin.py`. Files with errors are skipped and reported as errors in the run; the run then fails, the others are added anyway.
+* The file is taken over unchanged. If the same `id` is there more than once, the highest `version` wins.
+* Update: upload a new file with a higher `version`. `updated` changes only when the checksum changes.
+* Remove: delete the file. The entry stays with `removed: true`.
+* `category` comes from an optional `category` key in manifest.json (BarDrop itself ignores it), `standard` is set in the catalog only; both are kept on updates.
+* Which ids come from `Plugins/` is stored in `from-main.json` on `plugin-katalog`. The workflow leaves entries made with `publish_plugin.py` unchanged.
+
+**Add plugins with the script** (command line, alternative):
 
 ```sh
 python3 scripts/publish_plugin.py MyPlugin/ --category images           # check, pack, add
@@ -325,11 +335,11 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
 
 * Checked at most once a day, only while plugins are turned on; right away when turning them on; when opening Settings → Plugins if the last check is more than an hour old.
 * `standard: true`: installed automatically (turned off), updated silently as soon as `version` is higher, can’t be edited or removed. Without internet it appears as “Not loaded” with “Try Again”.
-* If no plugin is installed yet, Settings → Plugins shows the available ones right away under “Available”. Otherwise “More Plugins” (with the number of new ones on the right) leads there; the list shows all entries (with a search field from seven on); those not installed with “Get”, installed ones with “Open”.
+* If no plugin is installed yet, Settings → Plugins shows the available ones right away under “Available”. Otherwise “More Plugins” (with the number of new ones on the right) leads there; the list shows all entries (with a search field from seven on); those not installed with “Get”, installed ones with “Open”. After “Get” the allow window follows (if the plugin needs anything); then the plugin is on and set up according to `defaults`. If you cancel, it is installed but off.
 * `removed: true`: standard plugins are removed at the next check; others disappear from the gallery but stay installed.
 * Entries with a `minAppVersion` newer than BarDrop are skipped.
-* Settings → Plugins works like System Settings: the list shows each plugin’s name, description (or what needs attention) and “On” or “Off”; clicking opens its page, and ‹ in the title bar (or Esc) goes back; clicking “Plugins” in the sidebar again returns to the start page. The page has the switch at the top, then “When it runs”, the plugin’s settings and, at the bottom, Info: Internet (Yes, No or only to download programs), Works with, Version, Developer, Size, Programs (size, “Update”) and Permissions. In the gallery, a symbol shows whether a plugin works offline, uses the internet or downloads a program once.
-* Submit with a pull request to `plugin-katalog`; every plugin is reviewed before it is merged.
+* Settings → Plugins works like System Settings: the list shows each plugin’s name, version and size (or what needs attention) and “On” or “Off”; clicking opens its page, and ‹ in the title bar (or Esc) goes back; clicking “Plugins” in the sidebar again returns to the start page. The page has the switch at the top, then “When it runs”, the plugin’s settings and, at the bottom, Info: Internet (Yes, No or only to download programs), Works with, Version, Developer, Size, Programs (size, “Update”) and Access. In the gallery, a symbol shows whether a plugin works offline, uses the internet or downloads a program once.
+* Submit with a pull request that adds the `.bdrop` to `Plugins/` on `main`; every plugin is reviewed before it is merged. Everything in `Plugins/` is public.
 
 ## 11. Checking before sharing
 
@@ -369,7 +379,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 | result outside the output folder | doesn’t appear | always write to `bardrop.outputDirectory` |
 | temporary files in the output folder | appear as items | delete them or start their names with `.` |
 | archive as `tools.url` | not executable | a single executable file |
-| `automaticByDefault` with `network` | has no effect | the user turns it on |
+| `automaticByDefault` with `network` | has no effect | `defaults.automatic` (applies after allowing) |
 | script edited | all permissions gone | expected; allow again |
 
 ## 13. Example: remove tracking from links

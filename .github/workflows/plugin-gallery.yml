@@ -1,0 +1,59 @@
+name: Plugin-Galerie
+
+# .bdrop-Dateien in Plugins/ auf main prüfen und in die Galerie (Zweig plugin-katalog)
+# übernehmen. Baut kein Release; release.yml ignoriert Änderungen in Plugins/.
+on:
+  push:
+    branches: [main]
+    paths: ['Plugins/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Läufe nacheinander, keiner wird abgebrochen: Jeder schreibt auf plugin-katalog
+concurrency:
+  group: plugin-gallery
+  cancel-in-progress: false
+
+jobs:
+  gallery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: plugin-katalog
+          path: katalog
+
+      - name: Galerie bauen
+        id: build
+        # Exitcode 3: Galerie geschrieben, aber Dateien übersprungen (siehe Annotationen).
+        # Dann trotzdem hochladen und den Lauf am Ende als fehlgeschlagen markieren.
+        run: |
+          python3 --version
+          python3 scripts/build_gallery.py --katalog katalog || STATUS=$?
+          echo "status=${STATUS:-0}" >> "$GITHUB_OUTPUT"
+          [ "${STATUS:-0}" = 0 ] || [ "${STATUS:-0}" = 3 ]
+
+      - name: Hochladen
+        working-directory: katalog
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice title=Galerie::keine Änderung"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "Galerie: aus Plugins/ aktualisiert"
+          git push origin HEAD:plugin-katalog
+          echo "::notice title=Galerie::aktualisiert ($(git rev-parse --short HEAD))"
+
+      - name: Übersprungene Dateien
+        if: steps.build.outputs.status == '3'
+        run: |
+          echo "::error title=Galerie::Mindestens eine Datei in Plugins/ wurde übersprungen, siehe Annotationen oben"
+          exit 1

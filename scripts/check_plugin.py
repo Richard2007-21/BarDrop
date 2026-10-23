@@ -37,7 +37,7 @@ PERMISSIONS = {"network", "run", "clipboard"}
 TRIGGERS = {"menu", "action", "automatic"}
 SETTING_TYPES = {"toggle", "choice", "text"}
 KNOWN_KEYS = {"schema", "id", "name", "description", "version", "author", "homepage", "icon", "actionTitle",
-              "minAppVersion", "script", "match", "triggers", "automaticByDefault", "permissions", "tools",
+              "minAppVersion", "script", "match", "triggers", "automaticByDefault", "defaults", "permissions", "tools",
               "settings", "canReplaceOriginal", "batch", "consent"}
 API = {"writeFile", "createLink", "readFile", "progress", "notify", "isCancelled", "sleep", "log", "fetch",
        "download", "run", "setClipboard", "settings", "language", "appVersion", "outputDirectory",
@@ -260,6 +260,23 @@ def check_manifest(m, files):
         hint("\"canReplaceOriginal\" wirkt nicht zusammen mit \"batch\": Bei mehreren Objekten gibt es kein einzelnes Original")
     if m.get("automaticByDefault") and (({"network", "run"} & set(permissions)) or tools):
         hint("\"automaticByDefault\" gilt nicht für Plugins mit network, run oder tools: der Nutzer schaltet es selbst ein")
+    defaults = m.get("defaults")
+    if defaults is not None:
+        if not isinstance(defaults, dict):
+            error("\"defaults\" muss ein Objekt sein")
+        else:
+            for key, value in defaults.items():
+                if key not in ("actionBar", "automatic", "replaceOriginal"):
+                    hint(f"Unbekannter Schlüssel in \"defaults\" wird ignoriert: {key}")
+                elif not isinstance(value, bool):
+                    error(f"\"defaults.{key}\" muss true oder false sein")
+            trig = m.get("triggers") or ["menu", "action", "automatic"]
+            if defaults.get("actionBar") and "action" not in trig:
+                hint("\"defaults.actionBar\" wirkt nur mit dem Auslöser \"action\"")
+            if defaults.get("automatic") and "automatic" not in trig:
+                hint("\"defaults.automatic\" wirkt nur mit dem Auslöser \"automatic\"")
+            if defaults.get("replaceOriginal") and not m.get("canReplaceOriginal"):
+                hint("\"defaults.replaceOriginal\" wirkt nur mit \"canReplaceOriginal\": true")
 
     seen_keys = set()
     for spec in m.get("settings") or []:

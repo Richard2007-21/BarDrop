@@ -177,6 +177,8 @@ enum PluginImporter {
             manager.grantAll(installed)
             // Von Hand importiert: Updates kommen nicht mehr aus der Galerie
             manager.update(installed.id) { $0.fromCatalog = false }
+            // Neu installiert: gleich an, mit den Voreinstellungen des Plugins
+            if existing == nil { manager.activateWithDefaults(installed) }
             // Plugins einschalten, sonst wäre das neue Plugin nirgends zu sehen
             if !AppSettings.shared.pluginsEnabled { AppSettings.shared.pluginsEnabled = true }
             return installed
@@ -240,74 +242,6 @@ enum PluginImporter {
         alert.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
-    }
-}
-
-// MARK: Skript ansehen
-
-/// Skript eines Plugins zum Lesen, mit Syntaxfarben. Bearbeitet wird im eigenen Editor
-/// („Im Editor öffnen“); geänderter Code verliert seine Rechte.
-enum ScriptViewer {
-    private static var windows: [String: NSWindow] = [:]
-
-    static func show(_ plugin: InstalledPlugin) {
-        if let window = windows[plugin.id] {
-            window.contentView = NSHostingView(rootView: ScriptViewerView(plugin: plugin))
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 520),
-                              styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView],
-                              backing: .buffered, defer: false)
-        window.titlebarAppearsTransparent = true
-        window.title = plugin.manifest.name.text + " · " + plugin.manifest.script
-        window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 420, height: 300)
-        window.contentView = NSHostingView(rootView: ScriptViewerView(plugin: plugin))
-        window.center()
-        windows[plugin.id] = window
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-    }
-}
-
-private struct ScriptViewerView: View {
-    let plugin: InstalledPlugin
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ScriptText(script: plugin.script, fontSize: 12.5)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            HStack(spacing: 8) {
-                PluginIconView(icon: plugin.manifest.icon, size: 20)
-                Text("\(plugin.manifest.name.text) \(plugin.manifest.version)")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(L("Copy", "Kopieren")) {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(plugin.script, forType: .string)
-                }
-                .buttonStyle(KlackButtonStyle())
-                Button(L("Show in Finder", "Im Finder zeigen")) {
-                    NSWorkspace.shared.activateFileViewerSelecting([plugin.scriptURL])
-                }
-                .buttonStyle(KlackButtonStyle())
-                if !plugin.isStandard {
-                    Button(L("Open in Editor", "Im Editor öffnen")) {
-                        NSWorkspace.shared.open(plugin.scriptURL)
-                    }
-                    .buttonStyle(KlackButtonStyle(prominent: true))
-                    .help(L("After a change, the plugin asks for its permissions again.",
-                            "Nach einer Änderung fragt das Plugin erneut nach seinen Rechten."))
-                }
-            }
-            .padding(12)
-            .background(SettingsTheme.contentBackdrop)
-        }
-        .background(Color.black)
-        .environment(\.colorScheme, .dark)
     }
 }
 

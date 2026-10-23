@@ -709,6 +709,43 @@ struct KlackButtonStyle: ButtonStyle {
     }
 }
 
+/// Runder Knopf nur mit Symbol (Zurück in der Titelleiste): dieselbe Fläche, derselbe Rand
+/// und dieselbe Schriftfarbe wie `KlackButtonStyle`, damit er zu den anderen Knöpfen passt
+struct KlackCircleButtonStyle: ButtonStyle {
+    var size: CGFloat = 28
+
+    func makeBody(configuration: Configuration) -> some View {
+        CircleBody(configuration: configuration, size: size)
+    }
+
+    private struct CircleBody: View {
+        let configuration: ButtonStyleConfiguration
+        let size: CGFloat
+        @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.colorScheme) private var colorScheme
+        @State private var hovering = false
+
+        private var background: Color {
+            if colorScheme == .dark {
+                return Color.primary.opacity(configuration.isPressed ? 0.2 : hovering ? 0.15 : 0.11)
+            }
+            return configuration.isPressed ? SettingsTheme.buttonLightPressed
+                : hovering ? SettingsTheme.buttonLightHover : SettingsTheme.buttonLight
+        }
+
+        var body: some View {
+            configuration.label
+                .foregroundStyle(Color.primary)
+                .frame(width: size, height: size)
+                .background(Circle().fill(background).shadow(color: SettingsTheme.controlShadow, radius: 0.5, y: 0.5))
+                .overlay(Circle().strokeBorder(SettingsTheme.buttonBorder, lineWidth: 0.5))
+                .contentShape(Circle())
+                .opacity(isEnabled ? 1 : 0.45)
+                .onHover { hovering = $0 }
+        }
+    }
+}
+
 /// Überschrift eines Abschnitts: Titel links, rechts optional Info und weitere Knöpfe.
 struct SettingsHeader<Trailing: View>: View {
     let title: String

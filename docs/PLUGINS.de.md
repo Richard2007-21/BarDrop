@@ -31,7 +31,7 @@ Entpackt wird mit `/usr/bin/ditto`. Installiert liegt ein Plugin in `~/Library/A
 
 **Erzeugen:** `python3 scripts/check_plugin.py MeinPlugin/ --pack` prüft den Ordner und erzeugt `MeinPlugin.bdrop`. Von Hand geht es mit `ditto -c -k --norsrc --noextattr MeinPlugin MeinPlugin.bdrop` oder mit „Komprimieren“ im Finder und anschließendem Umbenennen von `.zip` in `.bdrop`.
 
-**Installieren:** Doppelklick auf die Datei oder Einstellungen → Plugins → „Aus Datei importieren“. BarDrop zeigt Name, Rechte, nachzuladende Programme und das Skript, mit dem Hinweis, dass das Plugin nicht aus dem Katalog stammt. Installiert wird erst nach „Installieren“. Ist ein Plugin mit derselben `id` schon da, heißt der Knopf „Aktualisieren“. Ein Standard-Plugin aus dem Katalog lässt sich nicht durch einen Import ersetzen. Nach dem Import schaltet BarDrop „Plugins verwenden“ ein; das Plugin selbst bleibt aus. Lässt sich ein installiertes Plugin nicht mehr lesen (etwa nach dem Bearbeiten), steht es mit der Fehlermeldung in der Liste, mit „Im Finder zeigen“ und, außer bei Standard-Plugins, „Entfernen“.
+**Installieren:** Doppelklick auf die Datei oder Einstellungen → Plugins → „Aus Dateien importieren“. BarDrop zeigt Name, Rechte, nachzuladende Programme und das Skript, mit dem Hinweis, dass das Plugin nicht aus dem Katalog stammt. Installiert wird erst nach „Installieren“. Ist ein Plugin mit derselben `id` schon da, heißt der Knopf „Aktualisieren“. Ein Standard-Plugin aus dem Katalog lässt sich nicht durch einen Import ersetzen. Nach dem Import schaltet BarDrop „Plugins verwenden“ und das neue Plugin ein, eingestellt nach `defaults` (3.1). Ein Update lässt Ein/Aus und die Einstellungen, wie sie sind. Lässt sich ein installiertes Plugin nicht mehr lesen (etwa nach dem Bearbeiten), steht es mit der Fehlermeldung in der Liste, mit „Im Finder zeigen“ und, außer bei Standard-Plugins, „Entfernen“.
 
 ## 3. manifest.json
 
@@ -44,7 +44,7 @@ Unbekannte Schlüssel werden ignoriert. Ein Schlüssel mit falschem Typ (z. B. Z
 | `schema` | Zahl | nein | Muss `1` sein. Fehlt er, gilt 1. |
 | `id` | Text | ja | Eindeutige Kennung, z. B. `io.github.name.mein-plugin`. Muster: `^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$`, also mindestens ein Punkt, nur Buchstaben, Ziffern, Bindestriche; höchstens 120 Zeichen. Bleibt bei Updates gleich. |
 | `name` | Text (3.2) | ja | Name in Einstellungen und Dialogen. Der englische Text darf nicht leer sein. |
-| `description` | Text (3.2) | nein | Eine Zeile unter dem Namen in den Einstellungen und Hilfetext der Aktion. |
+| `description` | Text (3.2) | nein | Steht oben auf der Seite des Plugins, in der Galerie und als Hilfetext der Aktion. |
 | `version` | Text | ja | `1`, `1.2` oder `1.2.3`, als Text in Anführungszeichen. Muster `^\d+(\.\d+){0,2}$`. Keine Beta-Zusätze. |
 | `author` | Text | nein | Wird neben der Version angezeigt. |
 | `homepage` | Text | nein | Wird gespeichert, aber derzeit nicht angezeigt. |
@@ -54,13 +54,14 @@ Unbekannte Schlüssel werden ignoriert. Ein Schlüssel mit falschem Typ (z. B. Z
 | `script` | Text | nein | Dateiname des Skripts, Standard `"main.js"`. Muss auf `.js` enden, darf keinen `/` enthalten und nicht mit `.` beginnen. |
 | `match` | Objekt | ja | Wofür das Plugin zuständig ist, siehe 4. |
 | `triggers` | Liste | nein | Teilmenge von `"menu"`, `"action"`, `"automatic"`. Fehlt der Schlüssel, gelten alle drei. Unbekannte Werte werden übergangen. Bleibt kein bekannter Wert übrig (auch bei `[]`), lehnt BarDrop das Plugin ab. |
-| `automaticByDefault` | Wahrheitswert | nein | „Automatisch beim Ablegen“ ist von Anfang an an. Gilt **nur**, wenn `triggers` `automatic` erlaubt und das Plugin weder `network` noch `run` noch `tools` hat. |
+| `automaticByDefault` | Wahrheitswert | nein | Älterer Schlüssel, besser `defaults.automatic`. „Automatisch beim Ablegen“ ist auch ohne Installieren und Erlauben an (Standard-Plugins aus dem Katalog), aber **nur**, wenn `triggers` `automatic` erlaubt und das Plugin weder `network` noch `run` noch `tools` hat. |
 | `permissions` | Liste | nein | Teilmenge von `"network"`, `"run"`, `"clipboard"`, siehe 6. Ein **unbekannter** Wert lässt das ganze Plugin ablehnen. |
 | `tools` | Liste | nein | Programme, die BarDrop nachlädt, siehe 7. Verlangt das Recht `run`. |
 | `settings` | Liste | nein | Einstellungen des Plugins, siehe 3.3. |
 | `canReplaceOriginal` | Wahrheitswert | nein | Zeigt den Schalter „Original ersetzen“ (Standard aus), siehe 8. Wirkt nicht zusammen mit `batch`. |
 | `batch` | Wahrheitswert | nein | Bei mehreren Objekten **einmal** mit allen laufen statt je Objekt: `run(item, items)`, siehe 9.2. Das Ergebnis erscheint neben dem ersten Objekt. Gilt auch für zusammen abgelegte Objekte bei „Automatisch beim Ablegen“. |
 | `consent` | Text (3.2) | nein | Hinweis, dem der Nutzer **einmal** zustimmen muss, bevor das Plugin eingeschaltet werden oder laufen kann. Ändert ein Update den Text, fragt BarDrop erneut. |
+| `defaults` | Objekt | nein | Wie das Plugin nach dem Installieren eingestellt ist: `actionBar` (gleich in der Aktionsleiste, wenn dort Platz ist; nur mit Auslöser `action`), `automatic` („Automatisch beim Ablegen“; nur mit `automatic`), `replaceOriginal` („Original ersetzen“; nur mit `canReplaceOriginal`), je `true` oder `false`. Gilt nach „Installieren“ (Import) bzw. nach „Laden“ und „Erlauben“ (Galerie), auch für Plugins mit `network`, `run` oder `tools`, denn der Nutzer hat gerade alles erlaubt. Danach ändert nur der Nutzer etwas; Updates fassen die Einstellungen nicht an. Die eigenen Einstellungen des Plugins (`settings`) haben ihren Standard in `default`, siehe 3.3. |
 
 ### 3.2 Texte in zwei Sprachen
 
@@ -163,7 +164,7 @@ Ein Plugin startet nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`co
 * Beim Import einer `.bdrop`-Datei stehen Rechte, Programme und Hinweis schon im Installieren-Fenster: „Installieren“ bzw. „Aktualisieren“ erteilt sie, danach kommt kein weiteres Fenster.
 * `clipboard` gilt immer als erteilt, sobald es in `permissions` steht (Text in die Zwischenablage legen fragt auch macOS nicht ab).
 * Erteilte Rechte gelten für **genau diesen Code**: eine SHA-256-Prüfsumme über **alle Dateien** des Plugins (Pfad und Inhalt; nur `.DS_Store` zählt nicht), denn das Skript kann weitere Dateien lesen und als Code ausführen. Jede Änderung an irgendeiner Datei auf der Platte setzt alle Rechte zurück. Aktualisierungen aus dem Katalog behalten Rechte, die das Plugin weiter braucht, und fragen nur nach neuen; ein Import erteilt die Rechte aus seiner Liste.
-* Fehlt einem eingeschalteten Plugin etwas, steht in der Liste unter seinem Namen „Braucht deine Erlaubnis“ und auf seiner Seite oben „Erlauben“; das fragt sofort nach allem Fehlenden (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat). Info → „Rechte“ auf der Seite des Plugins zeigt je Recht, Hinweis und Programm „Erlaubt“ oder „Noch nicht“, mit „Erlauben“ und „Zurücksetzen“.
+* Fehlt einem eingeschalteten Plugin etwas, steht in der Liste unter seinem Namen „Braucht deine Erlaubnis“ und auf seiner Seite oben „Erlauben“; das fragt sofort nach allem Fehlenden (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat). Info → „Zugriff“ auf der Seite des Plugins zeigt oben in einem Satz den Stand mit „Erlauben“ bzw. „Entziehen“, darunter getrennt Rechte, Programme und Hinweis mit je „Erlaubt“ oder „Noch nicht“. „Entziehen“ nimmt Rechte, Programme und Zustimmung zurück; vor dem nächsten Lauf fragt das Plugin erneut.
 * Es gibt **keine Sandbox von macOS** um Plugins. Das Skript selbst kann ohne Rechte nur die Aufrufe aus 9 nutzen. Ein mit `run` gestartetes Programm hat aber die vollen Rechte des Benutzers.
 
 ## 7. tools: nachgeladene Programme
@@ -282,9 +283,18 @@ Für `writeFile`, `createLink` und `download` gilt: nur der letzte Teil eines Pf
 
 ## 10. Katalog (Galerie)
 
-Der Katalog liegt auf dem eigenen Zweig **`plugin-katalog`** dieses Repositorys: `https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/index.json`, die Plugins daneben unter `plugins/<id>/<id>-<version>.bdrop`. Ein Push dorthin baut kein Release der App (ein Push auf `main` täte das). BarDrop bis Beta 7 liest noch den leeren `Plugins/index.json` auf `main`.
+Der Katalog liegt auf dem eigenen Zweig **`plugin-katalog`** dieses Repositorys: `https://raw.githubusercontent.com/zzuuuiii/BarDrop/plugin-katalog/index.json`, die Plugins daneben unter `plugins/<id>/<id>-<version>.bdrop`. Die Galerie wird nicht von Hand bearbeitet. BarDrop bis Beta 7 liest noch den leeren `Plugins/index.json` auf `main`; er bleibt unverändert.
 
-**Eintragen** nur mit dem Skript, nicht von Hand:
+**Eintragen über `Plugins/`** (einfachster Weg, nur im Browser): die `.bdrop`-Datei auf GitHub in den Ordner `Plugins/` auf `main` hochladen (Add file → Upload files, Commit). Der Workflow `plugin-gallery.yml` (`scripts/build_gallery.py`) übernimmt sie in etwa einer Minute nach `plugin-katalog`; ein Push, der nur `Plugins/` ändert, baut kein Release der App.
+
+* Jede `.bdrop` in `Plugins/` (auch in Unterordnern) wird wie mit `check_plugin.py` geprüft. Fehlerhafte werden übersprungen und im Lauf als Fehler gemeldet; der Lauf schlägt dann fehl, die übrigen werden trotzdem eingetragen.
+* Die Datei wird unverändert übernommen. Liegt dieselbe `id` mehrfach dort, gilt die höchste `version`.
+* Aktualisieren: neue Datei mit höherer `version` hochladen. `updated` ändert sich nur, wenn sich die Prüfsumme ändert.
+* Entfernen: Datei löschen. Der Eintrag bleibt mit `removed: true` stehen.
+* `category` kommt aus einem freiwilligen Schlüssel `category` der manifest.json (BarDrop selbst ignoriert ihn), `standard` wird nur im Katalog gesetzt; beides bleibt bei Aktualisierungen erhalten.
+* Welche ids aus `Plugins/` stammen, steht in `from-main.json` auf `plugin-katalog`. Einträge, die mit `publish_plugin.py` entstanden sind, lässt der Workflow unverändert.
+
+**Eintragen mit dem Skript** (Kommandozeile, Alternative):
 
 ```sh
 python3 scripts/publish_plugin.py MeinPlugin/ --category images          # prüfen, packen, eintragen
@@ -325,11 +335,11 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
 
 * Abfrage höchstens einmal am Tag, nur bei eingeschalteten Plugins; beim Einschalten sofort; beim Öffnen von Einstellungen → Plugins, wenn die letzte Abfrage über eine Stunde her ist.
 * `standard: true`: wird automatisch installiert (ausgeschaltet), still aktualisiert, sobald `version` höher ist, lässt sich weder bearbeiten noch entfernen. Ohne Internet erscheint es als „Nicht geladen“ mit „Erneut versuchen“.
-* Ist noch kein Plugin installiert, zeigt Einstellungen → Plugins gleich die verfügbaren unter „Verfügbar“. Sonst führt „Weitere Plugins“ (rechts die Zahl der neuen) dorthin; die Liste zeigt alle Einträge (ab sieben mit Suche); noch nicht installierte mit „Laden“, installierte mit „Öffnen“.
+* Ist noch kein Plugin installiert, zeigt Einstellungen → Plugins gleich die verfügbaren unter „Verfügbar“. Sonst führt „Weitere Plugins“ (rechts die Zahl der neuen) dorthin; die Liste zeigt alle Einträge (ab sieben mit Suche); noch nicht installierte mit „Laden“, installierte mit „Öffnen“. Nach „Laden“ kommt das Erlauben-Fenster (falls das Plugin etwas braucht); danach ist das Plugin an und nach `defaults` eingestellt. Wer abbricht, hat es installiert, aber aus.
 * `removed: true`: Standard-Plugins werden beim nächsten Abgleich entfernt; andere verschwinden aus der Galerie, bleiben aber installiert.
 * Einträge mit einer `minAppVersion`, die neuer ist als BarDrop, werden übergangen.
-* Einstellungen → Plugins ist wie die Systemeinstellungen aufgebaut: In der Liste steht je Plugin Name, Beschreibung (oder was ansteht) und „Ein“ bzw. „Aus“; ein Klick öffnet seine Seite, oben in der Titelzeile führt ‹ (oder Esc) zurück, ein erneuter Klick auf „Plugins“ in der Seitenleiste zur Startseite. Die Seite zeigt oben den Schalter, dann „Wann es läuft“, die Einstellungen des Plugins und ganz unten die Info: Internet (Ja, Nein oder nur zum Laden von Programmen), Passt zu, Version, Entwickler, Größe, Programme (Größe, „Aktualisieren“) und Rechte. In der Galerie zeigt ein Zeichen, ob ein Plugin offline läuft, das Internet nutzt oder einmal ein Programm lädt.
-* Einreichen per Pull Request auf `plugin-katalog`; jedes Plugin wird vor dem Aufnehmen geprüft.
+* Einstellungen → Plugins ist wie die Systemeinstellungen aufgebaut: In der Liste steht je Plugin Name, Version und Größe (oder was ansteht) und „Ein“ bzw. „Aus“; ein Klick öffnet seine Seite, oben in der Titelzeile führt ‹ (oder Esc) zurück, ein erneuter Klick auf „Plugins“ in der Seitenleiste zur Startseite. Die Seite zeigt oben den Schalter, dann „Wann es läuft“, die Einstellungen des Plugins und ganz unten die Info: Internet (Ja, Nein oder nur zum Laden von Programmen), Passt zu, Version, Entwickler, Größe, Programme (Größe, „Aktualisieren“) und Zugriff. In der Galerie zeigt ein Zeichen, ob ein Plugin offline läuft, das Internet nutzt oder einmal ein Programm lädt.
+* Einreichen per Pull Request mit der `.bdrop` in `Plugins/` auf `main`; jedes Plugin wird vor dem Aufnehmen geprüft. Alles in `Plugins/` ist öffentlich.
 
 ## 11. Prüfen vor dem Weitergeben
 
@@ -369,7 +379,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 | Ergebnis außerhalb des Ausgabeordners | erscheint nicht | immer in `bardrop.outputDirectory` schreiben |
 | Zwischendateien im Ausgabeordner | erscheinen als Objekte | löschen oder mit `.` am Anfang benennen |
 | Archiv als `tools.url` | nicht ausführbar | einzelne ausführbare Datei |
-| `automaticByDefault` mit `network` | wirkt nicht | Nutzer schaltet es selbst ein |
+| `automaticByDefault` mit `network` | wirkt nicht | `defaults.automatic` (gilt nach dem Erlauben) |
 | Skript bearbeitet | alle Rechte weg | erwartet; erneut erlauben |
 
 ## 13. Beispiel: Tracking aus Links entfernen

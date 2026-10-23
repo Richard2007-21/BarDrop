@@ -623,7 +623,9 @@ struct QuickActionButton: View {
                     let modifiers = NSEvent.modifierFlags
                     let files = (pb.readObjects(forClasses: [NSURL.self],
                                                 options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
-                    if !files.isEmpty && files.allSatisfy(ContentImporter.isUserFile) {
+                    // Plugins arbeiten mit Objekten der Ablage (das Ergebnis erscheint daneben):
+                    // Dateien aus dem Finder erst übernehmen, sonst hieß es „Nicht passend“ (Issue 57)
+                    if action.kind != .plugin && !files.isEmpty && files.allSatisfy(ContentImporter.isUserFile) {
                         // Dateien aus dem Finder direkt verwenden
                         DispatchQueue.main.async {
                             actions.perform(action, urls: files, anchor: anchor, modifiers: modifiers)

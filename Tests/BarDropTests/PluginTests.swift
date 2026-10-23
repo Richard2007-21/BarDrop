@@ -189,6 +189,32 @@ final class PluginTests: XCTestCase {
         XCTAssertTrue(manager.isGranted(.clipboard, for: edited))
     }
 
+    /// Nach Installieren und Erlauben: an und mit den Voreinstellungen des Plugins
+    func testActivateWithDefaultsAfterInstall() throws {
+        let manager = PluginManager(baseDirectory: base.appendingPathComponent("support"), appVersion: "1.31.0")
+        let file = base.appendingPathComponent("d.bdrop")
+        let extra = #", "canReplaceOriginal": true, "defaults": {"actionBar": true, "automatic": true, "replaceOriginal": true}"#
+        try PluginPackage.pack(makePluginFolder(permissions: ["network"], script: "function run(item) {}", extra: extra), to: file)
+        let plugin = try manager.install(try manager.inspect(file), standard: false)
+        XCTAssertEqual(plugin.manifest.defaults?.automatic, true)
+        // Vorher aus, und mit Internet gilt der alte Standard nicht
+        XCTAssertFalse(manager.state(plugin.id).enabled)
+        XCTAssertFalse(manager.isAutomatic(plugin))
+
+        let settings = AppSettings.shared
+        let saved = settings.quickActions
+        defer { settings.quickActions = saved }
+        settings.quickActions = []
+        manager.activateWithDefaults(plugin)
+        XCTAssertTrue(manager.state(plugin.id).enabled)
+        XCTAssertTrue(manager.isAutomatic(plugin))
+        XCTAssertTrue(manager.state(plugin.id).replaceOriginal)
+        XCTAssertTrue(settings.quickActions.contains { $0.kind == .plugin && $0.path == plugin.id })
+        // Zweimal: keine doppelte Aktion
+        manager.activateWithDefaults(plugin)
+        XCTAssertEqual(settings.quickActions.filter { $0.path == plugin.id }.count, 1)
+    }
+
     /// Galerie: neue Felder im Katalog und die Angabe offline/Internet
     func testCatalogGalleryFieldsAndConnectivity() throws {
         let json = #"""

@@ -24,7 +24,7 @@ enum PluginPage: Hashable {
         switch self {
         case .list: return SettingsPane.plugins.title
         case .plugin(let id): return manager.plugin(id)?.manifest.name.text ?? SettingsPane.plugins.title
-        case .permissions: return L("Permissions", "Rechte")
+        case .permissions: return L("Access", "Zugriff")
         case .gallery: return L("More Plugins", "Weitere Plugins")
         case .order: return L("Order When Dropped", "Reihenfolge beim Ablegen")
         }
@@ -36,21 +36,14 @@ enum PluginPage: Hashable {
 struct PluginPageHeader: View {
     @ObservedObject var navigation: SettingsNavigation
     @ObservedObject var manager: PluginManager = .shared
-    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 10) {
             Button(action: back) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(Color.primary.opacity(hovering ? 0.12 : 0.07)))
-                    .overlay(Circle().strokeBorder(SettingsTheme.separator, lineWidth: 0.5))
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
-            .onHover { hovering = $0 }
+            .buttonStyle(KlackCircleButtonStyle())
             .keyboardShortcut(.cancelAction)
             .help(L("Back", "Zurück"))
             .accessibilityLabel(L("Back", "Zurück"))
@@ -215,7 +208,7 @@ struct PluginSettings: View {
     private var importButton: some View {
         HStack {
             Spacer(minLength: 0)
-            Button(L("Import From File", "Aus Datei importieren")) { PluginImporter.chooseAndImport() }
+            Button(L("Import From Files", "Aus Dateien importieren")) { PluginImporter.chooseAndImport() }
                 .buttonStyle(KlackButtonStyle())
                 .help(L("Install a .bdrop file. You can also double-click it.",
                         "Eine .bdrop-Datei installieren. Doppelklicken geht auch."))
@@ -271,6 +264,8 @@ private struct InstalledRow: View {
     @ObservedObject var manager: PluginManager
     let open: () -> Void
     @State private var hovering = false
+    /// Plugin und seine Programme zusammen
+    @State private var size: Int64?
 
     private var state: PluginState { manager.state(plugin.id) }
     private var running: Int { manager.runningCounts[plugin.id] ?? 0 }
@@ -282,8 +277,9 @@ private struct InstalledRow: View {
             return (L("Needs your permission", "Braucht deine Erlaubnis"), .orange)
         }
         if manager.lastErrors[plugin.id] != nil { return (L("Last run didn’t work", "Letzter Lauf hat nicht geklappt"), .orange) }
-        if let description = plugin.manifest.description?.text, !description.isEmpty { return (description, .secondary) }
-        return (L("Version \(plugin.manifest.version)", "Version \(plugin.manifest.version)"), .secondary)
+        var parts = [L("Version \(plugin.manifest.version)", "Version \(plugin.manifest.version)")]
+        if let size { parts.append(PluginSize.text(size)) }
+        return (parts.joined(separator: " · "), .secondary)
     }
 
     var body: some View {
@@ -315,6 +311,13 @@ private struct InstalledRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .onAppear(perform: measure)
+        .onChange(of: manager.toolRefresh[plugin.id]) { _, _ in measure() }
+    }
+
+    private func measure() {
+        let parts = PluginSize.parts(of: plugin, tools: manager.tools)
+        size = parts.own + (parts.programs ?? 0)
     }
 }
 
@@ -446,6 +449,13 @@ private struct GalleryRow: View {
                     manager.installFromCatalog(entry) { ok in
                         loading = false
                         failed = !ok
+                        // Einmal erlauben, dann ist das Plugin an und so eingestellt,
+                        // wie es gedacht ist. Ohne Erlaubnis bleibt es installiert, aber aus.
+                        guard ok, let plugin = manager.plugin(entry.id) else { return }
+                        if !AppSettings.shared.pluginsEnabled { AppSettings.shared.pluginsEnabled = true }
+                        if manager.isFullyAuthorized(plugin) || PluginDialogs.authorize(plugin, manager: manager, ui: nil) {
+                            manager.activateWithDefaults(plugin)
+                        }
                     }
                 }
                 .buttonStyle(KlackButtonStyle())
@@ -553,7 +563,7 @@ private struct PluginPageView: View {
                     }
                 }
                 if let error = manager.lastErrors[plugin.id] {
-                    HStack(alignment: .top, spacing: 10) {
+                    HStack(alignment: .center, spacing: 10) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L("Last run didn’t work", "Letzter Lauf hat nicht geklappt"))
                                 .font(.system(size: 13.5))
@@ -564,11 +574,7 @@ private struct PluginPageView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 8)
-                        Button(L("Copy", "Kopieren")) {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(error, forType: .string)
-                        }
-                        .buttonStyle(KlackButtonStyle())
+                        CopyButton(text: error)
                     }
                     .padding(.horizontal, SettingsTheme.rowPadding)
                     .padding(.vertical, 11)
@@ -631,7 +637,7 @@ private struct PluginPageView: View {
                 }
             }
             if !manifest.allPermissions.isEmpty || !(manifest.tools ?? []).isEmpty {
-                NavigationRow(L("Permissions", "Rechte"),
+                NavigationRow(L("Access", "Zugriff"),
                               value: manager.isFullyAuthorized(plugin) ? L("Allowed", "Erlaubt") : L("Not allowed", "Nicht erlaubt")) {
                     open(.permissions(plugin.id))
                 }
@@ -640,8 +646,6 @@ private struct PluginPageView: View {
 
         HStack(spacing: 8) {
             Spacer(minLength: 8)
-            Button(L("Show Script", "Skript zeigen")) { ScriptViewer.show(plugin) }
-                .buttonStyle(KlackButtonStyle())
             if !plugin.isStandard {
                 Button(L("Remove", "Entfernen")) { confirmRemove() }
                     .buttonStyle(KlackButtonStyle(destructive: true))
@@ -705,55 +709,146 @@ private struct InfoValueRow: View {
     }
 }
 
-// MARK: Rechte
+// MARK: Zugriff
 
-/// Was das Plugin darf und lädt, je Zeile mit Stand; darunter Erlauben bzw. Zurücksetzen
+/// Was das Plugin darf, welche Programme es lädt und welchem Hinweis man zugestimmt hat.
+/// Aufgebaut wie „Datenschutz & Sicherheit“: oben in einem Satz der Stand, darunter je
+/// Gruppe eine Karte mit Symbol, Erklärung und Stand.
 private struct PluginPermissionsPage: View {
     let plugin: InstalledPlugin
     @ObservedObject var manager: PluginManager
 
     private var state: PluginState { manager.state(plugin.id) }
+    private var allowed: Bool { manager.isFullyAuthorized(plugin) }
+    private var anythingGranted: Bool { !state.granted.isEmpty || !state.approvedTools.isEmpty || state.consented }
 
     var body: some View {
         let manifest = plugin.manifest
-        SettingsSection(note: L("If the plugin’s files change, it asks again.",
-                                "Ändern sich die Dateien des Plugins, fragt es erneut.")) {
-            if manifest.consent != nil {
-                SettingsRow(L("Notice", "Hinweis"), subtitle: manifest.consent?.text) {
-                    status(manager.hasConsented(plugin), allowed: L("Agreed", "Zugestimmt"))
+        let name = manifest.name.text
+        // Stand in einem Satz, rechts der eine Knopf, der gerade passt
+        SettingsCard {
+            HStack(spacing: 12) {
+                Image(systemName: allowed ? "checkmark.shield" : "exclamationmark.shield")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(allowed ? L("“\(name)” has access", "„\(name)“ hat Zugriff")
+                                 : L("“\(name)” needs your permission", "„\(name)“ braucht deine Erlaubnis"))
+                        .font(.system(size: 13.5, weight: .medium))
+                    Text(L("If the plugin’s files change, it asks again.",
+                           "Ändern sich die Dateien des Plugins, fragt es erneut."))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                if allowed {
+                    if anythingGranted {
+                        Button(L("Revoke", "Entziehen")) { manager.revokeAccess(plugin.id) }
+                            .buttonStyle(KlackButtonStyle())
+                            .help(L("The plugin asks again before its next run.",
+                                    "Vor dem nächsten Lauf fragt das Plugin erneut."))
+                    }
+                } else {
+                    Button(L("Allow", "Erlauben")) { _ = PluginDialogs.authorize(plugin, manager: manager, ui: nil) }
+                        .buttonStyle(KlackButtonStyle(prominent: true))
                 }
             }
-            ForEach(manifest.allPermissions) { permission in
-                SettingsRow(permission.title, subtitle: permission.explanation) {
-                    status(manager.isGranted(permission, for: plugin))
-                }
-            }
-            ForEach(manifest.tools ?? [], id: \.approvalKey) { tool in
-                SettingsRow(L("Downloads “\(tool.name)”", "Lädt „\(tool.name)“"),
-                            subtitle: [URL(string: tool.resolvedURL)?.host, tool.license].compactMap { $0 }.joined(separator: " · ")) {
-                    status(state.approvedTools.contains(tool.approvalKey))
+            .padding(.horizontal, SettingsTheme.rowPadding)
+            .padding(.vertical, 12)
+        }
+
+        if !manifest.allPermissions.isEmpty {
+            SettingsSection(L("Permissions", "Rechte")) {
+                ForEach(manifest.allPermissions) { permission in
+                    AccessRow(symbol: permission.symbol, title: permission.title, subtitle: permission.explanation,
+                              granted: manager.isGranted(permission, for: plugin))
                 }
             }
         }
 
-        HStack(spacing: 8) {
-            Spacer(minLength: 8)
-            if !state.granted.isEmpty || !state.approvedTools.isEmpty {
-                Button(L("Reset", "Zurücksetzen")) { manager.revokePermissions(plugin.id) }
-                    .buttonStyle(KlackButtonStyle())
-            }
-            if !manager.isFullyAuthorized(plugin) {
-                Button(L("Allow", "Erlauben")) { _ = PluginDialogs.authorize(plugin, manager: manager, ui: nil) }
-                    .buttonStyle(KlackButtonStyle(prominent: true))
+        if let tools = manifest.tools, !tools.isEmpty {
+            SettingsSection(tools.count == 1 ? L("Program", "Programm") : L("Programs", "Programme"),
+                            note: L("Downloaded once and checked against the checksum in the plugin.",
+                                    "Wird einmal geladen und mit der Prüfsumme aus dem Plugin verglichen.")) {
+                ForEach(tools, id: \.approvalKey) { tool in
+                    AccessRow(symbol: "arrow.down.circle", title: tool.name,
+                              subtitle: [URL(string: tool.resolvedURL)?.host, tool.license].compactMap { $0 }.joined(separator: " · "),
+                              granted: state.approvedTools.contains(tool.approvalKey))
+                }
             }
         }
-        .padding(.horizontal, 4)
+
+        if let consent = manifest.consent {
+            SettingsSection(L("Notice", "Hinweis")) {
+                AccessRow(symbol: "text.bubble", title: consent.text, subtitle: nil,
+                          granted: manager.hasConsented(plugin), allowed: L("Agreed", "Zugestimmt"))
+            }
+        }
     }
+}
 
-    private func status(_ granted: Bool, allowed: String = L("Allowed", "Erlaubt")) -> some View {
-        Text(granted ? allowed : L("Not yet", "Noch nicht"))
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
+/// Eine Zeile auf „Zugriff“: Symbol, Bezeichnung mit Erklärung, rechts der Stand
+private struct AccessRow: View {
+    let symbol: String
+    let title: String
+    let subtitle: String?
+    let granted: Bool
+    var allowed = L("Allowed", "Erlaubt")
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13.5))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 8)
+            Text(granted ? allowed : L("Not yet", "Noch nicht"))
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, SettingsTheme.rowPadding)
+        .padding(.vertical, 10)
+        .frame(minHeight: SettingsTheme.rowHeight)
+    }
+}
+
+/// „Kopieren“ mit kurzer Bestätigung: Für einen Moment steht dort „Kopiert“ mit Haken
+private struct CopyButton: View {
+    let text: String
+    @State private var copied = false
+    @State private var resetTask: DispatchWorkItem?
+
+    var body: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            withAnimation(.easeOut(duration: 0.15)) { copied = true }
+            resetTask?.cancel()
+            let task = DispatchWorkItem { withAnimation(.easeIn(duration: 0.2)) { copied = false } }
+            resetTask = task
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: task)
+        } label: {
+            // Beide Beschriftungen liegen übereinander: Die Breite springt nicht
+            ZStack {
+                Label(L("Copied", "Kopiert"), systemImage: "checkmark").opacity(copied ? 1 : 0)
+                Text(L("Copy", "Kopieren")).opacity(copied ? 0 : 1)
+            }
+        }
+        .buttonStyle(KlackButtonStyle())
+        .accessibilityLabel(copied ? L("Copied", "Kopiert") : L("Copy", "Kopieren"))
     }
 }
 

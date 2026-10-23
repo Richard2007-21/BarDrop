@@ -282,6 +282,17 @@ struct PluginManifest: Codable, Hashable {
     var batch: Bool?
     /// Hinweis, dem der Nutzer beim Einschalten zustimmen muss (z. B. rechtliche Grenzen)
     var consent: LocalizedText?
+    /// Wie das Plugin nach dem Installieren eingestellt ist (der Nutzer ändert es danach selbst)
+    var defaults: Defaults?
+
+    struct Defaults: Codable, Hashable {
+        /// Gleich als Aktion in der Aktionsleiste (wenn dort Platz ist)
+        var actionBar: Bool?
+        /// „Automatisch beim Ablegen“ an
+        var automatic: Bool?
+        /// „Original ersetzen“ an (nur mit `canReplaceOriginal`)
+        var replaceOriginal: Bool?
+    }
 
     struct Icon: Codable, Hashable {
         var symbol: String
@@ -291,7 +302,8 @@ struct PluginManifest: Codable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case schema, id, name, description, version, author, homepage, icon, actionTitle, minAppVersion,
-             script, match, triggers, automaticByDefault, permissions, tools, settings, canReplaceOriginal, batch, consent
+             script, match, triggers, automaticByDefault, permissions, tools, settings, canReplaceOriginal, batch, consent,
+             defaults
     }
 
     init(id: String, name: LocalizedText, version: String, match: PluginMatch) {
@@ -326,6 +338,7 @@ struct PluginManifest: Codable, Hashable {
         canReplaceOriginal = try c.decodeIfPresent(Bool.self, forKey: .canReplaceOriginal)
         batch = try c.decodeIfPresent(Bool.self, forKey: .batch)
         consent = try c.decodeIfPresent(LocalizedText.self, forKey: .consent)
+        defaults = try c.decodeIfPresent(Defaults.self, forKey: .defaults)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -350,6 +363,7 @@ struct PluginManifest: Codable, Hashable {
         try c.encodeIfPresent(canReplaceOriginal, forKey: .canReplaceOriginal)
         try c.encodeIfPresent(batch, forKey: .batch)
         try c.encodeIfPresent(consent, forKey: .consent)
+        try c.encodeIfPresent(defaults, forKey: .defaults)
     }
 
     /// Rechte im Manifest, die diese Version nicht kennt (das Plugin braucht eine neuere BarDrop)

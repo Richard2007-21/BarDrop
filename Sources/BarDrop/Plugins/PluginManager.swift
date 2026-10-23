@@ -376,6 +376,32 @@ final class PluginManager: ObservableObject {
         }
     }
 
+    /// Nach dem Installieren und Erlauben: einschalten und so einstellen, wie das Plugin es
+    /// vorsieht (`defaults` im Manifest). Der Nutzer hat gerade alles erlaubt, darum darf hier
+    /// auch ein Plugin mit heiklen Rechten gleich automatisch laufen.
+    func activateWithDefaults(_ plugin: InstalledPlugin) {
+        let defaults = plugin.manifest.defaults
+        let triggers = plugin.manifest.allTriggers
+        update(plugin.id) { s in
+            s.enabled = true
+            if triggers.contains(.automatic),
+               let automatic = defaults?.automatic ?? plugin.manifest.automaticByDefault {
+                s.automatic = automatic
+            }
+            if plugin.manifest.canReplaceOriginal == true, let replace = defaults?.replaceOriginal {
+                s.replaceOriginal = replace
+            }
+        }
+        if defaults?.actionBar == true, triggers.contains(.action) {
+            let settings = AppSettings.shared
+            let present = settings.quickActions.contains { $0.kind == .plugin && $0.path == plugin.id }
+            if !present, settings.quickActions.count < QuickAction.limit {
+                settings.quickActions.append(QuickAction(kind: .plugin, path: plugin.id))
+            }
+        }
+        PluginLog.shared.record(plugin.id, "install", "eingeschaltet")
+    }
+
     /// Fehlt noch eine Zustimmung, ein Recht oder ein Programm?
     func isFullyAuthorized(_ plugin: InstalledPlugin) -> Bool {
         hasConsented(plugin)
@@ -383,10 +409,14 @@ final class PluginManager: ObservableObject {
             && (plugin.manifest.tools ?? []).allSatisfy { state(plugin.id).approvedTools.contains($0.approvalKey) }
     }
 
-    func revokePermissions(_ id: String) {
+    /// Zugriff entziehen: Rechte, Programme und Zustimmung. Vor dem nächsten Lauf fragt es neu.
+    func revokeAccess(_ id: String) {
         update(id) { s in
             s.granted = []
             s.grantedFingerprint = nil
+            s.approvedTools = []
+            s.consented = false
+            s.consentedText = nil
         }
     }
 
