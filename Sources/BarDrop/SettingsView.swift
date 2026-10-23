@@ -458,10 +458,10 @@ struct ItemSettings: View {
             : L(" The Finder may move files you drag out.", " Der Finder darf herausgezogene Dateien verschieben.")
         switch afterUse.wrappedValue {
         case .keep:
-            return L("Items stay until you remove them.", "Objekte bleiben, bis du sie entfernst.") + copy
+            return L("Items stay until you remove them or file them in a folder.", "Objekte bleiben, bis du sie entfernst oder in einen Ordner legst.") + copy
         case .afterDragOut:
-            return L("Items leave the shelf when you drag them out, but stay after actions. ⌘Z brings them back.",
-                     "Herausgezogene Objekte verschwinden, nach Aktionen bleiben sie. ⌘Z holt sie zurück.") + copy
+            return L("Items leave the shelf when you drag them out or file them in a folder, but stay after other actions. ⌘Z brings them back.",
+                     "Herausgezogene und in Ordner gelegte Objekte verschwinden, nach anderen Aktionen bleiben sie. ⌘Z holt sie zurück.") + copy
         case .always:
             return L("Items leave the shelf after dragging out and after actions. ⌘Z brings them back.",
                      "Objekte verschwinden nach dem Herausziehen und nach Aktionen. ⌘Z holt sie zurück.") + copy

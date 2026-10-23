@@ -678,10 +678,14 @@ final class PluginManager: ObservableObject {
             let wasInstalled = plugin(entry.id) != nil
             download(entry) { [weak self] result in
                 if let self, let unpacked = result,
-                   (try? self.install(unpacked, standard: entry.standard == true || self.state(entry.id).isStandard,
-                                      keepPermissions: true)) != nil, wasInstalled {
-                    self.recentlyUpdated[entry.id] = unpacked.manifest.version
-                    PluginLog.shared.record(entry.id, "install", "aktualisiert auf \(unpacked.manifest.version)")
+                   let installed = try? self.install(unpacked, standard: entry.standard == true || self.state(entry.id).isStandard,
+                                                     keepPermissions: true) {
+                    // Aus dem eigenen Katalog (geprüft, Prüfsumme stimmt): braucht keine Erlaubnis
+                    self.grantAll(installed)
+                    if wasInstalled {
+                        self.recentlyUpdated[entry.id] = unpacked.manifest.version
+                        PluginLog.shared.record(entry.id, "install", "aktualisiert auf \(unpacked.manifest.version)")
+                    }
                 }
                 group.leave()
             }
@@ -712,10 +716,16 @@ final class PluginManager: ObservableObject {
         }.resume()
     }
 
-    /// Installiert ein weiteres Plugin aus dem Katalog (nicht Standard)
+    /// Installiert ein weiteres Plugin aus dem Katalog (nicht Standard). Plugins aus dem
+    /// eigenen Katalog sind geprüft und kommen mit Prüfsumme: Sie bekommen gleich alles, was
+    /// sie angeben, ohne Erlauben-Fenster. Ändert jemand danach ihre Dateien, gilt das nicht
+    /// mehr (Rechte hängen am Fingerabdruck) und es wird wie sonst gefragt.
     func installFromCatalog(_ entry: PluginCatalogEntry, completion: @escaping (Bool) -> Void) {
         download(entry) { [weak self] unpacked in
-            guard let self, let unpacked, (try? self.install(unpacked, standard: false)) != nil else { return completion(false) }
+            guard let self, let unpacked, let installed = try? self.install(unpacked, standard: false) else {
+                return completion(false)
+            }
+            self.grantAll(installed)
             self.update(entry.id) { $0.fromCatalog = true }
             self.catalogExtras.removeAll { $0.id == entry.id }
             completion(true)

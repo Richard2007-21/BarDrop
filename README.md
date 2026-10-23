@@ -101,7 +101,7 @@ After that, BarDrop keeps itself up to date in the background while you’re not
 
 **Plugins** (optional, off by default)
 * Small add-ons that teach BarDrop new things: in the right-click menu, in the action bar, or automatically when you drop a matching file type or link
-* Get them from the gallery in Settings or install a `.bdrop` file; each plugin shows whether it works offline and how big it is, and asks once for its permissions before its first run
+* Get them from the gallery in Settings or install a `.bdrop` file; each plugin shows whether it works offline and how big it is; gallery plugins get their permissions right away, an imported file shows them before installing
 * Written in JavaScript; results appear right next to the original. BarDrop doesn’t come with any plugin. How to write and publish one: [docs/PLUGINS.md](docs/PLUGINS.md)
 
 **Settings**

@@ -121,18 +121,21 @@ struct SettingsPage<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.automatic)
-        // Nichts scrollt unter die Überschrift der Seite
+        // Bis macOS 15 scrollt nichts unter die Überschrift der Seite, ab macOS 26 läuft der
+        // Inhalt wie in Apples Apps unter sie (SettingsRoot.detail)
         .modifier(HardTopEdge())
         .clipped()
     }
 }
 
-/// Ab macOS 26 blendet eine Bildlaufansicht ihren Inhalt oben weich aus und lässt ihn
-/// unter die Titelleiste laufen. Hier gibt es eine eigene Überschrift: Kante ausblenden.
+/// Ab macOS 26 liegt die Überschrift der Seite als Leiste über dem Inhalt (`safeAreaBar` in
+/// SettingsRoot.detail). Der Inhalt läuft darunter durch, und das System zeigt dort seinen
+/// Übergang wie in Apples eigenen Fenstern (vorher war er ausgeblendet und darüber stand eine
+/// deckende Fläche). Bis macOS 15 gibt es den Übergang nicht, dort bleibt alles wie bisher.
 private struct HardTopEdge: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            content.scrollEdgeEffectHidden(true, for: .top)
+            content.scrollEdgeEffectHidden(false, for: .top)
         } else {
             content
         }
@@ -280,6 +283,18 @@ struct KlackSwitch: View {
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
+        if #available(macOS 26.0, *) {
+            // Ab macOS 26 der Schalter des Systems: Beim Umschalten und Ziehen wird sein Knopf
+            // zu Liquid Glass, genau wie in den Systemeinstellungen
+            Toggle("", isOn: $isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
+        } else {
+            klack
+        }
+    }
+
+    private var klack: some View {
         Button {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { isOn.toggle() }
         } label: {
@@ -601,6 +616,17 @@ struct KlackSlider: View {
     }
 
     var body: some View {
+        if #available(macOS 26.0, *) {
+            // Ab macOS 26 der Regler des Systems: Beim Ziehen wird sein Knopf zu Liquid Glass.
+            // Rastpunkte und Einrasten bleiben wie bisher (dieselben Punkte, nur dort halten)
+            SystemSlider(value: value, range: range, ticks: tickFractions.count, snaps: step > 0, set: set)
+                .opacity(isEnabled ? 1 : 0.45)
+        } else {
+            klack
+        }
+    }
+
+    private var klack: some View {
         GeometryReader { geo in
             let usable = max(1, geo.size.width - knobWidth)
             let fraction = CGFloat((value - range.lowerBound) / (range.upperBound - range.lowerBound))
@@ -659,6 +685,43 @@ struct KlackSlider: View {
         value = clamped
         // Jeder neue Schritt: ein leichter Impuls, wie beim Einrasten
         if step > 0 { Haptics.tap() }
+    }
+}
+
+/// Regler von AppKit (NSSlider) mit Rastpunkten darunter. Mit `snaps` hält er nur auf den
+/// Punkten; jeder neue Wert geht über `set` (Runden auf den Schritt, Impuls beim Einrasten).
+@available(macOS 26.0, *)
+private struct SystemSlider: NSViewRepresentable {
+    let value: Double
+    let range: ClosedRange<Double>
+    let ticks: Int
+    let snaps: Bool
+    let set: (Double) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSSlider {
+        let slider = NSSlider(value: value, minValue: range.lowerBound, maxValue: range.upperBound,
+                              target: context.coordinator, action: #selector(Coordinator.changed(_:)))
+        slider.isContinuous = true
+        slider.tickMarkPosition = .below
+        slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return slider
+    }
+
+    func updateNSView(_ slider: NSSlider, context: Context) {
+        context.coordinator.set = set
+        if slider.minValue != range.lowerBound { slider.minValue = range.lowerBound }
+        if slider.maxValue != range.upperBound { slider.maxValue = range.upperBound }
+        if slider.numberOfTickMarks != ticks { slider.numberOfTickMarks = ticks }
+        slider.allowsTickMarkValuesOnly = snaps
+        slider.isEnabled = context.environment.isEnabled
+        if abs(slider.doubleValue - value) > 1e-9 { slider.doubleValue = value }
+    }
+
+    final class Coordinator: NSObject {
+        var set: (Double) -> Void = { _ in }
+        @objc func changed(_ sender: NSSlider) { set(sender.doubleValue) }
     }
 }
 

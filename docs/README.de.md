@@ -101,7 +101,7 @@ Danach hält sich BarDrop im Hintergrund selbst aktuell, während du es nicht be
 
 **Plugins** (optional, standardmäßig aus)
 * Kleine Erweiterungen, die BarDrop Neues beibringen: im Rechtsklick-Menü, in der Aktionsleiste oder automatisch beim Ablegen passender Dateitypen und Links
-* Aus der Galerie in den Einstellungen oder als `.bdrop`-Datei; jedes Plugin zeigt, ob es offline läuft und wie groß es ist, und fragt einmal vor dem ersten Lauf nach seinen Rechten
+* Aus der Galerie in den Einstellungen oder als `.bdrop`-Datei; jedes Plugin zeigt, ob es offline läuft und wie groß es ist; Plugins aus der Galerie bekommen ihre Rechte sofort, eine importierte Datei zeigt sie vor dem Installieren
 * In JavaScript geschrieben; Ergebnisse erscheinen direkt neben dem Original. BarDrop bringt selbst kein Plugin mit. So schreibst und veröffentlichst du eins: [PLUGINS.de.md](PLUGINS.de.md)
 
 **Einstellungen**

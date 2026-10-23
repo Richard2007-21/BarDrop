@@ -279,27 +279,42 @@ struct SettingsRoot: View {
 
     // MARK: Inhalt
 
+    @ViewBuilder
     private var detail: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Group {
-                if pane == .plugins && navigation.pluginPage != .list {
-                    // Unterseite wie in den Systemeinstellungen: Zurück-Knopf und eigener Titel
-                    PluginPageHeader(navigation: navigation)
-                } else {
-                    HStack(spacing: 10) {
-                        PaneIcon(pane: pane, size: 24)
-                        Text(pane.title)
-                            .font(.system(size: 17, weight: .semibold))
-                    }
-                }
-            }
-            .padding(.leading, 18)
-            .frame(height: 52)
-            .padding(.bottom, 4)
-
+        if #available(macOS 26.0, *) {
+            // Wie in Apples Apps: Die Überschrift liegt als Leiste über dem Inhalt, der beim
+            // Scrollen unter ihr durchläuft. Das System legt dort seinen Übergang (Liquid Glass)
+            // darunter, statt dass der Inhalt an einer harten Kante endet.
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    header.frame(maxWidth: .infinity, alignment: .leading)
+                }
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
+    }
+
+    private var header: some View {
+        Group {
+            if pane == .plugins && navigation.pluginPage != .list {
+                // Unterseite wie in den Systemeinstellungen: Zurück-Knopf und eigener Titel
+                PluginPageHeader(navigation: navigation)
+            } else {
+                HStack(spacing: 10) {
+                    PaneIcon(pane: pane, size: 24)
+                    Text(pane.title)
+                        .font(.system(size: 17, weight: .semibold))
+                }
+            }
+        }
+        .padding(.leading, 18)
+        .frame(height: 52)
+        .padding(.bottom, 4)
     }
 
     @ViewBuilder

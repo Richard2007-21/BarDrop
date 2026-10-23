@@ -38,9 +38,7 @@ enum EdgeTear {
     /// Ecken auf seiner Seite. Angedockt hat sie dort keine Rundung, sondern geht in den Bogen
     /// zum Bildschirmrand über; so gibt es am Ende des Andockens keinen Sprung.
     static func bodyPath(_ body: CGRect, attach: CGFloat, side: ScreenEdge, grow: CGFloat = 0) -> Path {
-        let t = max(0, min(1, (attach - 0.55) / 0.45))
-        let square = t * t * (3 - 2 * t)
-        let edge = cornerRadius * (1 - square) + grow
+        let edge = edgeRadius(attach: attach) + grow
         let far = cornerRadius + grow
         let left = side == .left
         return UnevenRoundedRectangle(topLeadingRadius: left ? edge : far,
@@ -49,6 +47,13 @@ enum EdgeTear {
                                       topTrailingRadius: left ? far : edge,
                                       style: .continuous)
             .path(in: body.insetBy(dx: -grow, dy: -grow))
+    }
+
+    /// Rundung der Ecken auf der Randseite (auch für das Glas, ShelfGlassWindow)
+    static func edgeRadius(attach: CGFloat) -> CGFloat {
+        let t = max(0, min(1, (attach - 0.55) / 0.45))
+        let square = t * t * (3 - 2 * t)
+        return cornerRadius * (1 - square)
     }
 }
 

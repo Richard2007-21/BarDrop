@@ -43,7 +43,7 @@ struct PluginPageHeader: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 13, weight: .semibold))
             }
-            .buttonStyle(KlackCircleButtonStyle())
+            .modifier(BackButtonLook())
             .keyboardShortcut(.cancelAction)
             .help(L("Back", "Zurück"))
             .accessibilityLabel(L("Back", "Zurück"))
@@ -69,6 +69,20 @@ struct PluginPageHeader: View {
         SettingsNSWindow.titlebarButtons["back"] = (frame.insetBy(dx: -4, dy: -4), {
             withAnimation(.easeInOut(duration: 0.18)) { navigation.pluginBack() }
         })
+    }
+}
+
+/// Zurück-Knopf: ab macOS 26 rund aus Liquid Glass wie in den Systemeinstellungen,
+/// davor der graue runde Knopf
+private struct BackButtonLook: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+        } else {
+            content.buttonStyle(KlackCircleButtonStyle())
+        }
     }
 }
 
@@ -154,8 +168,9 @@ struct PluginSettings: View {
 
         if settings.pluginsEnabled {
             if nothingInstalled {
-                // Noch nichts installiert: gleich zeigen, was es gibt
-                GalleryPage(manager: manager, title: L("Available", "Verfügbar")) { id in open(.plugin(id)) }
+                // Noch nichts installiert: Die Startseite ist die Seite „Weitere Plugins“
+                // (ohne eigene Überschrift), oben steht weiter „Plugins“
+                GalleryPage(manager: manager) { id in open(.plugin(id)) }
             } else {
                 SettingsSection(L("Installed", "Installiert")) {
                     ForEach(manager.plugins) { plugin in

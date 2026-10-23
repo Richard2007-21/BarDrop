@@ -368,10 +368,11 @@ final class EdgeController: NSObject {
         case .leftMouseDragged:
             // Nur wecken; ausgewertet wird im Takt. Zieh-Ereignisse anderer Apps werden
             // nur beobachtet, nie verzögert oder verändert.
-            guard tickTimer == nil, dragPasteboard.changeCount != dragBaseline, hasDroppableContent() else { return }
+            guard tickTimer == nil, !ScreenLock.shared.isLocked, dragPasteboard.changeCount != dragBaseline,
+                  hasDroppableContent() else { return }
             wake()
         case .mouseMoved:
-            guard tickTimer == nil, isNearEdge(NSEvent.mouseLocation) else { return }
+            guard tickTimer == nil, !ScreenLock.shared.isLocked, isNearEdge(NSEvent.mouseLocation) else { return }
             wake()
         default:
             break
@@ -889,6 +890,14 @@ final class EdgeController: NSObject {
             }
             return
         }
+        // Sperrbildschirm oder anderer Benutzer: Der Rand gehört nicht BarDrop (vorher vibrierte
+        // das Trackpad dort). Ablage zu und Takt aus, bis wieder entsperrt ist
+        if ScreenLock.shared.isLocked {
+            logic.manualOpen = false
+            if ui.level != .hidden { setLevel(.hidden) }
+            pauseTicking()
+            return
+        }
         let now = Date()
         let loc = NSEvent.mouseLocation
         let mouseDown = (NSEvent.pressedMouseButtons & 1) == 1
@@ -1374,10 +1383,13 @@ extension EdgeController {
         guard tear != ui.tear else { return }
         let linked = { (t: ShelfUIModel.Tear?) in (t?.attach ?? 0) > 0.01 }
         let relink = linked(tear) != linked(ui.tear)
+        // Die Rundung des Glases auf der Randseite folgt der Verbindung
+        let reshape = tear.attach != ui.tear?.attach || tear.side != ui.tear?.side
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { ui.tear = tear }
         if relink, glassWindow != nil { syncGlassWindow() }
+        else if reshape, glassWindow != nil { syncGlassWindow(shapeOnly: true) }
     }
 
     private func setGrabbing(_ on: Bool) {
@@ -1620,22 +1632,24 @@ extension EdgeController {
     }
 
     /// Begleitfenster mit dem Glas an Lage und Stärke der losgelösten Ablage anpassen
-    private func syncGlassWindow(duration: TimeInterval = 0) {
+    /// `shapeOnly`: nur Lage und Form, die Stärke nicht anfassen (läuft sie gerade weich
+    /// über, sprang sie sonst bei jeder Bewegung ans Ziel)
+    private func syncGlassWindow(duration: TimeInterval = 0, shapeOnly: Bool = false) {
         guard tearDrag != nil, ui.tearGlass > 0 || glassWindow != nil else { return }
         let window = glassWindow ?? ShelfGlassWindow()
         glassWindow = window
         let m = ShelfMetrics.for(.expanded, settings: settings)
         let size = panel.frame.size
-        var body = NSRect(x: ((size.width - m.width) / 2).rounded(), y: ((size.height - m.height) / 2).rounded(),
+        let body = NSRect(x: ((size.width - m.width) / 2).rounded(), y: ((size.height - m.height) / 2).rounded(),
                           width: m.width, height: m.height)
-        // Mit dem Rand verbunden: Die helle Kante des Glases auf der Randseite lag als dünne
-        // Linie zwischen Ablage und Verbindung. Dort ein Stück schmaler, unter dem Dunkel
+        // Mit dem Rand verbunden: Glas auf der Randseite wie die Tönung runden, seine helle
+        // Kante liegt dort außerhalb (siehe ShelfGlassWindow.follow)
+        var edge: (side: ScreenEdge, radius: CGFloat)?
         if let tear = ui.tear, tear.attach > 0.01 {
-            let cut: CGFloat = 6
-            body.size.width -= cut
-            if tear.side == .left { body.origin.x += cut }
+            edge = (tear.side, EdgeTear.edgeRadius(attach: tear.attach))
         }
-        window.follow(panel, body: body)
+        window.follow(panel, body: body, edge: edge)
+        if shapeOnly { return }
         // Hell kommt das Glas vor dem Rückzug des Schwarz (siehe EdgeTear.lightCover)
         let amount = ui.systemLight ? EdgeTear.lightCover(ui.tearGlass) : ui.tearGlass
         window.show(CGFloat(amount), duration: duration)

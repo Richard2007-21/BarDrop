@@ -7,6 +7,9 @@ import QuartzCore
 /// bewegt sich also mit ihr. So bleibt das Glas immer gleich.
 final class ShelfGlassWindow: NSPanel {
     private var glassView = NSView()
+    /// Schneidet das Glas zu: Mit dem Rand verbunden, reicht das Glas auf der Randseite unter
+    /// diesem Rahmen hindurch, und der Rahmen rundet dort so wie die Ablage selbst
+    private let clip = NSView()
 
     convenience init() {
         self.init(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
@@ -32,8 +35,12 @@ final class ShelfGlassWindow: NSPanel {
         animationBehavior = .none
         hidesOnDeactivate = false
         appearance = NSAppearance(named: .darkAqua)
+        clip.wantsLayer = true
+        clip.layer?.masksToBounds = true
+        clip.layer?.cornerCurve = .continuous
+        clip.addSubview(glassView)
         let content = NSView()
-        content.addSubview(glassView)
+        content.addSubview(clip)
         contentView = content
         alphaValue = 0
     }
@@ -41,8 +48,9 @@ final class ShelfGlassWindow: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// Glas an die Lage der Ablage im Fenster `parent` anpassen (`body` in dessen Koordinaten)
-    func follow(_ parent: NSWindow, body: NSRect) {
+    /// Glas an die Lage der Ablage im Fenster `parent` anpassen (`body` in dessen Koordinaten).
+    /// `edge`: Seite zum Bildschirmrand und Rundung der Ablage dort, solange sie verbunden ist
+    func follow(_ parent: NSWindow, body: NSRect, edge: (side: ScreenEdge, radius: CGFloat)? = nil) {
         if level != parent.level { level = parent.level }
         // Glas folgt dem hellen oder dunklen Erscheinungsbild des Systems (hell: heller)
         let light = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
@@ -50,7 +58,25 @@ final class ShelfGlassWindow: NSPanel {
         if appearance?.name != look?.name { appearance = look }
         if collectionBehavior != parent.collectionBehavior { collectionBehavior = parent.collectionBehavior }
         if frame != parent.frame { setFrame(parent.frame, display: false) }
-        if glassView.frame != body { glassView.frame = body }
+        if clip.frame != body { clip.frame = body }
+        // Verbunden: Früher wurde das Glas auf der Randseite 6 pt schmaler, damit seine helle
+        // Kante nicht als Linie zu sehen war. Seine runden Ecken blieben aber, und daneben lag
+        // ein Streifen ohne Glas: am Rand ein doppelter Rand mit zwei Rundungen übereinander.
+        // Jetzt reicht das Glas dort über den Rahmen hinaus (Kante und Ecken liegen außerhalb),
+        // und der Rahmen rundet die Randseite genau wie die Tönung (EdgeTear.edgeRadius).
+        var glass = NSRect(origin: .zero, size: body.size)
+        if let edge {
+            let over = EdgeTear.cornerRadius + 4
+            glass.size.width += over
+            if edge.side == .left { glass.origin.x -= over }
+            clip.layer?.cornerRadius = edge.radius
+            clip.layer?.maskedCorners = edge.side == .left
+                ? [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+                : [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+        } else {
+            clip.layer?.cornerRadius = 0
+        }
+        if glassView.frame != glass { glassView.frame = glass }
         if parent.childWindows?.contains(self) != true {
             parent.addChildWindow(self, ordered: .below)
         }
