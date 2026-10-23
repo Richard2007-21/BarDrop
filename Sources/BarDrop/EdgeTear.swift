@@ -126,15 +126,19 @@ struct TearGoo: View, Animatable {
             .compositingGroup()
             .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
             if outline {
-                // Rahmen wechseln gegenläufig (sonst lagen kurz zwei Bögen übereinander)
+                // Rahmen wechseln gegenläufig (sonst lagen kurz zwei Bögen übereinander).
+                // Auf Glas kein eigener Rahmen: Das Glas hat seine eigene Lichtkante, beide
+                // zusammen ergaben einen doppelten, durchsichtigen Rand.
                 Group {
                     outlineStroke
                     if attach > 0.01 { gooRim }
                 }
-                .opacity(1 - dockIn)
+                .opacity((1 - dockIn) * (1 - glass))
                 if dockIn > 0.001, let docked {
+                    // Innen auf dem Schwarz, wie der Rahmen der angedockten Ablage
                     DockedSpan(base: Self.contour(docked), reach: reach, gap: tear.gap, side: tear.side)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                        .mask { DockedSpan(base: docked, reach: reach, gap: tear.gap, side: tear.side).fill(Color.black) }
                         .opacity(dockIn)
                 }
             }

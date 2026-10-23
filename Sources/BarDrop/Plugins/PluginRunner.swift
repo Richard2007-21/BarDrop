@@ -385,7 +385,9 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         for (id, runtime) in runtimes {
             guard let job = jobs.first(where: { $0.id == id }) else { continue }
             // Was gerade entsteht, auch halb geschrieben: Der Platzhalter zeigt schon sein Symbol
-            if job.resultPreview == nil, let type = Self.typeInProgress(in: runtime.outputDirectory), job.resultType != type {
+            // Nur einmal festlegen: Programme schreiben oft mehrere Teile nacheinander (Bild,
+            // Ton, Zwischenstände). Sprang das Symbol mit, flackerte der Platzhalter.
+            if job.resultPreview == nil, job.resultType == nil, let type = Self.typeInProgress(in: runtime.outputDirectory) {
                 job.resultType = type
             }
             guard let candidate = Self.newestResult(in: runtime.outputDirectory) else { continue }
@@ -398,26 +400,29 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         }
     }
 
-    /// Neueste fertige Datei im Ausgabeordner (keine versteckten, halb geladenen oder leeren)
-    /// Art der neuesten Datei im Ausgabeordner, auch wenn sie noch geschrieben wird. Endungen
-    /// halb geladener Dateien zählen nicht: „film.mp4.part“ ist ein Video.
+    /// Art der größten Datei im Ausgabeordner, auch wenn sie noch geschrieben wird. Endungen
+    /// halb geladener Dateien zählen nicht: „film.mp4.part“ ist ein Video. Die größte statt
+    /// der neuesten: Kleine Nebendateien (Ton, Notizen des Programms) ändern nichts.
     static func typeInProgress(in directory: URL) -> UTType? {
-        let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
         guard let urls = try? FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { return nil }
-        var best: (url: URL, date: Date)?
+        var best: (type: UTType, size: Int)?
         for url in urls {
-            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
-            let date = values.contentModificationDate ?? .distantPast
-            if best == nil || date > best!.date { best = (url, date) }
+            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
+                  let size = values.fileSize, size > 0 else { continue }
+            var name = url
+            while PluginRuntime.partialExtensions.contains(name.pathExtension.lowercased()) {
+                name = name.deletingPathExtension()
+            }
+            guard !name.pathExtension.isEmpty, let type = UTType(filenameExtension: name.pathExtension),
+                  type.isDeclared, type != .data else { continue }
+            if best == nil || size > best!.size { best = (type, size) }
         }
-        guard var name = best?.url else { return nil }
-        while PluginRuntime.partialExtensions.contains(name.pathExtension.lowercased()) {
-            name = name.deletingPathExtension()
-        }
-        guard !name.pathExtension.isEmpty else { return nil }
-        return UTType(filenameExtension: name.pathExtension)
+        return best?.type
     }
+
+    /// Neueste fertige Datei im Ausgabeordner (keine versteckten, halb geladenen oder leeren)
 
     static func newestResult(in directory: URL) -> (url: URL, size: Int)? {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]

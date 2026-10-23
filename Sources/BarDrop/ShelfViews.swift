@@ -65,11 +65,13 @@ struct ShelfRootView: View {
                         .shadow(color: .black.opacity(ui.level == .expanded ? 0.45 : 0),
                                 radius: 18, x: 0, y: 8)
 
-                    // Feiner heller Rahmen: auf dunklem Hintergrund sichtbar, auf hellem
-                    // verschwindet er fast. Ohne Linie am Bildschirmrand selbst.
+                    // Feiner heller Rahmen, ohne Linie am Bildschirmrand selbst. Ganz innen auf
+                    // dem Schwarz: Auf der Kante lag die äußere Hälfte über dem Hintergrund und
+                    // wirkte durchsichtig (ein grauer Schleier statt einer klaren Linie).
                     EdgeBlobShape(edge: settings.edge, cornerRadius: m.cornerRadius, fillet: m.fillet,
                                   filletStretch: m.filletStretch, cornerStretch: m.cornerStretch, closed: false)
-                        .stroke(Color.white.opacity(settings.showOutline || ui.forcesOutline ? 0.2 : 0), lineWidth: 1)
+                        .stroke(Color.white.opacity(settings.showOutline || ui.forcesOutline ? 0.2 : 0), lineWidth: 2)
+                        .mask { shape.fill(Color.black) }
                         // Nach dem Andocken blendet nur der Bogen zum Bildschirmrand weich ein
                         // (den gab es beim Ziehen nicht), der übrige Rahmen bleibt einfach stehen
                         .mask { edgeArcFade(m: m) }
@@ -519,6 +521,13 @@ struct ShelfContent: View {
                            : selected > 0 ? L("\(selected) selected", "\(selected) ausgewählt")
                            : (count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte")))
                 }
+                // Rechts derselbe Abstand zur Kante wie links: „BarDrop“ ist um die Breite des
+                // (unsichtbaren) Zurück-Pfeils eingerückt, die Anzahl rechts ebenso
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .semibold))
+                    .hidden()
+                    .padding(.leading, -4)
+                    .accessibilityHidden(true)
             }
         }
     }

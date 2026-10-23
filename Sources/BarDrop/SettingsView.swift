@@ -410,6 +410,7 @@ private enum AfterUse: String, CaseIterable, Identifiable {
 struct ItemSettings: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var store: ShelfStore
+    @ObservedObject private var folderAccess = FolderAccess.shared
 
     private var autoRemove: Binding<AutoRemoveOption> {
         Binding(get: { AutoRemoveOption(rawValue: settings.autoRemoveAfter) ?? .never },
@@ -501,6 +502,19 @@ struct ItemSettings: View {
                           isOn: $settings.convertWebImages)
                 ToggleRow(L("Add new screenshots", "Neue Bildschirmfotos hinzufügen"),
                           isOn: $settings.addScreenshots)
+                ToggleRow(L("Add files received with AirDrop", "Mit AirDrop empfangene Dateien hinzufügen"),
+                          info: L("Files that arrive in Downloads via AirDrop also appear in the shelf. They stay in Downloads.",
+                                  "Dateien, die per AirDrop in Downloads ankommen, erscheinen auch in der Ablage. Sie bleiben in Downloads."),
+                          isOn: $settings.addAirDrop)
+                // macOS lässt BarDrop den Ordner nicht lesen: sagen, welcher, und wohin
+                ForEach(deniedFolders, id: \.self) { folder in
+                    SettingsRow(L("No access to “\(FolderAccess.displayName(folder))”", "Kein Zugriff auf „\(FolderAccess.displayName(folder))“"),
+                                subtitle: L("Allow BarDrop in Privacy & Security → Files and Folders.",
+                                            "Erlaube BarDrop unter Datenschutz & Sicherheit → Dateien und Ordner.")) {
+                        Button(L("Open", "Öffnen")) { FolderAccess.openPrivacySettings() }
+                            .buttonStyle(KlackButtonStyle())
+                    }
+                }
             }
 
             SettingsSection(L("Cleanup", "Aufräumen"),
@@ -510,6 +524,17 @@ struct ItemSettings: View {
                           options: AutoRemoveOption.allCases.map { ($0, $0.title) })
             }
         }
+    }
+}
+
+extension ItemSettings {
+    /// Nur Ordner, die gerade beobachtet werden (Bildschirmfotos bzw. AirDrop an)
+    fileprivate var deniedFolders: [URL] {
+        var folders: [URL] = []
+        if settings.addScreenshots { folders.append(ScreenshotWatcher.screenshotFolder()) }
+        if settings.addAirDrop { folders.append(AirDropWatcher.downloadsFolder) }
+        return Array(Set(folders.map(\.standardizedFileURL))).filter { folderAccess.isDenied($0) }
+            .sorted { $0.path < $1.path }
     }
 }
 

@@ -248,7 +248,7 @@ final class Diagnostics {
             "openMode=\(s.openMode.rawValue) openDelay=\(s.openDelay) dragReveal=\(s.dragReveal.rawValue) smallHitArea=\(s.exactPointer) fullScreen=\(s.openInFullScreen) excludedApps=\(s.excludedApps.count)",
             "size=\(Int(s.shelfWidth))×\(Int(s.shelfHeight)) icon=\(Int(s.tileIconSize)) strip=\(s.peekThickness)/\(s.peekLength) outline=\(s.showOutline) animation=\(s.animationStyle.rawValue) reduceMotion=\(AnimationStyle.reduceMotion)",
             "stacks=\(s.stackMultiple ? String(s.stackThreshold) : "off") reopenWhereLeft=\(s.reopenWhereLeft) removeAfterDragOut=\(s.removeAfterDragOut) keepAfterAction=\(s.keepAfterAction) dragOutCopyOnly=\(s.dragOutCopyOnly)",
-            "finderFiles=\(s.copyAllFiles ? "copy" : "original") webAsPNGorJPEG=\(s.convertWebImages) screenshots=\(s.addScreenshots) autoRemove=\(Int(s.autoRemoveAfter))s",
+            "finderFiles=\(s.copyAllFiles ? "copy" : "original") webAsPNGorJPEG=\(s.convertWebImages) screenshots=\(s.addScreenshots) airdrop=\(s.addAirDrop) autoRemove=\(Int(s.autoRemoveAfter))s",
             "actions=\(s.quickActions.map(\.kind.rawValue).joined(separator: ",")) split=\(s.effectiveActionSplit) actionIcon=\(Int(s.actionIconSize)) labels=\(s.showActionLabels ? (s.labelsOnlyFolders ? "folders" : "all") : "none") pin=\(s.pinFromShelf)",
             "hotKey=\(s.hotKeyDescription) haptics=\(s.hapticsEnabled) autoUpdate=\(s.autoUpdateCheck) beta=\(s.betaUpdates) introDone=\(s.didLaunchBefore)"
         ]

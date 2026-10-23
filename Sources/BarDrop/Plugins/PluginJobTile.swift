@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 /// Fortschritt. Gezeigt wird die Datei, die entsteht: ihr Vorschaubild, sobald sie fertig
 /// geschrieben ist, solange sie noch wächst das Symbol ihrer Art, und bis es sie gibt die
 /// Datei, an der das Plugin arbeitet. Meldet das Plugin keinen Fortschritt, „atmet“ die
-/// Vorschau, und im Balken wandert ein Lichtstreifen. Scheitert der Lauf, rüttelt der
+/// Vorschau ruhig, und im blauen Balken wandert ein Streifen. Scheitert der Lauf, rüttelt der
 /// Platzhalter kurz, bevor er verschwindet.
 ///
 /// Auswählen wie eine Kachel (Klick, ⌘- bzw. ⇧-Klick, Lasso, Pfeiltasten); ⌫ bricht ab.
@@ -132,7 +132,7 @@ private struct PluginPreview: View {
         if let url = job.resultPreview {
             ThumbnailView(url: url, size: size)
         } else if let type = job.resultType {
-            Image(nsImage: NSWorkspace.shared.icon(for: type))
+            Image(nsImage: Self.icon(for: type))
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
@@ -143,16 +143,31 @@ private struct PluginPreview: View {
         }
     }
 
+    /// Symbole je Dateiart einmal holen: Bei jedem Neuzeichnen ein neues Bild vom System
+    /// zu holen, ließ das Symbol flackern
+    private static var icons: [String: NSImage] = [:]
+
+    static func icon(for type: UTType) -> NSImage {
+        if let icon = icons[type.identifier] { return icon }
+        let icon = NSWorkspace.shared.icon(for: type)
+        icons[type.identifier] = icon
+        return icon
+    }
+
     var body: some View {
         ZStack {
-            picture
-                .id(pictureKey)
-                .transition(.opacity)
-                .opacity(opacity)
-                .animation(.easeOut(duration: 0.3), value: job.progress)
-                .animation(.easeOut(duration: 0.3), value: job.paused)
-                .animation(breathes ? .easeInOut(duration: 1.6).repeatForever(autoreverses: true) : .easeOut(duration: 0.3),
-                           value: breathing)
+            // Die Deckkraft liegt um das Bild herum, nicht am Bild selbst: Wechselt das Bild
+            // (Ergebnis statt Ausgangsdatei), atmet es ohne Sprung weiter
+            ZStack {
+                picture
+                    .id(pictureKey)
+                    .transition(.opacity)
+            }
+            .opacity(opacity)
+            .animation(.easeOut(duration: 0.3), value: job.progress)
+            .animation(.easeOut(duration: 0.3), value: job.paused)
+            .animation(breathes ? .easeInOut(duration: 2.4).repeatForever(autoreverses: true) : .easeOut(duration: 0.4),
+                       value: breathing)
             centerGlyph
                 .animation(.easeOut(duration: 0.12), value: hovering)
         }
@@ -197,8 +212,9 @@ private struct PluginProgressBar: View {
     let failed: Bool
     @State private var sweep = false
 
+    /// Blau wie der Fortschritt im Finder (Akzentfarbe des Systems)
     private var fill: Color {
-        failed ? Color(red: 1, green: 0.35, blue: 0.3) : Color.primary.opacity(paused ? 0.45 : 0.85)
+        failed ? Color(red: 1, green: 0.35, blue: 0.3) : Color(nsColor: .controlAccentColor).opacity(paused ? 0.5 : 1)
     }
 
     private var sweeps: Bool { running && progress == nil && !paused && !failed && !AnimationStyle.reduceMotion }
@@ -214,10 +230,10 @@ private struct PluginProgressBar: View {
                         .frame(width: max(3, geo.size.width * max(0, min(1, progress))))
                         .animation(.easeOut(duration: 0.3), value: progress)
                 } else if running {
-                    Capsule().fill(fill.opacity(0.8))
+                    Capsule().fill(fill.opacity(0.85))
                         .frame(width: geo.size.width * 0.3)
                         .offset(x: sweep ? geo.size.width * 0.7 : 0)
-                        .animation(sweeps ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true) : .easeOut(duration: 0.3),
+                        .animation(sweeps ? .easeInOut(duration: 1.4).repeatForever(autoreverses: true) : .easeOut(duration: 0.3),
                                    value: sweep)
                 }
             }

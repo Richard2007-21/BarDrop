@@ -258,6 +258,7 @@ final class AppSettings: ObservableObject {
         static let actionRowSplit = "actionRowSplit"
         static let pinFromShelf = "pinFromShelf"
         static let addScreenshots = "addScreenshots"
+        static let addAirDrop = "addAirDrop"
         static let excludedApps = "excludedApps"
         static let openInFullScreen = "openInFullScreen"
         static let showActionLabels = "showActionLabels"
@@ -382,6 +383,8 @@ final class AppSettings: ObservableObject {
     @Published var pinFromShelf: Bool { didSet { defaults.set(pinFromShelf, forKey: Key.pinFromShelf) } }
     /// Neue Bildschirmfotos landen automatisch in der Ablage
     @Published var addScreenshots: Bool { didSet { defaults.set(addScreenshots, forKey: Key.addScreenshots) } }
+    /// Mit AirDrop empfangene Dateien (landen in Downloads) gleich in die Ablage legen
+    @Published var addAirDrop: Bool { didSet { defaults.set(addAirDrop, forKey: Key.addAirDrop) } }
     /// Apps (Bundle-IDs), in denen der Rand die Ablage nicht öffnet, solange sie vorn sind
     @Published var excludedApps: [String] { didSet { defaults.set(excludedApps, forKey: Key.excludedApps) } }
     /// Der Rand öffnet die Ablage auch, wenn die App vorn im Vollbild ist
@@ -537,6 +540,7 @@ final class AppSettings: ObservableObject {
             Key.diagnosticsEnabled: false,
             Key.pinFromShelf: true,
             Key.addScreenshots: false,
+            Key.addAirDrop: false,
             Key.openInFullScreen: false,
             Key.showActionLabels: true,
             Key.labelsOnlyFolders: false,
@@ -628,6 +632,7 @@ final class AppSettings: ObservableObject {
         actionRowSplit = defaults.integer(forKey: Key.actionRowSplit)
         pinFromShelf = defaults.bool(forKey: Key.pinFromShelf)
         addScreenshots = defaults.bool(forKey: Key.addScreenshots)
+        addAirDrop = defaults.bool(forKey: Key.addAirDrop)
         excludedApps = defaults.stringArray(forKey: Key.excludedApps) ?? []
         openInFullScreen = defaults.bool(forKey: Key.openInFullScreen)
         showActionLabels = defaults.bool(forKey: Key.showActionLabels)
@@ -708,6 +713,7 @@ final class AppSettings: ObservableObject {
         actionRowSplit = 0
         pinFromShelf = true
         addScreenshots = false
+        addAirDrop = false
         excludedApps = []
         openInFullScreen = false
         showActionLabels = true

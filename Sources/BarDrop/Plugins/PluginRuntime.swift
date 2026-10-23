@@ -45,6 +45,11 @@ final class PluginJob: ObservableObject, Identifiable {
     fileprivate weak var runtime: PluginRuntime?
     /// Letzte Meldung an die Oberfläche (höchstens alle 100 ms, sonst zeichnet die Ablage zu oft)
     private var lastPublished = Date.distantPast
+    /// Letztes erzwungenes Neuzeichnen der ganzen Ablage. Das kostet viel und unterbricht
+    /// laufende Animationen (das Atmen flackerte): nur bei sichtbarer Änderung, höchstens
+    /// zweimal pro Sekunde
+    private var lastRedraw = Date.distantPast
+    private var lastRedrawPercent: Int?
 
     convenience init(plugin: InstalledPlugin, item: PluginItem, anchorFileID: UUID, automatic: Bool, replacesOriginal: Bool = false) {
         self.init(plugin: plugin, items: [(item, anchorFileID)], automatic: automatic, replacesOriginal: replacesOriginal)
@@ -81,10 +86,16 @@ final class PluginJob: ObservableObject, Identifiable {
         lastPublished = now
         if clamped != progress { progress = clamped }
         // Leerer Text nimmt die Beschriftung zurück (dann steht wieder der Name da)
+        var labelChanged = false
         if let newLabel {
             let value = newLabel.isEmpty ? nil : newLabel
-            if value != label { label = value }
+            if value != label { label = value; labelChanged = true }
         }
+        let shownPercent = percent
+        guard labelChanged || force || clamped == 1
+              || (shownPercent != lastRedrawPercent && now.timeIntervalSince(lastRedraw) > 0.5) else { return }
+        lastRedraw = now
+        lastRedrawPercent = shownPercent
         NotificationCenter.default.post(name: Thumbnails.didChange, object: nil)
     }
 

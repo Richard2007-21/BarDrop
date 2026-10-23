@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var hotKey: HotKey?
     private var onboarding: OnboardingController?
     private var screenshots: ScreenshotWatcher?
+    private var airDrop: AirDropWatcher?
     /// Geöffnete .bdrop-Dateien, solange BarDrop noch startet
     private var pendingPluginFiles: [URL] = []
     /// Gibt den Einstellungen den Fokus zurück, wenn ein Menü der Menüleiste ihn kurz hatte
@@ -46,6 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DragExporter.shared.onFailed = { [weak self] url in self?.store.restore(url) }
         // Neue Bildschirmfotos: kurz den Streifen zeigen, damit man sieht, wo sie liegen
         screenshots = ScreenshotWatcher(store: store) { [weak self] in
+            guard let self, self.ui.level == .hidden else { return }
+            self.controller.greet()
+        }
+        // Mit AirDrop empfangen: ebenso
+        airDrop = AirDropWatcher(store: store) { [weak self] in
             guard let self, self.ui.level == .hidden else { return }
             self.controller.greet()
         }

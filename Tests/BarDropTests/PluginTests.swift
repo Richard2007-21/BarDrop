@@ -625,15 +625,17 @@ final class PluginTests: XCTestCase {
                        "Das Skript rechnet nach dem Abbrechen weiter; Wächter gefragt \(ScriptWatchdog.counts.asked)×, beenden \(ScriptWatchdog.counts.stopped)×")
     }
 
-    /// Art der Datei, die gerade entsteht: halb geladene Endungen zählen nicht
+    /// Art der Datei, die gerade entsteht: halb geladene Endungen zählen nicht, und die
+    /// größte Datei gibt den Ausschlag (kleine Nebendateien lassen das Symbol nicht springen)
     func testTypeInProgressIgnoresPartialExtensions() throws {
         let dir = base.appendingPathComponent("out-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         XCTAssertNil(PluginRunner.typeInProgress(in: dir))
-        try Data([1]).write(to: dir.appendingPathComponent("film.mp4.part"))
+        try Data(repeating: 1, count: 1000).write(to: dir.appendingPathComponent("film.mp4.part"))
         XCTAssertEqual(PluginRunner.typeInProgress(in: dir), .mpeg4Movie)
-        Thread.sleep(forTimeInterval: 1.1)
-        try Data([1]).write(to: dir.appendingPathComponent("bild.png"))
+        try Data([1]).write(to: dir.appendingPathComponent("ton.m4a.part"))
+        XCTAssertEqual(PluginRunner.typeInProgress(in: dir), .mpeg4Movie)
+        try Data(repeating: 1, count: 5000).write(to: dir.appendingPathComponent("bild.png"))
         XCTAssertEqual(PluginRunner.typeInProgress(in: dir), .png)
     }
 

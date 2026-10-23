@@ -78,6 +78,7 @@ final class ScreenshotWatcher {
     }
 
     private func stop() {
+        if let watchedFolder { FolderAccess.shared.forget(watchedFolder) }
         query?.stop()
         query = nil
         folderCheck?.invalidate()
@@ -121,6 +122,9 @@ final class ScreenshotWatcher {
     private func watchFolder() {
         let folder = Self.screenshotFolder()
         let fd = open(folder.path, O_EVTONLY)
+        // Gleich einmal lesen: Fragt macOS nach dem Zugriff, dann jetzt, und fehlt er,
+        // zeigen die Einstellungen es an
+        _ = FolderAccess.shared.contents(of: folder, keys: [], area: "screenshots")
         guard fd >= 0 else {
             Log.importing.error("Bildschirmfotos: Ordner nicht lesbar (\(folder.path, privacy: .private))")
             Diagnostics.shared.failure("screenshots", "Ordner nicht lesbar \(Diagnostics.anon(folder)) errno=\(errno) \(String(cString: strerror(errno)))")
@@ -159,8 +163,10 @@ final class ScreenshotWatcher {
     private func scanFolder() {
         guard let folder = watchedFolder else { return }
         let keys: [URLResourceKey] = [.creationDateKey, .isRegularFileKey]
-        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
-                                                                  options: [.skipsHiddenFiles])) ?? []
+        // Ohne Zugriff auf den Ordner (Datenschutz von macOS, etwa nach einem Update von
+        // BarDrop) meldet der Ordner zwar Änderungen, lässt sich aber nicht lesen. Früher
+        // ging das still unter, und Bildschirmfotos kamen nie an.
+        guard let files = FolderAccess.shared.contents(of: folder, keys: keys, area: "screenshots") else { return }
         let fresh = files.filter { url in
             guard !seen.contains(url.path),
                   let values = try? url.resourceValues(forKeys: Set(keys)),
