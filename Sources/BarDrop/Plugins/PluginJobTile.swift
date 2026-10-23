@@ -96,6 +96,17 @@ private struct PluginPreview: View {
     var hovering = false
     @State private var breathing = false
 
+    static let barHeight: CGFloat = 3
+
+    /// Abstand vom unteren Rand des Bildes bis zur Mitte des Balkens: die Hälfte der Lücke
+    /// bis zum Namen. Die Lücke ergibt sich aus TileLabel: 2 pt Rahmen um das Bild, der Rand
+    /// der Fläche, 4 pt Abstand im Stapel und 1 pt Rand des Namens.
+    static func barOffset(_ size: CGFloat) -> CGFloat {
+        let boxMargin = (TileMetrics.box(size) - size - 4) / 2
+        let gap = 2 + boxMargin + 4 + 1
+        return (gap / 2 + barHeight / 2).rounded()
+    }
+
     /// Am Anfang gut zu sehen, aber deutlich durchsichtig
     private static let startOpacity = 0.3
     /// Mit Fortschritt beginnt die Deckkraft in der Mitte des Atmens (0,3 bis 0,6): Kommt der
@@ -173,12 +184,13 @@ private struct PluginPreview: View {
         }
         .animation(.easeOut(duration: 0.3), value: pictureKey)
         .frame(width: size, height: size)
-        // Zwischen Bild und Namen, im Rand der Fläche um das Bild: Die Kachel wird nicht höher
+        // Genau in der Mitte zwischen Bild und Namen, im Rand der Fläche um das Bild: Die
+        // Kachel wird nicht höher, und der Balken klebt weder am Bild noch am Namen
         .overlay(alignment: .bottom) {
             PluginProgressBar(progress: job.isStarted ? job.progress : nil, running: job.isStarted,
                               paused: job.paused, failed: job.failed)
-                .frame(width: (size * 0.78).rounded(), height: 3)
-                .offset(y: 5)
+                .frame(width: (size * 0.78).rounded(), height: Self.barHeight)
+                .offset(y: Self.barOffset(size))
         }
         .onAppear { breathing = breathes }
         .onChange(of: breathes) { _, now in breathing = now }
