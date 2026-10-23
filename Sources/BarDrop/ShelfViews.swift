@@ -521,14 +521,15 @@ struct ShelfContent: View {
                            : selected > 0 ? L("\(selected) selected", "\(selected) ausgewählt")
                            : (count == 1 ? L("1 item", "1 Objekt") : L("\(count) items", "\(count) Objekte")))
                 }
-                // Rechts derselbe Abstand zur Kante wie links: „BarDrop“ ist um die Breite des
-                // (unsichtbaren) Zurück-Pfeils eingerückt, die Anzahl rechts ebenso
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
-                    .hidden()
-                    .padding(.leading, -4)
-                    .accessibilityHidden(true)
             }
+            // Rechts derselbe Abstand zur Kante wie „BarDrop“ links (um die Breite des
+            // Zurück-Pfeils eingerückt): gilt für alles, was rechts steht, auch im Stapel
+            // und im Ordner
+            Image(systemName: "chevron.left")
+                .font(.system(size: 11, weight: .semibold))
+                .hidden()
+                .padding(.leading, -4)
+                .accessibilityHidden(true)
         }
     }
 

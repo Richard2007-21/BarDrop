@@ -446,6 +446,12 @@ final class ShelfStore: ObservableObject {
     }
 
     /// Entfernt mehrere Dateien aus einem Stapel (widerrufbar).
+    /// Ein Objekt ohne Ausblenden aus der Ablage nehmen, widerrufbar (abgebrochenes Plugin
+    /// mit „Original ersetzen“: Sein Platzhalter stand schon an dieser Stelle)
+    func removeQuietly(_ fileID: UUID) {
+        takeOut([fileID], undoable: true, animated: false)
+    }
+
     func removeFiles(_ fileIDs: Set<UUID>, from entryID: UUID) {
         guard let entry = entries.first(where: { $0.id == entryID }) else { return }
         let ids = Set(entry.files.map(\.id)).intersection(fileIDs)

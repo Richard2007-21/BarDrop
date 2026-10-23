@@ -38,6 +38,8 @@ final class PluginJob: ObservableObject, Identifiable {
     @Published var resultType: UTType?
     /// Gescheitert: Der Platzhalter rüttelt kurz, bevor er verschwindet
     @Published var failed = false
+    /// Vom Nutzer abgebrochen (x am Platzhalter, ⌫, Menü), nicht beim Beenden von BarDrop
+    var cancelledByUser = false
     /// Zu sehen erst nach einem Augenblick: Ein Lauf, der sofort fertig ist (etwa ein Plugin,
     /// das nichts zu tun hat), blitzt so nicht als Platzhalter auf
     var shown = false

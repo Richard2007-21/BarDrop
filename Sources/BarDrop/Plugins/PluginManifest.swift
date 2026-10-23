@@ -556,7 +556,10 @@ struct PluginIconView: View {
     /// Als Bild für Menüs und Dialoge, dieselbe Kachel (nur auf dem Hauptthread)
     static func image(_ icon: PluginManifest.Icon?, size: CGFloat = 16) -> NSImage? {
         MainActor.assumeIsolated {
-            let renderer = ImageRenderer(content: PluginIconView(icon: icon, size: size - 2)
+            // Rundum Platz für den Schatten der Kachel: Am Bildrand abgeschnitten zeichnete er
+            // im Erlauben-Fenster ein sichtbares Viereck um das Symbol
+            let margin = size >= 32 ? (size * 0.1).rounded() : 1
+            let renderer = ImageRenderer(content: PluginIconView(icon: icon, size: size - 2 * margin)
                 .frame(width: size, height: size)
                 .environment(\.colorScheme, .dark))
             renderer.scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2

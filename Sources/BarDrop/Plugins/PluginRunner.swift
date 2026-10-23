@@ -39,7 +39,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
             guard let self else { return }
             for job in self.jobs where job.plugin.id == id {
                 PluginLog.shared.record(id, "abbruch", "in den Einstellungen beendet")
-                self.cancel(job)
+                self.cancel(job, inShelf: false)
             }
         }
         // Ausgeschaltet oder entfernt: laufende und wartende Aufträge des Plugins abbrechen
@@ -55,7 +55,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         guard !jobs.isEmpty else { return }
         for job in jobs where !manager.isActive(job.plugin.id) {
             PluginLog.shared.record(job.plugin.id, "abbruch", "Plugin ausgeschaltet oder entfernt")
-            cancel(job)
+            cancel(job, inShelf: false)
         }
     }
 
@@ -258,6 +258,7 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         case .failure(.cancelled):
             PluginLog.shared.record(job.plugin.id, "abbruch", "abgebrochen")
             removeJob(job)   // ohne Meldung: Die Kachel verschwindet
+            dropOriginalIfReplacing(job)
         case .failure(let error):
             PluginLog.shared.record(job.plugin.id, "fehler", error.message)
             if let hint = error.hint { PluginLog.shared.record(job.plugin.id, "hinweis", hint) }
@@ -438,13 +439,27 @@ final class PluginRunner: ObservableObject, PluginPrompter {
         return best.map { ($0.url, $0.size) }
     }
 
-    /// Abbrechen auch, solange ein Plugin noch wartet
-    func cancel(_ job: PluginJob) {
+    /// Abbrechen auch, solange ein Plugin noch wartet. `inShelf`: in der Ablage abgebrochen
+    /// (x, ⌫, Menü), nicht über die Einstellungen oder weil das Plugin aus ist
+    func cancel(_ job: PluginJob, inShelf: Bool = true) {
+        job.cancelledByUser = inShelf
         if waiting.contains(where: { $0.id == job.id }) {
             removeJob(job)
+            dropOriginalIfReplacing(job)
             return
         }
         job.cancel()
+    }
+
+    /// Bei „Original ersetzen“ stand der Platzhalter schon an der Stelle des Originals: Wer
+    /// abbricht, will es dort nicht wieder sehen. Es verlässt die Ablage (⌘Z holt es zurück,
+    /// die Datei im Finder bleibt).
+    private func dropOriginalIfReplacing(_ job: PluginJob) {
+        guard job.replacesOriginal, job.cancelledByUser, let store,
+              store.position(of: job.anchorFileID) != nil else { return }
+        // Läuft noch ein anderes Plugin für dasselbe Original, bleibt es stehen
+        guard !jobs.contains(where: { $0.anchorFileID == job.anchorFileID && $0.id != job.id }) else { return }
+        store.removeQuietly(job.anchorFileID)
     }
 
     /// Beim Beenden: laufende Plugins abbrechen
