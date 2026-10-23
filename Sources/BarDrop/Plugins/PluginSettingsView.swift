@@ -581,7 +581,7 @@ private struct PluginPageView: View {
                                             "Läuft, sobald du ein passendes Objekt ablegst.")) {
                         KlackSwitch(isOn: automatic)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 7)
                 }
                 if manifest.canReplaceOriginal == true {
                     SettingsRow(L("Replace original", "Original ersetzen"),
@@ -589,7 +589,7 @@ private struct PluginPageView: View {
                                             "Das Ergebnis tritt in der Ablage an die Stelle des Originals. ⌘Z holt es zurück.")) {
                         KlackSwitch(isOn: replace)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 7)
                 }
             }
         }
