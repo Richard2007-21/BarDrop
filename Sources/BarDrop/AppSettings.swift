@@ -154,7 +154,7 @@ enum DragReveal: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .immediately: return L("Show strip right away", "Streifen sofort zeigen")
+        case .immediately: return L("Show right away", "Sofort zeigen")
         case .nearEdge: return L("Only near the edge", "Erst in Randnähe")
         case .off: return L("Never", "Nie")
         }

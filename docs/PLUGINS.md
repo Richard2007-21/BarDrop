@@ -145,7 +145,7 @@ BarDrop always stores links itself as `.webloc`.
 
 **Action bar (`action`):** Settings → Plugins → plugin → “In the action bar”, or Settings → Actions → Add Action. The action is only visible while the plugin is turned on. Drag onto it: runs for the dragged items; a click doesn’t run it. If nothing matches, BarDrop beeps.
 
-**Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. Settings → Plugins → “Order When Dropped” changes the order (shown from two automatic plugins on). Where the shelf usually shows the number of items, it then shows “Plugin running”.
+**Automatically when dropped (`automatic`):** a switch per plugin, off by default (exception: `automaticByDefault`, 3.1). Only what the user puts into the shelf counts: dragging and ⌘V. Not: screenshots, results of actions and plugins, undo, the introduction. For each dropped item **at most one** plugin runs: the first in the Settings list that is turned on, runs automatically and matches. Settings → Plugins → “Order when dropped” changes the order (shown from two automatic plugins on). Where the shelf usually shows the number of items, it then shows “Plugin running”.
 
 A plugin only starts if it can run **without asking**: consent given (`consent`), all `permissions` granted, all `tools` allowed. If something is missing, BarDrop asks for all of it **before the start, in one window**: when turning the plugin on, when turning on “Automatically when dropped”, for right-click and action bar, and when dropping (once per drop). If you decline, it doesn’t run, and the shelf shows “Not started”. During an automatic run, a plugin never asks.
 
@@ -164,7 +164,7 @@ A plugin only starts if it can run **without asking**: consent given (`consent`)
 * When importing a `.bdrop` file, permissions, programs and the notice are already listed in the install window: “Install” or “Update” grants them, and no further window follows.
 * `clipboard` always counts as granted once it is listed in `permissions` (putting text on the clipboard isn’t asked for by macOS either).
 * Granted permissions apply to **exactly this code**: a SHA-256 over **all files** of the plugin (path and content; only `.DS_Store` doesn’t count), because the script can read other files and run them as code. Any change to any file on disk resets all permissions. Updates from the catalog keep the permissions the plugin still needs and only ask for new ones; an import grants the permissions in its list.
-* If a turned-on plugin is missing something, the list shows “Needs your permission” below its name, and its page has “Allow” at the top, which asks for everything missing right away (for example after an edited script lost its permissions). Info → “Access” on the plugin’s page sums up the state in one sentence with “Allow” or “Revoke”, and below lists permissions, programs and notice separately, each “Allowed” or “Not yet”. “Revoke” takes back permissions, programs and consent; the plugin asks again before its next run.
+* If a turned-on plugin is missing something, the list shows “Needs your permission” below its name, and its page has “Allow” at the top, which asks for everything missing right away (for example after an edited script lost its permissions). Info → “Access” on the plugin’s page shows the state in one row (“Everything allowed” or “Not allowed yet”) with “Allow” or “Revoke”, and below lists permissions, programs and notice separately, each “Allowed” or “Not yet”. “Revoke” takes back permissions, programs and consent; the plugin asks again before its next run.
 * There is **no macOS sandbox** around plugins. Without permissions, the script can only use the calls in 9. A program started with `run`, however, has the user’s full rights.
 
 ## 7. tools: programs loaded on demand
@@ -334,11 +334,11 @@ The script checks like `check_plugin.py` (and stops on errors), requires a highe
 | `standard`, `removed` | see below |
 
 * Checked at most once a day, only while plugins are turned on; right away when turning them on; when opening Settings → Plugins if the last check is more than an hour old.
-* `standard: true`: installed automatically (turned off), updated silently as soon as `version` is higher, can’t be edited or removed. Without internet it appears as “Not loaded” with “Try Again”.
-* If no plugin is installed yet, Settings → Plugins shows the available ones right away under “Available”. Otherwise “More Plugins” (with the number of new ones on the right) leads there; the list shows all entries (with a search field from seven on); those not installed with “Get”, installed ones with “Open”. After “Get” the allow window follows (if the plugin needs anything); then the plugin is on and set up according to `defaults`. If you cancel, it is installed but off.
+* `standard: true`: installed automatically (turned off), updated silently as soon as `version` is higher, can’t be edited or removed. Without internet it appears as “Not downloaded yet” with “Try Again”.
+* If no plugin is installed yet, Settings → Plugins shows the available ones right away under “Available”. Otherwise “More plugins” (with the number of new ones on the right) leads there; the list shows all entries not installed yet (with a search field from seven on), each with its name, “Offline”, “Offline after setup” (downloads a program once) or “Uses the internet”, its size and “Get”; the description shows on hover. After “Get” the allow window follows (if the plugin needs anything); then the plugin is on, set up according to `defaults`, and its page opens. If you cancel, it is installed but off.
 * `removed: true`: standard plugins are removed at the next check; others disappear from the gallery but stay installed.
 * Entries with a `minAppVersion` newer than BarDrop are skipped.
-* Settings → Plugins works like System Settings: the list shows each plugin’s name, version and size (or what needs attention) and “On” or “Off”; clicking opens its page, and ‹ in the title bar (or Esc) goes back; clicking “Plugins” in the sidebar again returns to the start page. The page has the switch at the top, then “When it runs”, the plugin’s settings and, at the bottom, Info: Internet (Yes, No or only to download programs), Works with, Version, Developer, Size, Programs (size, “Update”) and Access. In the gallery, a symbol shows whether a plugin works offline, uses the internet or downloads a program once.
+* Settings → Plugins works like System Settings: the list shows each plugin’s name, version and size (or what needs attention) and “On” or “Off”; clicking opens its page, and ‹ in the title bar (or Esc) goes back; clicking “Plugins” in the sidebar again returns to the start page. The page starts with a card showing the icon, name, description and switch; below it in the same card, when needed, “Running” (with “Stop”), “Needs your permission” (with “Allow”) and “Last run failed” (with “Copy Error”; the message shows on hover). Then “When it runs” with a note on what the plugin works with, the plugin’s settings and Info: Internet (“No, works fully offline”, “Only once, to download programs” or “Yes, uses the internet”), Programs (size, “Update” downloads their latest version) and Access; version, developer and size are a gray line below. At the bottom right of the start page: “Log” (a menu, see 14) and “Import From Files”.
 * Submit with a pull request that adds the `.bdrop` to `Plugins/` on `main`; every plugin is reviewed before it is merged. Everything in `Plugins/` is public.
 
 ## 11. Checking before sharing
@@ -356,7 +356,7 @@ It checks every rule from 2 to 7, warns about calls that don’t exist in JavaSc
 1. Import it in BarDrop and turn it on.
 2. Try it with a right-click on a matching item; if it doesn’t appear, `match` doesn’t match.
 3. Errors appear under Settings → Plugins → plugin → “Last error” and in the log.
-4. More detail: Settings → Plugins → Log → “Plugin log”, then `bardrop.log`/`console.log` in the script (section 14).
+4. More detail: Settings → Plugins → “Log” → “Record Plugin Log”, then `bardrop.log`/`console.log` in the script (section 14).
 5. Only then try “Automatically when dropped”.
 
 ## 12. Common mistakes
@@ -422,7 +422,7 @@ function run(item) {
 
 ## 14. Plugin log
 
-Settings → Plugins → Log → “Plugin log” (off by default), built like the diagnostic log: turning it on shows a note on what is recorded; “Save Log” saves it as a text file wherever you like; turning it off deletes it. The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`; “Save Log” includes both).
+Settings → Plugins → “Log” (bottom right) → “Record Plugin Log” (off by default), built like the diagnostic log: turning it on shows a note on what is recorded; “Save Log” saves it as a text file wherever you like; turning it off deletes it. The file is `~/Library/Logs/BarDrop/Plugins.log` (from 2 MB on it becomes `Plugins-alt.log`; “Save Log” includes both).
 
 It is **separate from BarDrop’s diagnostic log**: its own file, its own switch, available in all versions. Plugin events appear only here, not in the diagnostic log. Unlike that one, it names files, addresses and error messages. It stays on the Mac.
 

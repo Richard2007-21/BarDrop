@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.31.0-beta.9
+* **New: AirDrop into the shelf.** “Add files received with AirDrop” (Settings → Items) puts files that arrive via AirDrop into the shelf right away. They stay in the Downloads folder
+* **New: Plugins start ready to use.** A plugin can come with default settings (action bar, automatically when dropped, replace original). After you install and allow it, it is turned on with these settings, and the gallery opens its page
+* **New:** A `.bdrop` file added to the `Plugins/` folder of the repository appears in the gallery for everyone
+* **Changed: Calmer plugin settings.** The list shows version and size for each plugin. A plugin’s page shows permission, running and errors as quiet rows in its top card (“Copy Error” instead of the whole message), short descriptions instead of info buttons, and a short Info that says clearly whether the plugin uses the internet. “Access” replaces “Permissions” and can revoke everything at once. The gallery shows two lines per plugin and only plugins you don’t have yet. Log and “Import From Files” sit at the bottom right
+* **Changed:** A running plugin shows a blue progress bar like the Finder, centered between the picture and the name, and breathes calmly instead of flickering
+* **Changed:** Clearer wording throughout Settings, in English and German
+* **Changed:** The light outline of the shelf sits fully on the black instead of half on the edge, and a floating glass shelf no longer shows a double edge
+* **Changed:** Everything at the top right of the shelf has the same distance from the edge as “BarDrop” on the left
+* **Fixed:** If macOS doesn’t let BarDrop read the screenshot folder (for example after an update), Settings say so and open the right place in System Settings, instead of screenshots silently not arriving
+* **Fixed:** Canceling a plugin with “Replace original” no longer brings the original back
+* **Fixed:** Plugin actions in the action bar accept files dragged from the Finder (#57)
+* **Fixed:** The plugin icon in the allow window no longer has a square around it
+* Plugins: new `defaults` key in manifest.json; `scripts/build_gallery.py` builds the gallery from `Plugins/`
+
 ## 1.31.0-beta.8
 * **New: Plugin settings like System Settings.** The list shows each plugin with On or Off. A click opens its own page: the switch at the top, when it runs, its settings, and Info with internet use, size, programs and permissions at the bottom. `‹` in the title bar, `esc` or another click on Plugins in the sidebar goes back. Without installed plugins, the available ones show right away
 * **New: Plugin gallery.** “More Plugins” lists reviewed plugins and shows before loading whether each works offline, downloads a program once or uses the internet, and how big it is. Plugins from the gallery get updates from it

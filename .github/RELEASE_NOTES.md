@@ -1,35 +1,29 @@
-* **New: Plugin settings like System Settings.** The list shows each plugin with On or Off. A click opens its own page: the switch at the top, when it runs, its settings, and Info with internet use, size, programs and permissions at the bottom. `‹` in the title bar, `esc` or another click on Plugins in the sidebar goes back. Without installed plugins, the available ones show right away
-* **New: Plugin gallery.** “More Plugins” lists reviewed plugins and shows before loading whether each works offline, downloads a program once or uses the internet, and how big it is. Plugins from the gallery get updates from it
-* **Changed: One window for permissions.** A plugin asks once for everything it needs (notice, permissions, programs) before its first run, never in the middle of it. Installing a `.bdrop` file already allows what its window lists, putting text on the clipboard no longer asks, and a failed run no longer opens a window: the placeholder shakes and the message is on the plugin’s page
-* **Changed:** The plugin log works like the diagnostic log: a note when you turn it on, “Save Log” to keep a copy, and turning it off deletes it
-* **Changed:** A running plugin shows a thin progress bar between the picture and the name, and the icon or preview of the file it is creating. A failed run shakes briefly before it disappears, and a run that ends right away no longer flashes a placeholder
-* **Changed:** While Settings are open, BarDrop shows in the Dock and in `⌘⇥` like any app, so the window behaves like a normal window, also after Control Center. In Settings, `↑` and `↓` move through the sidebar
-* **Changed:** A floating shelf follows changes in Settings right away: size, icon sizes, action names and “Translucent when floating” apply where it is. In light mode, the shelf turns from black straight to light glass when you pull it off
-* **Fixed:** Images dragged from the web, such as from an image search, land in the shelf as images instead of links, and new items appear right away instead of only after a click
-* **Fixed:** Pulling the shelf off the edge quickly no longer leaves pieces of the edge shape on the floating shelf, and without glass it is fully black
-* **Fixed:** Controls in Quick Look (playing videos and sound, the buttons at the top) no longer close Quick Look and the shelf; the shelf closes only after Quick Look
-* **Fixed:** If the display with a floating shelf is unplugged, the shelf goes back to its edge instead of getting stuck on another display
-* **Fixed:** A canceled plugin stops computing, even in an endless loop, instead of keeping the Mac busy until BarDrop quits
-* **Fixed:** Programs started by plugins get their arguments exactly as given and always get UTF-8 text, so accented letters and emoji no longer turn into “?”
-* Plugins: scripts can use `URL`, `URLSearchParams`, `setTimeout`, `setInterval`, `queueMicrotask`, `TextEncoder`/`TextDecoder` and `atob`/`btoa`; new `bardrop.readData` and `bardrop.writeData` for bytes, `bardrop.findProgram` to find programs, `"batch": true` for one run with all selected items, and `throw { message, hint }` for a tip with an error
-* Plugins: plugins share a program another plugin already downloaded from the same address, and “Update” on a plugin’s page downloads its programs again
-* `scripts/publish_plugin.py` checks, packs and adds a plugin to the gallery, including the size of its programs
+* **New: AirDrop into the shelf.** “Add files received with AirDrop” (Settings → Items) puts files that arrive via AirDrop into the shelf right away. They stay in the Downloads folder
+* **New: Plugins start ready to use.** A plugin can come with default settings (action bar, automatically when dropped, replace original). After you install and allow it, it is turned on with these settings, and the gallery opens its page
+* **New:** A `.bdrop` file added to the `Plugins/` folder of the repository appears in the gallery for everyone
+* **Changed: Calmer plugin settings.** The list shows version and size for each plugin. A plugin’s page shows permission, running and errors as quiet rows in its top card (“Copy Error” instead of the whole message), short descriptions instead of info buttons, and a short Info that says clearly whether the plugin uses the internet. “Access” replaces “Permissions” and can revoke everything at once. The gallery shows two lines per plugin and only plugins you don’t have yet. Log and “Import From Files” sit at the bottom right
+* **Changed:** A running plugin shows a blue progress bar like the Finder, centered between the picture and the name, and breathes calmly instead of flickering
+* **Changed:** Clearer wording throughout Settings, in English and German
+* **Changed:** The light outline of the shelf sits fully on the black instead of half on the edge, and a floating glass shelf no longer shows a double edge
+* **Changed:** Everything at the top right of the shelf has the same distance from the edge as “BarDrop” on the left
+* **Fixed:** If macOS doesn’t let BarDrop read the screenshot folder (for example after an update), Settings say so and open the right place in System Settings, instead of screenshots silently not arriving
+* **Fixed:** Canceling a plugin with “Replace original” no longer brings the original back
+* **Fixed:** Plugin actions in the action bar accept files dragged from the Finder (#57)
+* **Fixed:** The plugin icon in the allow window no longer has a square around it
+* Plugins: new `defaults` key in manifest.json; `scripts/build_gallery.py` builds the gallery from `Plugins/`
 
 <!-- de -->
 
-* **Neu: Plugin-Einstellungen wie die Systemeinstellungen.** Die Liste zeigt jedes Plugin mit Ein oder Aus. Ein Klick öffnet seine eigene Seite: oben der Schalter, dann wann es läuft, seine Einstellungen und ganz unten die Info mit Internet, Größe, Programmen und Rechten. `‹` in der Titelleiste, `esc` oder ein erneuter Klick auf Plugins in der Seitenleiste führen zurück. Ohne installierte Plugins erscheinen gleich die verfügbaren
-* **Neu: Plugin-Galerie.** „Weitere Plugins“ listet geprüfte Plugins und zeigt vor dem Laden, ob eines offline läuft, einmal ein Programm lädt oder das Internet nutzt, und wie groß es ist. Plugins aus der Galerie bekommen Updates von dort
-* **Geändert: Ein Fenster für die Rechte.** Ein Plugin fragt einmal vor dem ersten Lauf nach allem, was es braucht (Hinweis, Rechte, Programme), nie mitten im Lauf. Das Installieren einer `.bdrop`-Datei erlaubt schon, was ihr Fenster nennt, Text in die Zwischenablage legen fragt nicht mehr, und ein gescheiterter Lauf öffnet kein Fenster mehr: Der Platzhalter rüttelt, die Meldung steht auf der Seite des Plugins
-* **Geändert:** Das Plugin-Protokoll funktioniert wie das Diagnoseprotokoll: ein Hinweis beim Einschalten, „Protokoll sichern“ für eine Kopie, Ausschalten löscht es
-* **Geändert:** Ein laufendes Plugin zeigt einen schmalen Balken zwischen Bild und Name und das Symbol oder die Vorschau der Datei, die gerade entsteht. Ein gescheiterter Lauf rüttelt kurz, bevor er verschwindet, und ein Lauf, der sofort endet, blitzt nicht mehr als Platzhalter auf
-* **Geändert:** Solange die Einstellungen offen sind, erscheint BarDrop im Dock und bei `⌘⇥` wie jede App, sodass sich das Fenster wie ein normales Fenster verhält, auch nach dem Kontrollzentrum. In den Einstellungen wechseln `↑` und `↓` den Bereich in der Seitenleiste
-* **Geändert:** Eine schwebende Ablage übernimmt Änderungen in den Einstellungen sofort: Größe, Symbolgrößen, Namen der Aktionen und „Schwebend durchsichtig“ gelten dort, wo sie ist. Im hellen Modus wird die Ablage beim Abziehen direkt von Schwarz zu hellem Glas
-* **Behoben:** Bilder aus dem Web, etwa aus einer Bildersuche, landen als Bilder in der Ablage statt als Links, und neue Objekte erscheinen sofort statt erst nach einem Klick
-* **Behoben:** Schnelles Abziehen der Ablage hinterlässt keine Reste der Randform mehr auf der schwebenden Ablage, und ohne Glas ist sie ganz schwarz
-* **Behoben:** Bedienelemente in Quick Look (Videos und Ton abspielen, die Knöpfe oben) schließen Quick Look und die Ablage nicht mehr; die Ablage schließt erst nach Quick Look
-* **Behoben:** Wird der Bildschirm mit einer schwebenden Ablage abgesteckt, geht sie zurück an ihren Rand, statt auf einem anderen Bildschirm hängen zu bleiben
-* **Behoben:** Ein abgebrochenes Plugin hört auf zu rechnen, auch in einer Endlosschleife, statt den Mac bis zum Beenden von BarDrop zu beschäftigen
-* **Behoben:** Programme, die Plugins starten, bekommen ihre Argumente genau so, wie übergeben, und immer Text in UTF-8; Buchstaben wie „ä“ und Emoji werden nicht mehr zu „?“
-* Plugins: Skripte können `URL`, `URLSearchParams`, `setTimeout`, `setInterval`, `queueMicrotask`, `TextEncoder`/`TextDecoder` und `atob`/`btoa` nutzen; neu sind `bardrop.readData` und `bardrop.writeData` für Bytes, `bardrop.findProgram` zum Finden von Programmen, `"batch": true` für einen Lauf mit allen ausgewählten Objekten und `throw { message, hint }` für einen Tipp zum Fehler
-* Plugins: Plugins teilen sich ein Programm, das ein anderes Plugin schon von derselben Adresse geladen hat, und „Aktualisieren“ auf der Seite eines Plugins lädt seine Programme neu
-* `scripts/publish_plugin.py` prüft und packt ein Plugin und trägt es in die Galerie ein, samt Größe seiner Programme
+* **Neu: AirDrop in die Ablage.** „Mit AirDrop empfangene Dateien hinzufügen“ (Einstellungen → Objekte) legt per AirDrop empfangene Dateien sofort in die Ablage. Sie bleiben im Ordner „Downloads“
+* **Neu: Plugins sind gleich startklar.** Ein Plugin kann Voreinstellungen mitbringen (Aktionsleiste, automatisch beim Ablegen, Original ersetzen). Nach dem Installieren und Erlauben ist es damit eingeschaltet, und die Galerie öffnet seine Seite
+* **Neu:** Eine `.bdrop`-Datei im Ordner `Plugins/` des Repositorys erscheint für alle in der Galerie
+* **Geändert: Ruhigere Plugin-Einstellungen.** Die Liste zeigt je Plugin Version und Größe. Die Seite eines Plugins zeigt Erlaubnis, Lauf und Fehler als ruhige Zeilen in der oberen Karte („Fehler kopieren“ statt der ganzen Meldung), kurze Erklärungen statt Info-Knöpfen und eine kurze Info, die klar sagt, ob das Plugin das Internet nutzt. „Zugriff“ ersetzt „Rechte“ und kann alles auf einmal entziehen. Die Galerie zeigt zwei Zeilen je Plugin und nur Plugins, die du noch nicht hast. Protokoll und „Aus Dateien importieren“ stehen unten rechts
+* **Geändert:** Ein laufendes Plugin zeigt einen blauen Fortschrittsbalken wie im Finder, mittig zwischen Bild und Name, und atmet ruhig, statt zu flackern
+* **Geändert:** Klarere Formulierungen in allen Einstellungen, auf Deutsch und Englisch
+* **Geändert:** Der helle Rahmen der Ablage liegt ganz auf dem Schwarz statt halb auf der Kante, und eine schwebende Ablage aus Glas zeigt keinen doppelten Rand mehr
+* **Geändert:** Alles oben rechts in der Ablage hat denselben Abstand zur Kante wie „BarDrop“ links
+* **Behoben:** Darf BarDrop den Ordner der Bildschirmfotos nicht lesen (etwa nach einem Update), sagen das die Einstellungen und öffnen die richtige Stelle in den Systemeinstellungen, statt dass Bildschirmfotos still nicht ankommen
+* **Behoben:** Ein abgebrochenes Plugin mit „Original ersetzen“ holt das Original nicht mehr zurück
+* **Behoben:** Plugin-Aktionen in der Aktionsleiste nehmen Dateien aus dem Finder an (#57)
+* **Behoben:** Das Plugin-Symbol im Erlauben-Fenster hat kein Viereck mehr darum
+* Plugins: neuer Schlüssel `defaults` in der manifest.json; `scripts/build_gallery.py` baut die Galerie aus `Plugins/`

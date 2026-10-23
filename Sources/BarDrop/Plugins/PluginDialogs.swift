@@ -149,8 +149,8 @@ enum PluginImporter {
             if let description = manifest.description?.text, !description.isEmpty { lines.append(description) }
             // Hinweis des Plugins steht gleich hier: „Installieren“ gilt als Zustimmung
             if let consent = manifest.consent?.text, !consent.isEmpty { lines.append(consent) }
-            lines.append(L("Not from the BarDrop catalog. Only install plugins from people you trust.",
-                           "Nicht aus dem Katalog von BarDrop. Installier nur Plugins von Menschen, denen du vertraust."))
+            lines.append(L("This plugin isn’t from the BarDrop catalog. Only install plugins from developers you trust.",
+                           "Dieses Plugin stammt nicht aus dem BarDrop-Katalog. Installier nur Plugins von Entwicklern, denen du vertraust."))
             alert.informativeText = lines.joined(separator: "\n\n")
             alert.accessoryView = PluginDialogs.grantList(PluginGrant.rows(
                 permissions: manifest.allPermissions, tools: manifest.tools ?? [], otherFiles: otherFiles(in: unpacked)))
@@ -229,8 +229,8 @@ enum PluginImporter {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [PluginPackage.contentType]
-        panel.prompt = L("Import", "Importieren")
-        panel.message = L("Choose a BarDrop plugin (.bdrop)", "BarDrop-Plugin auswählen (.bdrop)")
+        panel.prompt = L("Install", "Installieren")
+        panel.message = L("Choose a BarDrop plugin (.bdrop).", "Wähl ein BarDrop-Plugin (.bdrop).")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         importFile(url, parent: nil)
     }

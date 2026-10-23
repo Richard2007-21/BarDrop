@@ -25,8 +25,8 @@ enum PluginPage: Hashable {
         case .list: return SettingsPane.plugins.title
         case .plugin(let id): return manager.plugin(id)?.manifest.name.text ?? SettingsPane.plugins.title
         case .permissions: return L("Access", "Zugriff")
-        case .gallery: return L("More Plugins", "Weitere Plugins")
-        case .order: return L("Order When Dropped", "Reihenfolge beim Ablegen")
+        case .gallery: return L("More plugins", "Weitere Plugins")
+        case .order: return L("Order when dropped", "Reihenfolge beim Ablegen")
         }
     }
 }
@@ -147,8 +147,8 @@ struct PluginSettings: View {
     @ViewBuilder
     private var start: some View {
         SettingsSection(note: settings.pluginsEnabled ? nil
-                        : L("Plugins are small add-ons that teach BarDrop new things, such as shrinking images, reading text from screenshots or converting files. They show up in the right-click menu and the action bar, or run by themselves when you drop something.",
-                            "Plugins sind kleine Erweiterungen, die BarDrop Neues beibringen: etwa Bilder verkleinern, Text aus Bildschirmfotos lesen oder Dateien umwandeln. Sie erscheinen im Rechtsklick-Menü und in der Aktionsleiste oder laufen von selbst, wenn du etwas ablegst.")) {
+                        : L("Plugins are small add-ons that teach BarDrop new things, such as shrinking images, reading text from screenshots or converting files. They show up in the right-click menu and the action bar, or run automatically when you drop items.",
+                            "Plugins sind kleine Erweiterungen, die BarDrop Neues beibringen: etwa Bilder verkleinern, Text aus Bildschirmfotos lesen oder Dateien umwandeln. Sie erscheinen im Rechtsklick-Menü und in der Aktionsleiste oder laufen automatisch, wenn du etwas ablegst.")) {
             ToggleRow(L("Use plugins", "Plugins verwenden"), isOn: $settings.pluginsEnabled)
         }
 
@@ -170,13 +170,13 @@ struct PluginSettings: View {
                 }
 
                 SettingsCard {
-                    NavigationRow(L("More Plugins", "Weitere Plugins"),
+                    NavigationRow(L("More plugins", "Weitere Plugins"),
                                   value: manager.catalogExtras.isEmpty ? nil
                                       : L("\(manager.catalogExtras.count) new", "\(manager.catalogExtras.count) neu")) {
                         open(.gallery)
                     }
                     if manager.plugins.filter({ manager.isAutomatic($0) }).count > 1 {
-                        NavigationRow(L("Order When Dropped", "Reihenfolge beim Ablegen")) { open(.order) }
+                        NavigationRow(L("Order when dropped", "Reihenfolge beim Ablegen")) { open(.order) }
                     }
                 }
             }
@@ -200,7 +200,7 @@ struct PluginSettings: View {
             .menuIndicator(.hidden)
             .buttonStyle(KlackButtonStyle())
             .fixedSize()
-            .help(L("Records which plugin runs and when, what works and what fails, to find problems. Stays on this Mac until you save it.",
+            .help(L("Records what plugins do, including file names and error messages, to help find problems. Stays on this Mac until you save it.",
                     "Hält fest, welches Plugin wann läuft, was klappt und was fehlschlägt, um Probleme zu finden. Bleibt auf diesem Mac, bis du es sicherst."))
             importButton
         }
@@ -210,7 +210,7 @@ struct PluginSettings: View {
         Button(L("Import From Files", "Aus Dateien importieren")) { PluginImporter.chooseAndImport() }
             .buttonStyle(KlackButtonStyle())
             .help(L("Install a .bdrop file. You can also double-click it.",
-                    "Eine .bdrop-Datei installieren. Doppelklicken geht auch."))
+                    "Installiert eine .bdrop-Datei. Du kannst sie auch im Finder doppelklicken."))
     }
 }
 
@@ -274,7 +274,7 @@ private struct InstalledRow: View {
         if state.enabled && !manager.isFullyAuthorized(plugin) {
             return (L("Needs your permission", "Braucht deine Erlaubnis"), .orange)
         }
-        if manager.lastErrors[plugin.id] != nil { return (L("Last run didn’t work", "Letzter Lauf hat nicht geklappt"), .orange) }
+        if manager.lastErrors[plugin.id] != nil { return (L("Last run failed", "Letzter Lauf fehlgeschlagen"), .orange) }
         var parts = [L("Version \(plugin.manifest.version)", "Version \(plugin.manifest.version)")]
         if let size { parts.append(PluginSize.text(size)) }
         return (parts.joined(separator: " · "), .secondary)
@@ -376,7 +376,7 @@ private struct GalleryPage: View {
         if manager.catalogEntries.isEmpty {
             SettingsCard {
                 if manager.syncFailed {
-                    SettingsRow(L("Couldn’t load", "Ließ sich nicht laden"),
+                    SettingsRow(L("Couldn’t load plugins", "Plugins konnten nicht geladen werden"),
                                 subtitle: L("Check your internet connection.", "Prüf deine Internetverbindung.")) {
                         Button(L("Try Again", "Erneut versuchen")) { manager.syncCatalog(force: true) }
                             .buttonStyle(KlackButtonStyle())
@@ -392,7 +392,7 @@ private struct GalleryPage: View {
                 SettingsRow(L("All plugins are installed", "Alle Plugins sind installiert")) { EmptyView() }
             }
         } else if entries.isEmpty {
-            SectionNote(L("Nothing found.", "Nichts gefunden."))
+            SectionNote(L("No results", "Keine Treffer"))
                 .padding(.horizontal, 8)
         } else {
             SettingsCard {
@@ -549,7 +549,7 @@ private struct PluginPageView: View {
                 StatusRow(symbol: "gearshape.2", text: L("Running", "Läuft gerade"), color: .secondary) {
                     Button(L("Stop", "Beenden")) { manager.stopRuns?(plugin.id) }
                         .buttonStyle(KlackButtonStyle())
-                        .help(L("Ends all runs of this plugin, also a script that is stuck.",
+                        .help(L("Stops all runs of this plugin, including stuck scripts.",
                                 "Beendet alle Läufe dieses Plugins, auch ein hängendes Skript."))
                 }
             }
@@ -618,8 +618,8 @@ private struct PluginPageView: View {
                             Button(L("Update", "Aktualisieren")) { manager.refreshTools(of: plugin) }
                                 .buttonStyle(KlackButtonStyle())
                                 .disabled(manager.toolRefresh[plugin.id] == .running)
-                                .help(L("Downloads the newest version of the plugin’s programs, for example when it fixes an error.",
-                                        "Lädt die neueste Fassung der Programme des Plugins, etwa wenn sie einen Fehler behebt."))
+                                .help(L("Downloads the latest version of the plugin’s programs, for example to get a bug fix.",
+                                        "Lädt die neueste Version der Programme des Plugins, etwa um einen Fehler zu beheben."))
                         }
                     }
                 }
@@ -659,18 +659,18 @@ private struct PluginPageView: View {
     /// „92 MB“, „noch nicht geladen“ oder der Stand nach „Aktualisieren“
     private func programsValue(_ tools: [PluginTool]) -> String {
         switch manager.toolRefresh[plugin.id] {
-        case .running: return L("updating", "wird aktualisiert")
+        case .running: return L("Updating", "Wird aktualisiert")
         case .failed(let message): return message
         default: break
         }
-        guard let sizes, let programs = sizes.programs else { return L("not downloaded yet", "noch nicht geladen") }
+        guard let sizes, let programs = sizes.programs else { return L("Not downloaded yet", "Noch nicht geladen") }
         return PluginSize.text(programs)
     }
 
     private func confirmRemove() {
         let alert = PluginDialogs.makeAlert(manifest)
         alert.messageText = L("Remove “\(manifest.name.text)”?", "„\(manifest.name.text)“ entfernen?")
-        alert.informativeText = L("The plugin and its settings are deleted. Items in the shelf stay.",
+        alert.informativeText = L("The plugin and its settings will be deleted. Items in the shelf aren’t affected.",
                                   "Das Plugin und seine Einstellungen werden gelöscht. Die Objekte in der Ablage bleiben.")
         alert.addButton(withTitle: L("Remove", "Entfernen"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
@@ -769,7 +769,7 @@ private struct PluginPermissionsPage: View {
         }
 
         if !manifest.allPermissions.isEmpty {
-            SettingsSection(L("Permissions", "Rechte")) {
+            SettingsSection(L("Permissions", "Berechtigungen")) {
                 ForEach(manifest.allPermissions) { permission in
                     AccessRow(symbol: permission.symbol, title: permission.title, subtitle: permission.explanation,
                               granted: manager.isGranted(permission, for: plugin))
@@ -951,7 +951,7 @@ private struct MissingPluginRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.name.text)
                     .font(.system(size: 13.5))
-                Text(L("Not loaded", "Nicht geladen"))
+                Text(L("Not downloaded yet", "Noch nicht geladen"))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }

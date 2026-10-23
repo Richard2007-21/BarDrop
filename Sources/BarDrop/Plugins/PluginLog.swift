@@ -76,8 +76,8 @@ final class PluginLog {
     static func confirm() -> Bool {
         let alert = NSAlert()
         alert.messageText = L("Turn on the plugin log?", "Plugin-Protokoll einschalten?")
-        alert.informativeText = L("BarDrop then records what plugins do: which plugin runs and when, permissions, downloaded and started programs, internet requests and error messages. Unlike the diagnostic log, it names files and links. The log stays on this Mac and is never sent. Only when you click “Save Log” is a text file created that you can pass on yourself.",
-                                  "BarDrop hält dann fest, was Plugins tun: welches Plugin wann läuft, Rechte, geladene und gestartete Programme, Anfragen ins Internet und Fehlermeldungen. Anders als das Diagnoseprotokoll nennt es Dateien und Links. Das Protokoll bleibt auf diesem Mac und wird nie verschickt. Erst mit „Protokoll sichern“ entsteht eine Textdatei, die du selbst weitergeben kannst.")
+        alert.informativeText = L("BarDrop will record what plugins do: which plugin runs and when, permissions, downloaded and started programs, internet requests and error messages. Unlike the diagnostic log, it includes file names and links. The log stays on this Mac and is never sent. “Save Log” creates a text file you can share yourself.",
+                                  "BarDrop hält dann fest, was Plugins tun: welches Plugin wann läuft, Berechtigungen, geladene und gestartete Programme, Anfragen ins Internet und Fehlermeldungen. Anders als das Diagnoseprotokoll enthält es Dateinamen und Links. Das Protokoll bleibt auf diesem Mac und wird nie verschickt. Mit „Protokoll sichern“ entsteht eine Textdatei, die du selbst weitergeben kannst.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: L("Turn On", "Einschalten"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))

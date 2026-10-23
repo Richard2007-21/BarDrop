@@ -53,7 +53,7 @@ enum PluginPermission: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .network: return L("Internet access", "Zugriff aufs Internet")
+        case .network: return L("Internet access", "Internetzugriff")
         case .run: return L("Run programs", "Programme ausführen")
         case .clipboard: return L("Clipboard", "Zwischenablage")
         }
@@ -72,7 +72,7 @@ enum PluginPermission: String, Codable, CaseIterable, Identifiable {
     var explanation: String {
         switch self {
         case .network:
-            return L("It can load web pages and files.", "Es kann Webseiten und Dateien laden.")
+            return L("The plugin can load web pages and download files.", "Das Plugin kann Webseiten und Dateien laden.")
         case .run:
             return L("This gives it full access to your Mac. Only allow plugins you trust.",
                      "Damit hat es vollen Zugriff auf deinen Mac. Erlaub das nur Plugins, denen du vertraust.")
@@ -84,7 +84,7 @@ enum PluginPermission: String, Codable, CaseIterable, Identifiable {
     /// Zeile in den Listen der Fenster (Import, Erlauben)
     var summary: String {
         switch self {
-        case .network: return L("Internet access", "Zugriff aufs Internet")
+        case .network: return L("Internet access", "Internetzugriff")
         case .run: return L("Run programs (full access to your Mac)", "Programme ausführen (voller Zugriff auf deinen Mac)")
         case .clipboard: return L("Clipboard", "Zwischenablage")
         }
@@ -467,7 +467,7 @@ extension PluginManifest.ValidationError {
     var message: String {
         switch self {
         case .unsupportedSchema:
-            return L("The plugin was made for a newer version of BarDrop.", "Das Plugin ist für eine neuere Version von BarDrop gemacht.")
+            return L("The plugin was made for a newer version of BarDrop.", "Das Plugin wurde für eine neuere Version von BarDrop entwickelt.")
         case .invalidID:
             return L("The plugin has no valid identifier.", "Das Plugin hat keine gültige Kennung.")
         case .missingName:
@@ -480,13 +480,13 @@ extension PluginManifest.ValidationError {
             return L("The plugin has an invalid link pattern: \(p)", "Das Plugin hat ein ungültiges Link-Muster: \(p)")
         case .unknownPermission(let p):
             return L("The plugin asks for the permission “\(p)”, which this version of BarDrop doesn’t know.",
-                     "Das Plugin verlangt das Recht „\(p)“, das diese Version von BarDrop nicht kennt.")
+                     "Das Plugin verlangt die Berechtigung „\(p)“, das diese Version von BarDrop nicht kennt.")
         case .insecureToolURL(let t):
             return L("The program “\(t)” isn’t loaded over a secure connection.",
                      "Das Programm „\(t)“ wird nicht über eine sichere Verbindung geladen.")
         case .missingChecksum(let t):
-            return L("The program “\(t)” has no checksum, so BarDrop can’t check it.",
-                     "Für das Programm „\(t)“ fehlt die Prüfsumme, BarDrop kann es so nicht prüfen.")
+            return L("The program “\(t)” has no checksum, so BarDrop can’t verify it.",
+                     "Für das Programm „\(t)“ fehlt die Prüfsumme, daher kann BarDrop es nicht prüfen.")
         case .needsNewerApp(let v):
             return L("The plugin needs BarDrop \(v) or later.", "Das Plugin braucht BarDrop \(v) oder neuer.")
         case .invalidScriptName:

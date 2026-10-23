@@ -406,8 +406,8 @@ struct AboutSettings: View {
     static func confirmDiagnostics() -> Bool {
         let alert = NSAlert()
         alert.messageText = L("Turn on the diagnostic log?", "Diagnoseprotokoll einschalten?")
-        alert.informativeText = L("BarDrop then records in detail what happens in the app: drops, previews, the shelf at the edge, keyboard focus, actions, the introduction and errors, together with your settings and your Mac model and macOS version. File and folder names, paths and contents are not recorded; files appear only as an anonymous code with their type. The log stays on this Mac and is never sent. Only when you click “Save Log” is a text file created that you can pass on yourself, for example to report a bug.",
-                                  "BarDrop hält dann ausführlich fest, was in der App passiert: Ablegen, Vorschaubilder, die Ablage am Rand, Tastaturfokus, Aktionen, die Einführung und Fehler, dazu deine Einstellungen sowie Mac-Modell und macOS-Version. Datei- und Ordnernamen, Pfade und Inhalte werden nicht erfasst; Dateien erscheinen nur als anonyme Kennung mit ihrem Typ. Das Protokoll bleibt auf diesem Mac und wird nie verschickt. Erst mit „Protokoll sichern“ entsteht eine Textdatei, die du selbst weitergeben kannst, etwa um einen Fehler zu melden.")
+        alert.informativeText = L("BarDrop will record in detail what happens in the app: drops, previews, the shelf at the edge, keyboard focus, actions, the introduction and errors. It also records your settings, Mac model and macOS version. File and folder names, paths and contents aren’t recorded; files appear only as an anonymous code with their type. The log stays on this Mac and is never sent. “Save Log” creates a text file you can share yourself, for example to report a bug.",
+                                  "BarDrop hält dann ausführlich fest, was in der App passiert: Ablegen, Vorschaubilder, die Ablage am Rand, Tastaturfokus, Aktionen, die Einführung und Fehler, dazu deine Einstellungen sowie Mac-Modell und macOS-Version. Datei- und Ordnernamen, Pfade und Inhalte werden nicht erfasst; Dateien erscheinen nur als anonyme Kennung mit ihrem Typ. Das Protokoll bleibt auf diesem Mac und wird nie verschickt. Mit „Protokoll sichern“ entsteht eine Textdatei, die du selbst weitergeben kannst, etwa um einen Fehler zu melden.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: L("Turn On", "Einschalten"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
@@ -437,14 +437,14 @@ struct AboutSettings: View {
         case .available(let v):
             // Von selbst nur mit „Automatisch aktualisieren“ und erst zwei Tage nach dem Erscheinen
             guard settings.autoUpdateCheck else {
-                return L("Version \(Self.readable(v)) is ready. Your items stay in the shelf when you update.",
-                         "Version \(Self.readable(v)) ist bereit. Beim Aktualisieren bleiben die Objekte in der Ablage.")
+                return L("Version \(Self.readable(v)) is available. Your items stay in the shelf when you update.",
+                         "Version \(Self.readable(v)) ist verfügbar. Beim Aktualisieren bleiben die Objekte in der Ablage.")
             }
-            return L("Version \(Self.readable(v)) is ready. BarDrop installs it by itself two days after its release, once you haven’t used it for a while, or you can update now. Your items stay in the shelf.",
-                     "Version \(Self.readable(v)) ist bereit. BarDrop installiert sie von selbst zwei Tage nach dem Erscheinen, sobald du es eine Weile nicht benutzt. Du kannst auch gleich aktualisieren. Die Objekte bleiben in der Ablage.")
+            return L("Version \(Self.readable(v)) is available. Two days after its release, BarDrop installs it once you haven’t used it for 15 minutes. You can also update now. Your items stay in the shelf.",
+                     "Version \(Self.readable(v)) ist verfügbar. Zwei Tage nach dem Erscheinen installiert BarDrop sie, sobald du es 15 Minuten nicht benutzt. Du kannst auch gleich aktualisieren. Die Objekte bleiben in der Ablage.")
         // Feste Meldung statt der gespeicherten: bleibt in der gewählten Sprache
-        case .failed: return L("The last attempt didn’t work. Please try again later.",
-                               "Der letzte Versuch hat nicht geklappt. Versuch es später noch einmal.")
+        case .failed: return L("The update didn’t work. Try again later.",
+                               "Das Update hat nicht geklappt. Versuch es später noch einmal.")
         default: return L("New versions come from GitHub and are verified before they’re installed.",
                           "Neue Versionen kommen von GitHub und werden vor der Installation geprüft.")
         }
@@ -493,12 +493,12 @@ struct AboutSettings: View {
                           isOn: $settings.autoUpdateCheck)
                 ToggleRow(L("Beta versions", "Beta-Versionen"),
                           info: L("Try new features before they come to everyone. Betas may still have bugs.",
-                                  "Neue Funktionen ausprobieren, bevor sie für alle erscheinen. Betas können noch Fehler haben."),
+                                  "Probier neue Funktionen aus, bevor sie für alle erscheinen. Betas können noch Fehler haben."),
                           isOn: $settings.betaUpdates)
                 if settings.betaUpdates {
                     ToggleRow(L("Diagnostic log", "Diagnoseprotokoll"),
-                              info: L("Only in beta versions, off by default. Records in detail and anonymously what happens in BarDrop, to find bugs. Stays on this Mac until you save it.",
-                                      "Nur in Beta-Versionen, standardmäßig aus. Hält ausführlich und anonym fest, was in BarDrop passiert, um Fehler zu finden. Bleibt auf diesem Mac, bis du es sicherst."),
+                              info: L("Records in detail and anonymously what happens in BarDrop, to help find bugs. Stays on this Mac until you save it.",
+                                      "Hält ausführlich und anonym fest, was in BarDrop passiert, um Fehler zu finden. Bleibt auf diesem Mac, bis du es sicherst."),
                               isOn: diagnostics)
                     if settings.diagnosticsEnabled {
                         SettingsRow(L("Log file", "Protokolldatei")) {
@@ -524,9 +524,9 @@ struct AboutSettings: View {
                 }
                 .buttonStyle(.plain)
                 if showInspirations {
-                    LinkRow(title: "Alcove", detail: L("Model for the shape and motion of the shelf", "Vorbild für Form und Bewegung der Ablage"),
+                    LinkRow(title: "Alcove", detail: L("Inspiration for the shape and motion of the shelf", "Vorbild für Form und Bewegung der Ablage"),
                             url: "https://tryalcove.com")
-                    LinkRow(title: "Klack", detail: L("Model for the layout and design of the settings", "Vorbild für Aufbau und Gestaltung der Einstellungen"),
+                    LinkRow(title: "Klack", detail: L("Inspiration for the layout and design of the settings", "Vorbild für Aufbau und Gestaltung der Einstellungen"),
                             url: "https://tryklack.com")
                     LinkRow(title: "boring.notch", detail: L("Code for web images and thumbnails", "Code für Bilder aus dem Web und Vorschaubilder"),
                             url: "https://github.com/TheBoredTeam/boring.notch")

@@ -164,7 +164,7 @@ Ein Plugin startet nur, wenn es **ohne Rückfrage** laufen kann: Zustimmung (`co
 * Beim Import einer `.bdrop`-Datei stehen Rechte, Programme und Hinweis schon im Installieren-Fenster: „Installieren“ bzw. „Aktualisieren“ erteilt sie, danach kommt kein weiteres Fenster.
 * `clipboard` gilt immer als erteilt, sobald es in `permissions` steht (Text in die Zwischenablage legen fragt auch macOS nicht ab).
 * Erteilte Rechte gelten für **genau diesen Code**: eine SHA-256-Prüfsumme über **alle Dateien** des Plugins (Pfad und Inhalt; nur `.DS_Store` zählt nicht), denn das Skript kann weitere Dateien lesen und als Code ausführen. Jede Änderung an irgendeiner Datei auf der Platte setzt alle Rechte zurück. Aktualisierungen aus dem Katalog behalten Rechte, die das Plugin weiter braucht, und fragen nur nach neuen; ein Import erteilt die Rechte aus seiner Liste.
-* Fehlt einem eingeschalteten Plugin etwas, steht in der Liste unter seinem Namen „Braucht deine Erlaubnis“ und auf seiner Seite oben „Erlauben“; das fragt sofort nach allem Fehlenden (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat). Info → „Zugriff“ auf der Seite des Plugins zeigt oben in einem Satz den Stand mit „Erlauben“ bzw. „Entziehen“, darunter getrennt Rechte, Programme und Hinweis mit je „Erlaubt“ oder „Noch nicht“. „Entziehen“ nimmt Rechte, Programme und Zustimmung zurück; vor dem nächsten Lauf fragt das Plugin erneut.
+* Fehlt einem eingeschalteten Plugin etwas, steht in der Liste unter seinem Namen „Braucht deine Erlaubnis“ und auf seiner Seite oben „Erlauben“; das fragt sofort nach allem Fehlenden (etwa nachdem ein bearbeitetes Skript seine Rechte verloren hat). Info → „Zugriff“ auf der Seite des Plugins zeigt oben eine Zeile mit dem Stand („Alles erlaubt“ oder „Noch nicht erlaubt“) und „Erlauben“ bzw. „Entziehen“, darunter getrennt Berechtigungen, Programme und Hinweis mit je „Erlaubt“ oder „Noch nicht“. „Entziehen“ nimmt Rechte, Programme und Zustimmung zurück; vor dem nächsten Lauf fragt das Plugin erneut.
 * Es gibt **keine Sandbox von macOS** um Plugins. Das Skript selbst kann ohne Rechte nur die Aufrufe aus 9 nutzen. Ein mit `run` gestartetes Programm hat aber die vollen Rechte des Benutzers.
 
 ## 7. tools: nachgeladene Programme
@@ -334,11 +334,11 @@ Das Skript prüft wie `check_plugin.py` (bei Fehlern bricht es ab), verlangt ein
 | `standard`, `removed` | siehe unten |
 
 * Abfrage höchstens einmal am Tag, nur bei eingeschalteten Plugins; beim Einschalten sofort; beim Öffnen von Einstellungen → Plugins, wenn die letzte Abfrage über eine Stunde her ist.
-* `standard: true`: wird automatisch installiert (ausgeschaltet), still aktualisiert, sobald `version` höher ist, lässt sich weder bearbeiten noch entfernen. Ohne Internet erscheint es als „Nicht geladen“ mit „Erneut versuchen“.
-* Ist noch kein Plugin installiert, zeigt Einstellungen → Plugins gleich die verfügbaren unter „Verfügbar“. Sonst führt „Weitere Plugins“ (rechts die Zahl der neuen) dorthin; die Liste zeigt alle Einträge (ab sieben mit Suche); noch nicht installierte mit „Laden“, installierte mit „Öffnen“. Nach „Laden“ kommt das Erlauben-Fenster (falls das Plugin etwas braucht); danach ist das Plugin an und nach `defaults` eingestellt. Wer abbricht, hat es installiert, aber aus.
+* `standard: true`: wird automatisch installiert (ausgeschaltet), still aktualisiert, sobald `version` höher ist, lässt sich weder bearbeiten noch entfernen. Ohne Internet erscheint es als „Noch nicht geladen“ mit „Erneut versuchen“.
+* Ist noch kein Plugin installiert, zeigt Einstellungen → Plugins gleich die verfügbaren unter „Verfügbar“. Sonst führt „Weitere Plugins“ (rechts die Zahl der neuen) dorthin; die Liste zeigt alle noch nicht installierten Einträge (ab sieben mit Suche), je mit Name, „Offline“, „Offline nach dem Einrichten“ (lädt einmal ein Programm) oder „Nutzt das Internet“ und der Größe, dazu „Laden“; die Beschreibung steht beim Darüberfahren. Nach „Laden“ kommt das Erlauben-Fenster (falls das Plugin etwas braucht); danach ist das Plugin an, nach `defaults` eingestellt, und seine Seite öffnet sich. Wer abbricht, hat es installiert, aber aus.
 * `removed: true`: Standard-Plugins werden beim nächsten Abgleich entfernt; andere verschwinden aus der Galerie, bleiben aber installiert.
 * Einträge mit einer `minAppVersion`, die neuer ist als BarDrop, werden übergangen.
-* Einstellungen → Plugins ist wie die Systemeinstellungen aufgebaut: In der Liste steht je Plugin Name, Version und Größe (oder was ansteht) und „Ein“ bzw. „Aus“; ein Klick öffnet seine Seite, oben in der Titelzeile führt ‹ (oder Esc) zurück, ein erneuter Klick auf „Plugins“ in der Seitenleiste zur Startseite. Die Seite zeigt oben den Schalter, dann „Wann es läuft“, die Einstellungen des Plugins und ganz unten die Info: Internet (Ja, Nein oder nur zum Laden von Programmen), Passt zu, Version, Entwickler, Größe, Programme (Größe, „Aktualisieren“) und Zugriff. In der Galerie zeigt ein Zeichen, ob ein Plugin offline läuft, das Internet nutzt oder einmal ein Programm lädt.
+* Einstellungen → Plugins ist wie die Systemeinstellungen aufgebaut: In der Liste steht je Plugin Name, Version und Größe (oder was ansteht) und „Ein“ bzw. „Aus“; ein Klick öffnet seine Seite, oben in der Titelzeile führt ‹ (oder Esc) zurück, ein erneuter Klick auf „Plugins“ in der Seitenleiste zur Startseite. Die Seite zeigt oben eine Karte mit Symbol, Name, Beschreibung und Schalter; darunter in derselben Karte, falls nötig, „Läuft gerade“ (mit „Beenden“), „Braucht deine Erlaubnis“ (mit „Erlauben“) und „Letzter Lauf fehlgeschlagen“ (mit „Fehler kopieren“; der Text steht beim Darüberfahren). Dann „Wann es läuft“ mit dem Hinweis, wozu das Plugin passt, die Einstellungen des Plugins und die Info: Internet („Nein, läuft ganz offline“, „Nur einmal, um Programme zu laden“ oder „Ja, nutzt das Internet“), Programme (Größe, „Aktualisieren“ lädt ihre neueste Version) und Zugriff; Version, Entwickler und Größe stehen als graue Zeile darunter. Unten rechts auf der Startseite: „Protokoll“ (Menü, siehe 14) und „Aus Dateien importieren“.
 * Einreichen per Pull Request mit der `.bdrop` in `Plugins/` auf `main`; jedes Plugin wird vor dem Aufnehmen geprüft. Alles in `Plugins/` ist öffentlich.
 
 ## 11. Prüfen vor dem Weitergeben
@@ -356,7 +356,7 @@ Das Programm prüft jede Regel aus 2 bis 7, warnt vor Aufrufen, die es in JavaSc
 1. In BarDrop importieren, Plugin einschalten.
 2. Per Rechtsklick an einem passenden Objekt ausprobieren; erscheint es nicht, passt `match` nicht.
 3. Fehler stehen unter Einstellungen → Plugins → Plugin → „Letzter Fehler“ und im Protokoll.
-4. Mehr Einzelheiten: Einstellungen → Plugins → Protokoll → „Plugin-Protokoll“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
+4. Mehr Einzelheiten: Einstellungen → Plugins → „Protokoll“ → „Plugin-Protokoll aufzeichnen“, dann `bardrop.log`/`console.log` im Skript (Abschnitt 14).
 5. Erst dann „Automatisch beim Ablegen“ ausprobieren.
 
 ## 12. Häufige Fehler
@@ -422,7 +422,7 @@ function run(item) {
 
 ## 14. Plugin-Protokoll
 
-Einstellungen → Plugins → Protokoll → „Plugin-Protokoll“ (standardmäßig aus), aufgebaut wie das Diagnoseprotokoll: Beim Einschalten erklärt ein Hinweis, was erfasst wird; „Protokoll sichern“ speichert es als Textdatei, wohin man will; Ausschalten löscht es. Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`; „Protokoll sichern“ nimmt beide).
+Einstellungen → Plugins → „Protokoll“ (unten rechts) → „Plugin-Protokoll aufzeichnen“ (standardmäßig aus), aufgebaut wie das Diagnoseprotokoll: Beim Einschalten erklärt ein Hinweis, was erfasst wird; „Protokoll sichern“ speichert es als Textdatei, wohin man will; Ausschalten löscht es. Die Datei liegt unter `~/Library/Logs/BarDrop/Plugins.log` (ab 2 MB wird sie zu `Plugins-alt.log`; „Protokoll sichern“ nimmt beide).
 
 Es ist **getrennt vom Diagnoseprotokoll** von BarDrop: eigene Datei, eigener Schalter, in allen Versionen verfügbar. Plugin-Ereignisse stehen nur hier, nicht im Diagnoseprotokoll. Anders als dieses nennt es Dateinamen, Adressen und Fehlermeldungen. Es bleibt auf dem Mac.
 

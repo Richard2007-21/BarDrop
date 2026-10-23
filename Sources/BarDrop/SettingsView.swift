@@ -27,7 +27,7 @@ struct GeneralSettings: View {
             SettingsSection(note: loginError, noteColor: .red) {
                 ToggleRow(L("Open at login", "Beim Anmelden öffnen"), isOn: $launchAtLogin)
                 if launchAtLogin && needsApproval {
-                    SettingsRow(L("macOS still needs your OK", "macOS wartet auf deine Bestätigung")) {
+                    SettingsRow(L("Needs approval in System Settings", "Muss in den Systemeinstellungen erlaubt werden")) {
                         Button(L("Open", "Öffnen")) { SMAppService.openSystemSettingsLoginItems() }
                             .buttonStyle(KlackButtonStyle())
                     }
@@ -43,8 +43,8 @@ struct GeneralSettings: View {
                     else { try SMAppService.mainApp.unregister() }
                     loginError = nil
                 } catch {
-                    loginError = L("Not possible. Is BarDrop in the Applications folder?",
-                                   "Nicht möglich. Liegt BarDrop im Ordner „Programme“?")
+                    loginError = L("Couldn’t turn this on. Move BarDrop to the Applications folder and try again.",
+                                   "Das hat nicht geklappt. Leg BarDrop in den Ordner „Programme“ und versuch es erneut.")
                     Diagnostics.shared.failure("login", "Beim Anmelden öffnen nicht umgestellt", error)
                     launchAtLogin = LoginItem.isOn
                 }
@@ -64,7 +64,7 @@ struct GeneralSettings: View {
         let alert = NSAlert()
         alert.messageText = L("Reset all settings?", "Alle Einstellungen zurücksetzen?")
         alert.informativeText = L("All settings go back to their defaults, including the language, the shortcut, the action bar, updates and beta versions. Only the items in the shelf are kept. This can’t be undone.",
-                                  "Alle Einstellungen werden auf den Standard zurückgesetzt, auch Sprache, Kurzbefehl, Aktionsleiste, Updates und Beta-Versionen. Nur die Objekte in der Ablage bleiben erhalten. Das lässt sich nicht widerrufen.")
+                                  "Alle Einstellungen werden auf die Standardwerte zurückgesetzt, auch Sprache, Kurzbefehl, Aktionsleiste, Updates und Beta-Versionen. Nur die Objekte in der Ablage bleiben. Das lässt sich nicht widerrufen.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: L("Reset", "Zurücksetzen"))
         alert.addButton(withTitle: L("Cancel", "Abbrechen"))
@@ -86,8 +86,8 @@ struct KeyboardSettings: View {
     var body: some View {
         SettingsPage {
             SettingsSection(L("Show or hide the shelf", "Ablage ein- oder ausblenden"),
-                            info: L("Click ⌃, ⌥, ⇧ or ⌘ to turn it on or off. For a different key, click the key on the right and press the new one.",
-                                    "Klick auf ⌃, ⌥, ⇧ oder ⌘, um sie an- oder auszuschalten. Für eine andere Taste klick rechts darauf und drück die neue."),
+                            info: L("Click ⌃, ⌥, ⇧ or ⌘ to add or remove a modifier key. To change the key, click it on the right and press a new one.",
+                                    "Klick auf ⌃, ⌥, ⇧ oder ⌘, um eine Sondertaste hinzuzufügen oder wegzunehmen. Für eine andere Taste klick rechts auf die Taste und drück die neue."),
                             note: hotKeyStatus.available ? nil : L("Another app already uses this shortcut. Choose a different combination.",
                                                                    "Dieser Kurzbefehl ist schon von einer anderen App belegt. Wähl eine andere Kombination."),
                             noteColor: .red) {
@@ -128,7 +128,7 @@ struct KeyboardSettings: View {
                     ShortcutRow(L("Back from a stack or folder", "Zurück aus Stapel oder Ordner"), ["⌘", "↑"])
                     ShortcutRow(L("Move or remove an action", "Aktion verschieben oder entfernen"), ["⌘", L("Drag", "Ziehen")])
                     ShortcutRow(L("Settings", "Einstellungen"), ["⌘", ","])
-                    ShortcutRow(L("Step back, then close", "Schritt zurück, dann schließen"), ["esc"])
+                    ShortcutRow(L("Go back or close", "Zurück oder schließen"), ["esc"])
                 }
             }
         }
@@ -195,7 +195,7 @@ private enum HeightMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .fixed: return L("Fixed", "Fest")
-        case .adaptive: return L("Follows pointer", "Am Zeiger")
+        case .adaptive: return L("Follows pointer", "Folgt dem Zeiger")
         }
     }
 }
@@ -233,7 +233,7 @@ struct OpeningSettings: View {
                               range: AppSettings.adaptiveZoneRange, step: AppSettings.adaptiveZoneStep,
                               format: SliderRow.percent)
                 } else {
-                    SliderRow(L("Spot along the edge", "Stelle am Rand"), value: $settings.verticalPosition, range: 0...1, step: 0.05,
+                    SliderRow(L("Height on the edge", "Höhe am Rand"), value: $settings.verticalPosition, range: 0...1, step: 0.05,
                               format: SliderRow.percent)
                 }
                 PickerRow(L("Displays", "Bildschirme"), selection: $settings.displayMode,
@@ -242,21 +242,21 @@ struct OpeningSettings: View {
 
             SettingsSection(L("When", "Wann")) {
                 PickerRow(L("Open shelf", "Ablage öffnen"),
-                          info: L("With a wait, clicking the strip opens the shelf right away.",
-                                  "Mit Wartezeit öffnet ein Klick auf den Streifen die Ablage sofort."),
+                          info: L("With a delay, clicking the strip still opens the shelf right away.",
+                                  "Mit Wartezeit öffnet ein Klick auf den Streifen die Ablage trotzdem sofort."),
                           selection: $settings.openChoice,
                           options: OpenChoice.all.map { ($0, $0.title) })
-                ToggleRow(L("Small hit area", "Kleiner Trefferbereich"),
-                          info: L("The shelf only opens when the pointer or a dragged file reaches the strip itself, not the area around it.",
-                                  "Die Ablage öffnet sich erst, wenn der Zeiger oder eine gezogene Datei den Streifen selbst erreicht, nicht schon den Bereich drumherum."),
+                ToggleRow(L("Open only at the strip", "Nur direkt am Streifen öffnen"),
+                          info: L("The shelf only opens when the pointer or a dragged item reaches the strip itself, not the area around it.",
+                                  "Die Ablage öffnet sich erst, wenn der Zeiger oder ein gezogenes Objekt den Streifen selbst erreicht, nicht schon den Bereich darum."),
                           isOn: $settings.exactPointer)
                 // Als Menü: Für einen Umschalter sind die Texte zu lang, er drückte den Titel
                 // auf mehrere Zeilen zusammen
-                PickerRow(L("While dragging files", "Beim Ziehen von Dateien"), selection: $settings.dragReveal,
+                PickerRow(L("Strip while dragging", "Streifen beim Ziehen"), selection: $settings.dragReveal,
                           options: DragReveal.selectable.map { ($0, $0.title) }, menu: true)
                 ToggleRow(L("Open where you left off", "An letzter Stelle öffnen"),
                           info: L("The shelf opens where you were last: at the same place in the list, in the same stack or folder.",
-                                  "Die Ablage öffnet dort, wo du zuletzt warst: an derselben Stelle in der Liste, im selben Stapel oder Ordner."),
+                                  "Die Ablage öffnet sich dort, wo du zuletzt warst: an derselben Stelle in der Liste, im selben Stapel oder Ordner."),
                           isOn: $settings.reopenWhereLeft)
             }
 
@@ -264,7 +264,7 @@ struct OpeningSettings: View {
             VStack(alignment: .leading, spacing: 8) {
                 // Ausnahmen: Vollbild und einzelne Apps, in denen der Rand die Ablage nicht öffnet
                 SettingsSection(L("Exceptions", "Ausnahmen")) {
-                    ToggleRow(L("Also over full-screen apps", "Auch über Apps im Vollbild"),
+                    ToggleRow(L("Open over full-screen apps", "Auch über Apps im Vollbild öffnen"),
                               isOn: $settings.openInFullScreen)
                     if settings.excludedApps.isEmpty {
                         Text(L("No apps excluded", "Keine Apps ausgenommen"))
@@ -314,15 +314,15 @@ struct AppearanceSettings: View {
             SettingsSection(L("Style", "Stil")) {
                 ToggleRow(L("Light outline", "Heller Rahmen"),
                           isOn: $settings.showOutline)
-                ToggleRow(L("Translucent when floating", "Schwebend durchsichtig"),
-                          info: L("Pulled away from the edge, the shelf is see-through like glass. Off: deep black like at the edge.",
-                                  "Vom Rand weggezogen ist die Ablage durchscheinend wie Glas. Aus: tiefschwarz wie am Rand."),
+                ToggleRow(L("Translucent when detached", "Durchscheinend, wenn losgelöst"),
+                          info: L("When you pull the shelf away from the edge, it turns translucent like glass. When off, it stays black.",
+                                  "Ziehst du die Ablage vom Rand weg, wird sie durchscheinend wie Glas. Ist das aus, bleibt sie schwarz."),
                           isOn: $settings.detachedGlass)
                 PickerRow(L("Animation", "Animation"),
                           // Nur wenn die Auswahl gesperrt ist, braucht es eine Erklärung
                           info: AnimationStyle.reduceMotion
-                              ? L("“Reduce motion” is on in Accessibility: BarDrop only fades.",
-                                  "„Bewegung reduzieren“ ist in den Bedienungshilfen aktiv: BarDrop blendet nur weich über.")
+                              ? L("“Reduce motion” is on in Accessibility, so BarDrop only uses fades.",
+                                  "„Bewegung reduzieren“ ist in den Bedienungshilfen aktiv, daher blendet BarDrop nur über.")
                               : nil,
                           selection: $settings.animationStyle,
                           options: AnimationStyle.allCases.map { ($0, $0.title) })
@@ -475,42 +475,42 @@ struct ItemSettings: View {
         SettingsPage {
             SettingsSection(L("Arrangement", "Anordnung")) {
                 PickerRow(L("Group into a stack", "Stapel bilden"),
-                          info: L("When this many items are dropped at once, they become a stack. You can also select several items and right-click “Group as Stack”. Click a stack to open it.",
+                          info: L("When this many items are dropped at once, they become a stack. You can also select several items, right-click and choose “Group as Stack”. Click a stack to open it.",
                                   "Werden so viele Objekte auf einmal abgelegt, entsteht ein Stapel. Du kannst auch mehrere Objekte auswählen und per Rechtsklick „Als Stapel zusammenfassen“ wählen. Ein Klick öffnet einen Stapel."),
                           selection: stackFrom,
-                          options: [(0, L("Never", "Nie"))] + stackThresholds.map { ($0, L("From \($0) items", "Ab \($0) Objekten")) })
+                          options: [(0, L("Never", "Nie"))] + stackThresholds.map { ($0, L("\($0) or more items", "Ab \($0) Objekten")) })
             }
 
             SettingsSection(L("Using items", "Objekte verwenden"), info: afterUseNote) {
                 PickerRow(L("After use", "Nach dem Verwenden"), selection: afterUse,
                           options: AfterUse.allCases.map { ($0, $0.title) })
-                ToggleRow(L("Only copy when dragging out", "Beim Herausziehen nur kopieren"), isOn: $settings.dragOutCopyOnly)
+                ToggleRow(L("Always copy when dragging out", "Beim Herausziehen immer kopieren"), isOn: $settings.dragOutCopyOnly)
             }
 
-            SettingsSection(L("Storage", "Speichern"),
+            SettingsSection(L("Storage", "Speicherung"),
                             info: L("Images from the web, text, links and files from browsers or other apps are always stored in BarDrop.",
                                     "Bilder aus dem Web, Texte, Links und Dateien aus Browsern oder anderen Apps werden immer in BarDrop gespeichert.")) {
                 PickerRow(L("Files from the Finder", "Dateien aus dem Finder"),
-                          info: L("Use original: The shelf remembers where the file is and always gives out the latest version. Keep a copy: The shelf makes its own copy, which stays as it was.",
-                                  "Original verwenden: Die Ablage merkt sich, wo die Datei liegt, und gibt immer die aktuelle Fassung heraus. Kopie behalten: Die Ablage legt eine eigene Kopie an, die so bleibt, wie sie war."),
+                          info: L("Use original: The shelf remembers where the file is and always uses its latest version. Keep a copy: The shelf stores its own copy, which doesn’t change.",
+                                  "Original verwenden: Die Ablage merkt sich, wo die Datei liegt, und verwendet immer die aktuelle Version. Kopie behalten: Die Ablage legt eine eigene Kopie an, die sich nicht mehr ändert."),
                           selection: finderFiles,
                           options: FinderFiles.allCases.map { ($0, $0.title) },
                           menu: true)
-                ToggleRow(L("Save compatibly", "Kompatibel speichern"),
-                          info: L("Images from the web in WebP, AVIF or HEIC format are saved as PNG or JPEG. Any app can open these formats.",
-                                  "Bilder aus dem Web im Format WebP, AVIF oder HEIC werden als PNG oder JPEG gespeichert. Diese Formate kann jede App öffnen."),
+                ToggleRow(L("Convert web images to PNG or JPEG", "Bilder aus dem Web in PNG oder JPEG umwandeln"),
+                          info: L("Images in WebP, AVIF or HEIC format are converted so any app can open them.",
+                                  "Bilder im Format WebP, AVIF oder HEIC werden umgewandelt, damit jede App sie öffnen kann."),
                           isOn: $settings.convertWebImages)
                 ToggleRow(L("Add new screenshots", "Neue Bildschirmfotos hinzufügen"),
                           isOn: $settings.addScreenshots)
                 ToggleRow(L("Add files received with AirDrop", "Mit AirDrop empfangene Dateien hinzufügen"),
-                          info: L("Files that arrive in Downloads via AirDrop also appear in the shelf. They stay in Downloads.",
-                                  "Dateien, die per AirDrop in Downloads ankommen, erscheinen auch in der Ablage. Sie bleiben in Downloads."),
+                          info: L("Files that arrive in the Downloads folder via AirDrop also appear in the shelf. They stay there.",
+                                  "Dateien, die per AirDrop im Ordner „Downloads“ ankommen, erscheinen auch in der Ablage. Sie bleiben dort liegen."),
                           isOn: $settings.addAirDrop)
                 // macOS lässt BarDrop den Ordner nicht lesen: sagen, welcher, und wohin
                 ForEach(deniedFolders, id: \.self) { folder in
                     SettingsRow(L("No access to “\(FolderAccess.displayName(folder))”", "Kein Zugriff auf „\(FolderAccess.displayName(folder))“"),
-                                subtitle: L("Allow BarDrop in Privacy & Security → Files and Folders.",
-                                            "Erlaube BarDrop unter Datenschutz & Sicherheit → Dateien und Ordner.")) {
+                                subtitle: L("Allow access in System Settings → Privacy & Security → Files & Folders.",
+                                            "Erlaube den Zugriff unter Systemeinstellungen → Datenschutz & Sicherheit → Dateien und Ordner.")) {
                         Button(L("Open", "Öffnen")) { FolderAccess.openPrivacySettings() }
                             .buttonStyle(KlackButtonStyle())
                     }
@@ -518,7 +518,7 @@ struct ItemSettings: View {
             }
 
             SettingsSection(L("Cleanup", "Aufräumen"),
-                            info: L("Removing (⌫) only takes items out of the shelf; files in the Finder stay. What only exists in BarDrop (copies, images, links, text) is deleted once ⌘Z can no longer bring it back, at the latest 15 minutes after dragging it out or using it in an action. ⌘⌫ moves files to the Trash; ⌘Z puts them back.",
+                            info: L("Removing (⌫) only takes items out of the shelf; files stay in the Finder. Copies, images, links and text that exist only in BarDrop are deleted once ⌘Z can no longer bring them back, at the latest 15 minutes after you drag them out or use them in an action. ⌘⌫ moves files to the Trash; ⌘Z puts them back.",
                                     "Entfernen (⌫) nimmt Objekte nur aus der Ablage, Dateien im Finder bleiben. Was nur in BarDrop liegt (Kopien, Bilder, Links, Texte), wird gelöscht, sobald ⌘Z es nicht mehr zurückholen kann, spätestens 15 Minuten nach dem Herausziehen oder einer Aktion. ⌘⌫ legt Dateien in den Papierkorb, ⌘Z legt sie zurück.")) {
                 PickerRow(L("Remove automatically", "Automatisch entfernen"), selection: autoRemove,
                           options: AutoRemoveOption.allCases.map { ($0, $0.title) })
@@ -696,7 +696,7 @@ struct ActionSettings: View {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = L("Add", "Hinzufügen")
-        panel.message = L("Folder that items are moved to", "Ordner, in den Objekte verschoben werden")
+        panel.message = L("Choose a folder to move items to.", "Wähl einen Ordner, in den Objekte verschoben werden.")
         if panel.runModal() == .OK, let url = panel.url {
             add(QuickAction(kind: .folder, path: url.path))
         }
@@ -710,7 +710,7 @@ struct ActionSettings: View {
         panel.allowedContentTypes = [.application]
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.prompt = L("Add", "Hinzufügen")
-        panel.message = L("App that opens the items", "App, mit der Objekte geöffnet werden")
+        panel.message = L("Choose an app to open items with.", "Wähl eine App, mit der Objekte geöffnet werden.")
         if panel.runModal() == .OK, let url = panel.url {
             add(QuickAction(kind: .app, path: url.path))
         }
@@ -1007,7 +1007,7 @@ private struct ActionRow: View {
                 .foregroundStyle(selected ? Color.white.opacity(0.75) : Color.secondary.opacity(lifted ? 1 : 0.6))
                 .frame(width: 30, height: 40)
                 .contentShape(Rectangle())
-                .help(L("Drag to reorder", "Zum Anordnen ziehen"))
+                .help(L("Drag to reorder", "Zum Verschieben ziehen"))
         }
         .padding(.leading, SettingsTheme.rowPadding)
         .padding(.trailing, 6)
@@ -1039,7 +1039,7 @@ private struct AddActionRow: View {
 
     var body: some View {
         let full = count >= limit
-        AddListRow(title: full ? L("The bar is full (\(count) of \(limit))", "Die Leiste ist voll (\(count) von \(limit))")
+        AddListRow(title: full ? L("Action bar is full (\(count) of \(limit))", "Aktionsleiste ist voll (\(count) von \(limit))")
                                : L("Add Action", "Aktion hinzufügen"),
                    enabled: !full, frame: $frame, action: action)
     }
@@ -1191,8 +1191,8 @@ private struct AddExcludedAppRow: View {
         panel.allowedContentTypes = [.application]
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.prompt = L("Add", "Hinzufügen")
-        panel.message = L("Apps in which the edge doesn’t open the shelf",
-                          "Apps, in denen der Rand die Ablage nicht öffnet")
+        panel.message = L("Choose apps in which the shelf doesn’t open at the edge.",
+                          "Wähl Apps, in denen sich die Ablage am Rand nicht öffnet.")
         guard panel.runModal() == .OK else { return }
         for url in panel.urls {
             if let id = Bundle(url: url)?.bundleIdentifier { add(id) }
