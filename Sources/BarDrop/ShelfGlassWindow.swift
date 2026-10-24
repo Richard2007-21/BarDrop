@@ -7,9 +7,6 @@ import QuartzCore
 /// bewegt sich also mit ihr. So bleibt das Glas immer gleich.
 final class ShelfGlassWindow: NSPanel {
     private var glassView = NSView()
-    /// Schneidet das Glas zu: Mit dem Rand verbunden, reicht das Glas auf der Randseite unter
-    /// diesem Rahmen hindurch, und der Rahmen rundet dort so wie die Ablage selbst
-    private let clip = NSView()
 
     convenience init() {
         self.init(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
@@ -35,12 +32,8 @@ final class ShelfGlassWindow: NSPanel {
         animationBehavior = .none
         hidesOnDeactivate = false
         appearance = NSAppearance(named: .darkAqua)
-        clip.wantsLayer = true
-        clip.layer?.masksToBounds = true
-        clip.layer?.cornerCurve = .continuous
-        clip.addSubview(glassView)
         let content = NSView()
-        content.addSubview(clip)
+        content.addSubview(glassView)
         contentView = content
         alphaValue = 0
     }
@@ -49,32 +42,30 @@ final class ShelfGlassWindow: NSPanel {
     override var canBecomeMain: Bool { false }
 
     /// Glas an die Lage der Ablage im Fenster `parent` anpassen (`body` in dessen Koordinaten).
-    /// `edge`: Seite zum Bildschirmrand und Rundung der Ablage dort, solange sie verbunden ist
-    func follow(_ parent: NSWindow, body: NSRect, edge: (side: ScreenEdge, radius: CGFloat)? = nil) {
+    /// `edge`: Seite zum Bildschirmrand, solange die Ablage mit ihm verbunden ist
+    func follow(_ parent: NSWindow, body: NSRect, edge: ScreenEdge? = nil) {
         if level != parent.level { level = parent.level }
         // Glas folgt dem hellen oder dunklen Erscheinungsbild des Systems (hell: heller)
         let light = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
         let look = NSAppearance(named: light ? .aqua : .darkAqua)
         if appearance?.name != look?.name { appearance = look }
         if collectionBehavior != parent.collectionBehavior { collectionBehavior = parent.collectionBehavior }
-        if frame != parent.frame { setFrame(parent.frame, display: false) }
-        if clip.frame != body { clip.frame = body }
-        // Verbunden: Früher wurde das Glas auf der Randseite 6 pt schmaler, damit seine helle
-        // Kante nicht als Linie zu sehen war. Seine runden Ecken blieben aber, und daneben lag
-        // ein Streifen ohne Glas: am Rand ein doppelter Rand mit zwei Rundungen übereinander.
-        // Jetzt reicht das Glas dort über den Rahmen hinaus (Kante und Ecken liegen außerhalb),
-        // und der Rahmen rundet die Randseite genau wie die Tönung (EdgeTear.edgeRadius).
+        // Das Fenster ist genau so groß wie die Ablage: Nur sein Rand schneidet das Glas
+        // zuverlässig ab. Das Glas zeichnet das Fenstersystem, ein Ausschnitt in einer Ebene
+        // darüber (masksToBounds) gilt dafür nicht.
+        let target = NSRect(x: parent.frame.minX + body.minX, y: parent.frame.minY + body.minY,
+                            width: body.width, height: body.height)
+        if frame != target { setFrame(target, display: false) }
+        // Verbunden: Früher war das Glas auf der Randseite 6 pt schmaler, damit seine helle Kante
+        // nicht als Linie zu sehen war. Seine runden Ecken blieben, und daneben lag ein Streifen
+        // ohne Glas: am Rand ein zweiter Rand mit eigenen Ecken. Jetzt reicht das Glas dort über
+        // das Fenster hinaus; Kante und Ecken liegen außerhalb, das Fenster schneidet gerade ab.
+        // Die Ecken der Ablage auf dieser Seite deckt das Schwarz der Verbindung (TearGoo).
         var glass = NSRect(origin: .zero, size: body.size)
         if let edge {
             let over = EdgeTear.cornerRadius + 4
             glass.size.width += over
-            if edge.side == .left { glass.origin.x -= over }
-            clip.layer?.cornerRadius = edge.radius
-            clip.layer?.maskedCorners = edge.side == .left
-                ? [.layerMinXMinYCorner, .layerMinXMaxYCorner]
-                : [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
-        } else {
-            clip.layer?.cornerRadius = 0
+            if edge == .left { glass.origin.x -= over }
         }
         if glassView.frame != glass { glassView.frame = glass }
         if parent.childWindows?.contains(self) != true {

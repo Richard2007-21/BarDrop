@@ -15,9 +15,16 @@ enum SettingsWindowFactory {
                               backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        // Leere Symbolleiste: hohe Titelleiste, die Ampel sitzt auf Höhe der Überschrift
+        // Leere Symbolleiste: höhere Titelleiste, die Ampel sitzt auf Höhe der Überschrift
         window.toolbar = NSToolbar(identifier: "BarDropSettings")
-        window.toolbarStyle = .unified
+        // Ab macOS 26 kompakt: Unter der hohen Titelleiste legte macOS beim Scrollen ein Glas,
+        // das bis etwa 63 pt reichte und die erste Zeile anschnitt. Kompakt endet es mit der
+        // Überschrift (SettingsRoot.detail), die dafür auf Höhe der Ampel steht
+        if #available(macOS 26.0, *) {
+            window.toolbarStyle = .unifiedCompact
+        } else {
+            window.toolbarStyle = .unified
+        }
         window.titlebarSeparatorStyle = .none
         window.title = "BarDrop"
         // Nur an der Titelleiste verschiebbar: Sonst bewegt das Ziehen an Reglern
@@ -233,6 +240,13 @@ struct SettingsRoot: View {
 
     // MARK: Seitenleiste
 
+    /// Abstand der Bereiche nach oben: Ab macOS 26 ist die Titelleiste kompakt und die Ampel
+    /// 6 pt höher, die Bereiche rücken mit, damit der Abstand zur Ampel gleich bleibt
+    private static var sidebarTop: CGFloat {
+        if #available(macOS 26.0, *) { return 50 }
+        return 56
+    }
+
     private var sidebar: some View {
         ZStack(alignment: .top) {
             Color.clear
@@ -249,7 +263,7 @@ struct SettingsRoot: View {
                 row(.about)
             }
             .padding(.horizontal, 13)
-            .padding(.top, 56)
+            .padding(.top, Self.sidebarTop)
             .padding(.bottom, 13)
         }
     }
@@ -288,7 +302,12 @@ struct SettingsRoot: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaBar(edge: .top, spacing: 0) {
-                    header.frame(maxWidth: .infinity, alignment: .leading)
+                    // Symbol und Titel mittig in der Leiste, etwa auf Höhe der Ampel (kompakte
+                    // Titelleiste, Ampel bei 20 pt); schmal, das Glas darunter endet mit ihr
+                    headerTitle
+                        .padding(.leading, 18)
+                        .frame(height: 46)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
         } else {
             VStack(alignment: .leading, spacing: 0) {
@@ -300,6 +319,13 @@ struct SettingsRoot: View {
     }
 
     private var header: some View {
+        headerTitle
+            .padding(.leading, 18)
+            .frame(height: 52)
+            .padding(.bottom, 4)
+    }
+
+    private var headerTitle: some View {
         Group {
             if pane == .plugins && navigation.pluginPage != .list {
                 // Unterseite wie in den Systemeinstellungen: Zurück-Knopf und eigener Titel
@@ -312,9 +338,6 @@ struct SettingsRoot: View {
                 }
             }
         }
-        .padding(.leading, 18)
-        .frame(height: 52)
-        .padding(.bottom, 4)
     }
 
     @ViewBuilder

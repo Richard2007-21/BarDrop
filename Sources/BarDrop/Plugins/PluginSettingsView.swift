@@ -72,17 +72,31 @@ struct PluginPageHeader: View {
     }
 }
 
-/// Zurück-Knopf: ab macOS 26 rund aus Liquid Glass wie in den Systemeinstellungen,
-/// davor der graue runde Knopf
+/// Zurück-Knopf: ab macOS 26 ein runder Knopf aus Liquid Glass wie in den Systemeinstellungen,
+/// 26 pt: mit 22 pt wirkte er neben dem Titel zu klein, mit 28 pt zu kräftig
 private struct BackButtonLook: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
             content
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
+                .buttonStyle(GlassCircleButtonStyle(size: 26))
         } else {
             content.buttonStyle(KlackCircleButtonStyle())
         }
+    }
+}
+
+/// Runder Knopf aus Liquid Glass mit fester Größe. `.buttonStyle(.glass)` legt eigenen Rand
+/// um das Symbol und wäre größer; hier sitzt das Glas genau auf dem Kreis.
+@available(macOS 26.0, *)
+private struct GlassCircleButtonStyle: ButtonStyle {
+    let size: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Color.primary)
+            .frame(width: size, height: size)
+            .contentShape(Circle())
+            .glassEffect(.regular.interactive(), in: Circle())
     }
 }
 

@@ -124,20 +124,22 @@ struct SettingsPage<Content: View>: View {
         // Bis macOS 15 scrollt nichts unter die Überschrift der Seite, ab macOS 26 läuft der
         // Inhalt wie in Apples Apps unter sie (SettingsRoot.detail)
         .modifier(HardTopEdge())
-        .clipped()
     }
 }
 
 /// Ab macOS 26 liegt die Überschrift der Seite als Leiste über dem Inhalt (`safeAreaBar` in
-/// SettingsRoot.detail). Der Inhalt läuft darunter durch, und das System zeigt dort seinen
-/// Übergang wie in Apples eigenen Fenstern (vorher war er ausgeblendet und darüber stand eine
-/// deckende Fläche). Bis macOS 15 gibt es den Übergang nicht, dort bleibt alles wie bisher.
+/// SettingsRoot.detail), der Inhalt läuft beim Scrollen unter ihr durch. Den Übergang dort legt
+/// die Titelleiste des Fensters selbst darunter (Glas wie in den Systemeinstellungen). Ein
+/// zusätzlicher Übergang von SwiftUI lag schon in Ruhe über dem oberen Rand der ersten Karte
+/// und machte die Leiste breiter, darum ist er aus. Bis macOS 15 wird wie bisher zugeschnitten.
 private struct HardTopEdge: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            content.scrollEdgeEffectHidden(false, for: .top)
+            // Nicht zuschneiden: Der Rahmen der Bildlaufansicht endet unter der Überschrift, mit
+            // `.clipped()` lief nichts darunter, und dort stand ein Streifen
+            content.scrollEdgeEffectHidden(true, for: .top)
         } else {
-            content
+            content.clipped()
         }
     }
 }
@@ -378,12 +380,204 @@ struct SegmentedValue<Value: Hashable>: View {
     /// Gerade angeklickt: Der Knopf zeigt die Wahl sofort, auch wenn das Übernehmen erst
     /// einen Moment später ankommt
     @State private var chosen: Value?
+    /// Lage der Linse beim Drücken und Ziehen (ab macOS 26)
+    @State private var lensX: CGFloat?
+    /// Losgelassen: Die Linse legt sich auf die gewählte Möglichkeit, bevor sie zur Kapsel wird
+    @State private var settling = false
+    /// Fenster nicht vorne: Die Wahl wird grau wie die Schalter und Regler des Systems
+    @Environment(\.controlActiveState) private var activeState
 
     private var shown: Value { chosen ?? selection }
     private var selectedIndex: Int? { options.firstIndex { $0.0 == shown } }
     private static var space: String { "segmented" }
 
     var body: some View {
+        if #available(macOS 26.0, *) {
+            glass
+        } else {
+            klack
+        }
+    }
+
+    /// Wie der Umschalter der Uhr ab macOS 26: Die Wahl ist eine Kapsel (blau wie die Schalter). Beim Drücken
+    /// wird sie zu einer Linse aus Liquid Glass, die man über die Möglichkeiten ziehen kann;
+    /// beim Loslassen rastet sie auf der nächsten ein. Apples NSSegmentedControl macht das nur
+    /// in der Symbolleiste, im Fenster bleibt es starr; darum hier nachgebaut mit `glassEffect`.
+    @available(macOS 26.0, *)
+    private var glass: some View {
+        let space = Self.space
+        return HStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                let selected = index == (lensIndex ?? selectedIndex)
+                ZStack {
+                    // Platz für die fette Schrift, damit die Breite gleich bleibt
+                    Text(option.1).font(.system(size: 12.5, weight: .semibold)).hidden()
+                    Text(option.1)
+                        .font(.system(size: 12.5, weight: selected ? .semibold : .regular))
+                        // Auf der blauen Kapsel weiß, sonst in der Schriftfarbe (dunkel: weiß)
+                        .foregroundStyle(selected && lensX == nil && windowActive ? Color.white : Color.primary)
+                }
+                .lineLimit(1)
+                .fixedSize()
+                // Unter der Linse wie durch eine Lupe etwas größer, wie in der Uhr
+                .scaleEffect(lensX != nil && !settling && index == lensIndex ? 1.08 : 1)
+                .animation(.spring(response: 0.25, dampingFraction: 0.8), value: lensIndex)
+                .padding(.horizontal, 12)
+                .frame(height: 24)
+                .background(
+                    GeometryReader { g in
+                        Color.clear.preference(key: SegmentFramesKey.self,
+                                               value: [index: g.frame(in: .named(space))])
+                    }
+                )
+            }
+        }
+        // Linse unter der Schrift: Darüber brach das kleine Glas die Schrift doppelt und
+        // verschwommen. Die Schrift unter ihr wird stattdessen etwas größer (wie eine Lupe)
+        .background(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
+                restingKnob
+                lens
+            }
+        }
+        .coordinateSpace(name: space)
+        .onPreferenceChange(SegmentFramesKey.self) { frames = $0 }
+        .padding(2)
+        // Grau wie ein ausgeschalteter Schalter des Systems, ohne Rand
+        .background(Capsule().fill(Color(nsColor: .systemFill)))
+        .contentShape(Capsule())
+        .gesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .named(space))
+                .onChanged { g in
+                    guard isEnabled, !settling else { return }
+                    if lensX == nil {
+                        // Linse nur beim Ziehen oder Drücken auf die gewählte Möglichkeit; ein
+                        // einfacher Klick auf eine andere lässt nur die Kapsel hinübergleiten
+                        // (sonst flog die Linse erst von der alten Wahl herüber)
+                        let onSelected = nearest(to: g.startLocation.x) == selectedIndex
+                        guard onSelected || abs(g.translation.width) > 4,
+                              let index = selectedIndex, let frame = frames[index] else { return }
+                        // Die Linse wächst aus der gewählten Kapsel heraus
+                        lensX = frame.midX
+                    }
+                    withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.82)) {
+                        lensX = g.location.x
+                    }
+                }
+                .onEnded { g in
+                    guard isEnabled, let index = nearest(to: g.location.x), let frame = frames[index] else {
+                        lensX = nil
+                        return
+                    }
+                    if lensX == nil {
+                        // Einfacher Klick: Die Kapsel gleitet zur neuen Wahl
+                        guard options[index].0 != selection else { return }
+                        let value = options[index].0
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) { chosen = value }
+                        DispatchQueue.main.async {
+                            selection = value
+                            chosen = nil
+                        }
+                        return
+                    }
+                    // Kein eigener Impuls: Der Klick auf dem Trackpad ist schon einer.
+                    // Erst die Markierung, dann (im nächsten Durchlauf) die Einstellung, wie bei klack
+                    if options[index].0 != selection {
+                        chosen = options[index].0
+                        let value = options[index].0
+                        DispatchQueue.main.async {
+                            selection = value
+                            chosen = nil
+                        }
+                    }
+                    // Die Linse gleitet auf die Möglichkeit und nimmt ihre Größe an, dann wird
+                    // sie zur Kapsel; vorher sprang die Kapsel von der alten Stelle herüber
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        lensX = frame.midX
+                        settling = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            lensX = nil
+                            settling = false
+                        }
+                    }
+                }
+        )
+        .opacity(isEnabled ? 1 : 0.45)
+        .accessibilityRepresentation {
+            Picker("", selection: $selection) {
+                ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                    Text(option.1).tag(option.0)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    /// Kapsel unter der gewählten Möglichkeit (in Ruhe), blau wie eingeschaltete Schalter
+    @available(macOS 26.0, *)
+    @ViewBuilder
+    private var restingKnob: some View {
+        if let index = selectedIndex, let frame = frames[index] {
+            Capsule()
+                .fill(windowActive ? Color(nsColor: .controlAccentColor) : Color(nsColor: .tertiaryLabelColor))
+                .frame(width: frame.width, height: frame.height)
+                .offset(x: frame.minX, y: frame.minY)
+                .opacity(lensX == nil ? 1 : 0)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// Linse beim Drücken und Ziehen: etwas größer als die Möglichkeit, folgt dem Zeiger
+    /// innerhalb des Umschalters
+    @available(macOS 26.0, *)
+    @ViewBuilder
+    private var lens: some View {
+        if let x = lensX, let first = frames[0], let last = frames[options.count - 1] {
+            let width = lensWidth(at: x)
+            let center = min(max(x, first.minX + width / 2), last.maxX - width / 2)
+            // Beim Ziehen etwas größer als die Möglichkeit (ragt knapp über die Leiste; weiter
+            // hinaus zeigte das Glas darunter einen Spiegel der Schrift), beim Einrasten genau so groß
+            let growX: CGFloat = settling ? 0 : 8
+            let growY: CGFloat = settling ? 0 : 6
+            Color.clear
+                .frame(width: width + growX, height: first.height + growY)
+                // Leicht dunkel getönt: Auf der grauen Leiste wirkte klares Glas weiß beschlagen,
+                // die Linse der Uhr ist klar und dunkel
+                .glassEffect(.clear.tint(Color.black.opacity(0.25)), in: Capsule())
+                // Feine dunkle Außenkante wie bei der Linse der Uhr
+                .overlay(Capsule().strokeBorder(Color.black.opacity(settling ? 0 : 0.35), lineWidth: 0.5))
+                .offset(x: center - (width + growX) / 2, y: first.minY - growY / 2)
+                .allowsHitTesting(false)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+        }
+    }
+
+    private var windowActive: Bool { activeState != .inactive }
+
+    /// Mitte der Linse beim Ziehen (nil: nicht gedrückt)
+    private var lensIndex: Int? { lensX.flatMap { nearest(to: $0) } }
+
+    /// Breite der Linse: zwischen zwei Möglichkeiten weich von der einen zur anderen, statt beim
+    /// Überfahren einer kurzen („Fest“) plötzlich klein zu werden
+    private func lensWidth(at x: CGFloat) -> CGFloat {
+        let sorted = frames.sorted { $0.key < $1.key }.map(\.value)
+        guard let first = sorted.first, let last = sorted.last else { return 0 }
+        if x <= first.midX { return first.width }
+        if x >= last.midX { return last.width }
+        for (a, b) in zip(sorted, sorted.dropFirst()) where x >= a.midX && x <= b.midX {
+            let t = (x - a.midX) / max(1, b.midX - a.midX)
+            return a.width + (b.width - a.width) * t
+        }
+        return first.width
+    }
+
+    private func nearest(to x: CGFloat) -> Int? {
+        frames.min { abs($0.value.midX - x) < abs($1.value.midX - x) }?.key
+    }
+
+    private var klack: some View {
         HStack(spacing: 2) {
             ForEach(Array(options.enumerated()), id: \.offset) { index, option in
                 let selected = index == selectedIndex
@@ -530,12 +724,39 @@ extension View {
 enum MenuPresenter {
     /// Auswahl unter dem Wert, rechtsbündig daran (die Werte stehen rechts in der Zeile)
     static func show(_ menu: NSMenu, over frame: CGRect, selected: NSMenuItem?) {
+        // Ab macOS 26 das Menü des Systems (Liquid Glass): der gewählte Eintrag über dem Wert,
+        // wie bei Auswahlknöpfen von macOS
+        if #available(macOS 26.0, *), let view = settingsView {
+            matchAppearance(menu, to: view)
+            menu.popUp(positioning: selected, at: point(frame.minX, frame.minY, in: view), in: view)
+            return
+        }
         ChoicePopup.present(menu, anchor: frame, align: .trailing)
     }
 
     /// Liste unter einem Knopf, linksbündig daran; bei zu wenig Platz nach oben
     static func show(_ menu: NSMenu, below frame: CGRect) {
+        if #available(macOS 26.0, *), let view = settingsView {
+            matchAppearance(menu, to: view)
+            menu.popUp(positioning: nil, at: point(frame.minX, frame.maxY + 4, in: view), in: view)
+            return
+        }
         ChoicePopup.present(menu, anchor: frame, align: .leading)
+    }
+
+    /// Inhalt des Einstellungsfensters (die Rahmen kommen von SwiftUI, oben links gemessen)
+    private static var settingsView: NSView? {
+        NSApp.windows.first { $0 is SettingsNSWindow && $0.isVisible }?.contentView
+    }
+
+    /// Das Menü hell oder dunkel wie das Fenster, also wie das System eingestellt ist
+    private static func matchAppearance(_ menu: NSMenu, to view: NSView) {
+        menu.appearance = view.effectiveAppearance
+        menu.items.compactMap(\.submenu).forEach { matchAppearance($0, to: view) }
+    }
+
+    private static func point(_ x: CGFloat, _ y: CGFloat, in view: NSView) -> NSPoint {
+        NSPoint(x: x, y: view.isFlipped ? y : view.bounds.height - y)
     }
 }
 

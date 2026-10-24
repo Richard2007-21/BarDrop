@@ -1383,8 +1383,8 @@ extension EdgeController {
         guard tear != ui.tear else { return }
         let linked = { (t: ShelfUIModel.Tear?) in (t?.attach ?? 0) > 0.01 }
         let relink = linked(tear) != linked(ui.tear)
-        // Die Rundung des Glases auf der Randseite folgt der Verbindung
-        let reshape = tear.attach != ui.tear?.attach || tear.side != ui.tear?.side
+        // Das Glas reicht auf der Seite zum Rand hinaus, mit dem die Ablage verbunden ist
+        let reshape = tear.side != ui.tear?.side
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { ui.tear = tear }
@@ -1642,12 +1642,9 @@ extension EdgeController {
         let size = panel.frame.size
         let body = NSRect(x: ((size.width - m.width) / 2).rounded(), y: ((size.height - m.height) / 2).rounded(),
                           width: m.width, height: m.height)
-        // Mit dem Rand verbunden: Glas auf der Randseite wie die Tönung runden, seine helle
-        // Kante liegt dort außerhalb (siehe ShelfGlassWindow.follow)
-        var edge: (side: ScreenEdge, radius: CGFloat)?
-        if let tear = ui.tear, tear.attach > 0.01 {
-            edge = (tear.side, EdgeTear.edgeRadius(attach: tear.attach))
-        }
+        // Mit dem Rand verbunden: Die helle Kante des Glases liegt auf der Randseite außerhalb
+        // (siehe ShelfGlassWindow.follow)
+        let edge = ui.tear.flatMap { $0.attach > 0.01 ? $0.side : nil }
         window.follow(panel, body: body, edge: edge)
         if shapeOnly { return }
         // Hell kommt das Glas vor dem Rückzug des Schwarz (siehe EdgeTear.lightCover)

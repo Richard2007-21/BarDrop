@@ -49,7 +49,7 @@ enum EdgeTear {
             .path(in: body.insetBy(dx: -grow, dy: -grow))
     }
 
-    /// Rundung der Ecken auf der Randseite (auch für das Glas, ShelfGlassWindow)
+    /// Rundung der Ecken auf der Randseite
     static func edgeRadius(attach: CGFloat) -> CGFloat {
         let t = max(0, min(1, (attach - 0.55) / 0.45))
         let square = t * t * (3 - 2 * t)

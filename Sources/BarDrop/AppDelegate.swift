@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func launch() {
         endOtherInstances()
         Updater.cleanUpAfterUpdate()
+        // Geschützte Ordner einmal vorab: sonst kam die Abfrage für den Schreibtisch doppelt
+        FolderAccess.askOnceAtLaunch(store: ShelfStore.defaultDatabaseURL, settings: settings)
         store = ShelfStore()
         ui = ShelfUIModel()
         controller = EdgeController(store: store, ui: ui, settings: settings)
