@@ -15,7 +15,8 @@ enum SettingsTheme {
     // aber deutlich weniger (siehe `cardOpacity`).
     /// Deckkraft von Seitenleiste und Inhalt über dem Schreibtisch (dunkel): etwas
     /// durchscheinender als früher (70 %), aber Text und Karten bleiben auf jedem Hintergrund ruhig
-    static let backdropOpacity = 0.64
+    /// (Nutzerwunsch 24.10.2026: Hintergrund und Karten etwas durchscheinender, 64 → 58 %)
+    static let backdropOpacity = 0.58
     /// Seitenleiste und Inhalt über dem Schreibtisch (Farben von Klack). Dunkel wie bisher zu 64 % deckend;
     /// hell wie bei Apple: Seitenleiste leicht durchscheinend, Inhalt fast deckend, damit
     /// ein dunkler Schreibtisch die helle Fläche nicht grau eintrübt
@@ -24,29 +25,36 @@ enum SettingsTheme {
     static let sidebarBackdrop = dynamic(dark: rgb(0.161, 0.165, 0.169, backdropOpacity),
                                          light: systemColor(.windowBackgroundColor, alpha: 0.8))
     static let contentBackdrop = dynamic(dark: rgb(0.192, 0.196, 0.2, backdropOpacity),
-                                         light: systemColor(.windowBackgroundColor, alpha: 0.96))
+                                         light: systemColor(.windowBackgroundColor, alpha: 0.9))
     /// Deckkraft der Karten. Sie liegen auf dem Inhalt, der selbst zu 64 % deckt: Bei 50 %
     /// scheint durch eine Karte etwa 18 % des Schreibtischs, daneben 36 %. Sichtbar
     /// durchscheinend, aber deutlich weniger als der Hintergrund. (Mit 88 % waren es nur 4 %,
     /// davon war nichts zu sehen.)
-    static let cardOpacity = 0.50
+    /// Seit 24.10.2026 40 %: Der Schreibtisch scheint durch die Karten sichtbar durch
+    static let cardOpacity = 0.40
     /// Auswahllisten liegen direkt über dem (unscharfen) Schreibtisch: etwas mehr Durchsicht
     /// als die Karten, aber weniger als der Hintergrund
     static let menuOpacity = 0.72
-    /// Karten
-    static let card = dynamic(dark: rgb(0.184, 0.188, 0.188, cardOpacity),
-                              light: systemColor(.controlBackgroundColor, alpha: 0.9))
+    /// Karten. Dunkel heller als der Inhalt darunter, wie bei Klack (dort im Bildschirmfoto
+    /// Inhalt 85, Karte 94 von 255). Vorher war die Karte dunkler als der Inhalt; die
+    /// Durchsicht (`cardOpacity`) bleibt gleich, nur die Farbe ist heller
+    /// Hell ebenso wie bei Klack (Inhalt 230, Karte 244): leicht grau statt reinweiß, gleiche Durchsicht
+    /// Dunkel seit 24.10.2026 ein weißer Hauch statt eines festen Graus: Über einem hellen
+    /// Schreibtisch wurde der Hintergrund so hell wie die Karte, Flächen und Ränder waren nicht
+    /// mehr zu sehen (Nutzer). Weiß darüber ist auf jedem Hintergrund heller als die Umgebung
+    static let card = dynamic(dark: NSColor.white.withAlphaComponent(0.075),
+                              light: rgb(0.97, 0.97, 0.97, 0.78))
     /// Fläche der Auswahllisten
     static let menu = dynamic(dark: rgb(0.184, 0.188, 0.188, menuOpacity),
                               light: systemColor(.controlBackgroundColor, alpha: 0.9))
     /// Deckend, für Flächen über anderen Inhalten (angehobene Zeile beim Umsortieren)
-    static let cardSolid = dynamic(dark: rgb(0.184, 0.188, 0.188), light: .controlBackgroundColor)
+    static let cardSolid = dynamic(dark: rgb(0.227, 0.231, 0.231), light: rgb(0.96, 0.96, 0.96))
     /// Gewählter Eintrag der Seitenleiste
     static let selectedRow = dynamic(dark: rgb(0.212, 0.212, 0.216), light: .unemphasizedSelectedContentBackgroundColor)
     /// Rand der Karten
-    static let cardBorder = dynamic(dark: rgb(0.255, 0.259, 0.263), light: .separatorColor)
+    static let cardBorder = dynamic(dark: NSColor.white.withAlphaComponent(0.11), light: .separatorColor)
     /// Trennlinien zwischen Zeilen, Leiste der Regler
-    static let separator = dynamic(dark: rgb(0.267, 0.271, 0.271), light: .separatorColor)
+    static let separator = dynamic(dark: NSColor.white.withAlphaComponent(0.09), light: .separatorColor)
     /// Senkrechte Linie zwischen Seitenleiste und Inhalt
     static let divider = dynamic(dark: rgb(0.247, 0.251, 0.255), light: .separatorColor)
     /// Ausgeschalteter Schalter, Mulde der Regler
@@ -61,6 +69,12 @@ enum SettingsTheme {
     static let sliderKnob = dynamic(dark: rgb(0.92, 0.92, 0.92), light: .white)
     /// Mulde der Umschalter
     static let segmentTrough = dynamic(dark: NSColor.black.withAlphaComponent(0.18), light: .quaternaryLabelColor)
+    /// Gewählte Kapsel der Umschalter ab macOS 26: dunkel in der Farbe des Inhalts rechts
+    /// (Nutzerwunsch 24.10.2026, vorher wirkte sie zu dunkel), hell weiß
+    /// Dunkel deutlich heller als die Mulde (`segmentWell`), sonst war die Wahl nicht zu erkennen
+    static let segmentChosen = dynamic(dark: NSColor.white.withAlphaComponent(0.24), light: .white)
+    /// Mulde der Umschalter ab macOS 26: dunkel eingelassen, hell grau wie bei Apple
+    static let segmentWell = dynamic(dark: NSColor.black.withAlphaComponent(0.16), light: NSColor.black.withAlphaComponent(0.06))
     /// Gewählte Möglichkeit eines Umschalters: hell weiß wie bei macOS
     static let segmentKnob = dynamic(dark: rgb(0.255, 0.259, 0.259), light: .controlColor)
     /// Graue Knöpfe hell: weiß mit feinem Rand wie macOS-Knöpfe (dunkel siehe KlackButtonStyle)
@@ -105,25 +119,57 @@ enum SettingsTheme {
 }
 
 /// Eine Seite der Einstellungen: senkrecht scrollend, Abschnitte untereinander.
-struct SettingsPage<Content: View>: View {
+/// `footer` steht immer ganz unten auf der Seite (Knöpfe wie „Importieren“), auch wenn der
+/// Inhalt kürzer ist als das Fenster; bei langem Inhalt darunter.
+struct SettingsPage<Content: View, Footer: View>: View {
     let content: Content
-    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    let footer: Footer
+    /// Unterseiten (Plugins): Wechselt der Wert, kommt neuer Inhalt und die Seite springt nach
+    /// oben. Die Bildlaufansicht selbst bleibt dieselbe: Eine neue (vorher `.id` an der ganzen
+    /// Seite) verlor ab macOS 26 die Leiste der Titelzeile unter der Überschrift (Nutzer)
+    var page: AnyHashable?
+    init(page: AnyHashable? = nil, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
+        self.page = page
+        self.content = content()
+        self.footer = footer()
+    }
+
+    /// Sichtbare Höhe der Seite (ohne die Leiste mit der Überschrift darüber)
+    @State private var visibleHeight: CGFloat = 0
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 content
+                if Footer.self != EmptyView.self {
+                    Spacer(minLength: 0)
+                    footer
+                }
             }
+            .id(page)
             .padding(.leading, 20)
             .padding(.trailing, 18)
             .padding(.top, 4)
-            .padding(.bottom, 24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, Footer.self == EmptyView.self ? 24 : 16)
+            .frame(maxWidth: .infinity, minHeight: visibleHeight, alignment: .topLeading)
+        }
+        .onChange(of: page) { _, new in proxy.scrollTo(new, anchor: .top) }
+        }
+        // Nicht mit GeometryReader umschließen: Das trennte die Seite von der Leiste darüber
+        .onGeometryChange(for: CGFloat.self) { $0.size.height - $0.safeAreaInsets.top - $0.safeAreaInsets.bottom } action: {
+            visibleHeight = max(0, $0)
         }
         .scrollIndicators(.automatic)
         // Bis macOS 15 scrollt nichts unter die Überschrift der Seite, ab macOS 26 läuft der
         // Inhalt wie in Apples Apps unter sie (SettingsRoot.detail)
         .modifier(HardTopEdge())
+    }
+}
+
+extension SettingsPage where Footer == EmptyView {
+    init(page: AnyHashable? = nil, @ViewBuilder content: () -> Content) {
+        self.init(page: page, content: content, footer: { EmptyView() })
     }
 }
 
@@ -339,18 +385,15 @@ struct PickerRow<Value: Hashable>: View {
         self.menu = menu
     }
 
-    /// Wenige, kurze Möglichkeiten stehen direkt in der Zeile (wie ein Umschalter),
-    /// längere Listen öffnen ein Menü. In beiden Sprachen gleich: Zwei Möglichkeiten sind
-    /// immer ein Umschalter (vorher kippte z. B. „Reihenfolge“ nur auf Deutsch ins Menü,
-    /// weil die deutschen Wörter länger sind); drei nur, wenn sie in beiden Sprachen kurz
-    /// sind (Titel, Animation), sonst ein Menü.
+    /// Eine Regel für alle Seiten (Nutzerwunsch 24.10.2026): bis zu drei kurze Möglichkeiten
+    /// stehen als Umschalter in der Zeile, sonst ein Menü. Kurz heißt: jede höchstens
+    /// `shortLength` Zeichen. Die Grenze ist so gewählt, dass keine Zeile nur in einer Sprache
+    /// kippt (vorher war z. B. „Reihenfolge“ nur auf Deutsch ein Menü).
+    static var shortLength: Int { 12 }
+
     private var inline: Bool {
         if menu { return false }
-        switch options.count {
-        case 2: return true
-        case 3: return options.reduce(0) { $0 + $1.1.count } <= 26
-        default: return false
-        }
+        return (2...3).contains(options.count) && options.allSatisfy { $0.1.count <= Self.shortLength }
     }
 
     var body: some View {
@@ -384,8 +427,6 @@ struct SegmentedValue<Value: Hashable>: View {
     @State private var lensX: CGFloat?
     /// Losgelassen: Die Linse legt sich auf die gewählte Möglichkeit, bevor sie zur Kapsel wird
     @State private var settling = false
-    /// Fenster nicht vorne: Die Wahl wird grau wie die Schalter und Regler des Systems
-    @Environment(\.controlActiveState) private var activeState
 
     private var shown: Value { chosen ?? selection }
     private var selectedIndex: Int? { options.firstIndex { $0.0 == shown } }
@@ -399,7 +440,7 @@ struct SegmentedValue<Value: Hashable>: View {
         }
     }
 
-    /// Wie der Umschalter der Uhr ab macOS 26: Die Wahl ist eine Kapsel (blau wie die Schalter). Beim Drücken
+    /// Wie der Umschalter der Uhr ab macOS 26: Die Wahl ist eine graue Kapsel. Beim Drücken
     /// wird sie zu einer Linse aus Liquid Glass, die man über die Möglichkeiten ziehen kann;
     /// beim Loslassen rastet sie auf der nächsten ein. Apples NSSegmentedControl macht das nur
     /// in der Symbolleiste, im Fenster bleibt es starr; darum hier nachgebaut mit `glassEffect`.
@@ -414,8 +455,7 @@ struct SegmentedValue<Value: Hashable>: View {
                     Text(option.1).font(.system(size: 12.5, weight: .semibold)).hidden()
                     Text(option.1)
                         .font(.system(size: 12.5, weight: selected ? .semibold : .regular))
-                        // Auf der blauen Kapsel weiß, sonst in der Schriftfarbe (dunkel: weiß)
-                        .foregroundStyle(selected && lensX == nil && windowActive ? Color.white : Color.primary)
+                        .foregroundStyle(Color.primary)
                 }
                 .lineLimit(1)
                 .fixedSize()
@@ -444,7 +484,7 @@ struct SegmentedValue<Value: Hashable>: View {
         .onPreferenceChange(SegmentFramesKey.self) { frames = $0 }
         .padding(2)
         // Grau wie ein ausgeschalteter Schalter des Systems, ohne Rand
-        .background(Capsule().fill(Color(nsColor: .systemFill)))
+        .background(Capsule().fill(SettingsTheme.segmentWell))
         .contentShape(Capsule())
         .gesture(
             DragGesture(minimumDistance: 0, coordinateSpace: .named(space))
@@ -457,10 +497,13 @@ struct SegmentedValue<Value: Hashable>: View {
                         let onSelected = nearest(to: g.startLocation.x) == selectedIndex
                         guard onSelected || abs(g.translation.width) > 4,
                               let index = selectedIndex, let frame = frames[index] else { return }
-                        // Die Linse wächst aus der gewählten Kapsel heraus
+                        // Die Linse wächst aus der gewählten Kapsel heraus: erst dort zeigen, den
+                        // Zeiger erst im nächsten Ereignis verfolgen. Beides in einem Durchlauf
+                        // ließ die Linse von links hereinfliegen
                         lensX = frame.midX
+                        return
                     }
-                    withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.82)) {
+                    withAnimation(.interactiveSpring(response: 0.18, dampingFraction: 0.86)) {
                         lensX = g.location.x
                     }
                 }
@@ -515,16 +558,23 @@ struct SegmentedValue<Value: Hashable>: View {
         }
     }
 
-    /// Kapsel unter der gewählten Möglichkeit (in Ruhe), blau wie eingeschaltete Schalter
+    /// Kapsel unter der gewählten Möglichkeit (in Ruhe): grau, wie der Nutzer es lieber mag.
+    /// Die blaue Fassung (wie eingeschaltete Schalter) liegt im Commit mit dem Tag „umschalter-blau“
     @available(macOS 26.0, *)
     @ViewBuilder
     private var restingKnob: some View {
         if let index = selectedIndex, let frame = frames[index] {
             Capsule()
-                .fill(windowActive ? Color(nsColor: .controlAccentColor) : Color(nsColor: .tertiaryLabelColor))
+                .fill(SettingsTheme.segmentChosen)
+                // Hell ein feiner Schatten wie bei Apples Umschaltern: Weiß hob sich sonst kaum
+                // von der hellgrauen Leiste ab (dunkel ohne Schatten, `controlShadow`)
+                .shadow(color: SettingsTheme.controlShadow, radius: 1.5, y: 0.5)
                 .frame(width: frame.width, height: frame.height)
                 .offset(x: frame.minX, y: frame.minY)
                 .opacity(lensX == nil ? 1 : 0)
+                // Weich überblenden: Sprang die Kapsel beim Drücken weg, während die Linse erst
+                // aufging, flackerte es (Nutzer: „bugt ein wenig“)
+                .animation(.easeOut(duration: 0.12), value: lensX == nil)
                 .allowsHitTesting(false)
         }
     }
@@ -550,11 +600,11 @@ struct SegmentedValue<Value: Hashable>: View {
                 .overlay(Capsule().strokeBorder(Color.black.opacity(settling ? 0 : 0.35), lineWidth: 0.5))
                 .offset(x: center - (width + growX) / 2, y: first.minY - growY / 2)
                 .allowsHitTesting(false)
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                // Nur überblenden: Mit Verkleinern schrumpfte die Linse beim Loslassen sichtbar
+                // unter die Kapsel und sprang dann zurück
+                .transition(.opacity)
         }
     }
-
-    private var windowActive: Bool { activeState != .inactive }
 
     /// Mitte der Linse beim Ziehen (nil: nicht gedrückt)
     private var lensIndex: Int? { lensX.flatMap { nearest(to: $0) } }
@@ -672,11 +722,12 @@ struct PopupValue<Value: Hashable>: View {
                 Text(current)
                     .font(.system(size: 13.5))
                     .foregroundStyle(.primary)
+                // Etwas kräftiger: Im Dunkeln wirkten die Kreise neben den Umschaltern fast deaktiviert
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.primary.opacity(0.75))
                     .frame(width: 18, height: 18)
-                    .background(Circle().fill(Color.primary.opacity(hovering && isEnabled ? 0.08 : 0.03)))
+                    .background(Circle().fill(Color.primary.opacity(hovering && isEnabled ? 0.14 : 0.08)))
                     .overlay(Circle().strokeBorder(SettingsTheme.separator, lineWidth: 1))
             }
             .contentShape(Rectangle())
@@ -738,7 +789,16 @@ enum MenuPresenter {
     static func show(_ menu: NSMenu, below frame: CGRect) {
         if #available(macOS 26.0, *), let view = settingsView {
             matchAppearance(menu, to: view)
-            menu.popUp(positioning: nil, at: point(frame.minX, frame.maxY + 4, in: view), in: view)
+            // Reicht der Platz unter dem Knopf nicht (Fenster tief auf dem Bildschirm), geht das
+            // Menü nach oben auf; sonst schnitt der Bildschirmrand es ab und es musste scrollen
+            var at = point(frame.minX, frame.maxY + 4, in: view)
+            if let window = view.window, let screen = window.screen {
+                let below = window.convertPoint(toScreen: view.convert(at, to: nil)).y - screen.visibleFrame.minY
+                if menu.size.height > below {
+                    at = point(frame.minX, frame.minY - 4 - menu.size.height, in: view)
+                }
+            }
+            menu.popUp(positioning: nil, at: at, in: view)
             return
         }
         ChoicePopup.present(menu, anchor: frame, align: .leading)

@@ -54,14 +54,108 @@ final class SettingsNSWindow: NSWindow {
     /// Unterseiten). Die Titelleiste mit Symbolleiste nimmt dort sonst jeden Klick zum
     /// Verschieben des Fensters, der Knopf bekam ihn nie. Rahmen in den Koordinaten der
     /// Inhaltsansicht (oben links), wie SwiftUI sie liefert.
-    static var titlebarButtons: [String: (frame: CGRect, action: () -> Void)] = [:]
+    static var titlebarButtons: [String: (frame: CGRect, action: () -> Void)] = [:] {
+        didSet {
+            for case let window as SettingsNSWindow in NSApp.windows { window.updateDragBlockers() }
+        }
+    }
     private var pressedButton: String?
+
+    /// Fenster verschiebbar oder nicht (aus, solange der Zeiger auf dem Zurück-Knopf steht)
+    static func setMovable(_ movable: Bool) {
+        for case let window as SettingsNSWindow in NSApp.windows where window.isMovable != movable {
+            window.isMovable = movable
+        }
+    }
+    /// Flächen über den Knöpfen in der Titelleiste, an denen das Fenster nicht verschoben wird.
+    /// `sendEvent` allein reichte nicht: macOS verschiebt das Fenster an der Titelleiste selbst
+    /// (außerhalb der App), sobald man zieht. Am Zurück-Knopf ließ sich so das Fenster
+    /// verschieben (Nutzer, 24.10.2026). Ansichten mit `mouseDownCanMoveWindow == false` nimmt
+    /// macOS aus diesem Bereich aus
+    private var dragBlockers: [String: NSView] = [:]
+
+    private final class NoDragView: NSView {
+        override var mouseDownCanMoveWindow: Bool { false }
+        // Klicks gehen weiter an sendEvent (dort wird der Knopf ausgelöst)
+        override func mouseDown(with event: NSEvent) {}
+    }
+
+    /// Ab macOS 26 ein echter Knopf von AppKit aus Liquid Glass in der Titelleiste: Er reagiert
+    /// beim Drücken und Ziehen wie Glas (der nachgebaute aus SwiftUI bekam keine Ereignisse, weil
+    /// das Fenster die Klicks abfangen musste; Nutzer: „reagiert nicht wie Liquid Glass“) und
+    /// verschiebt das Fenster nicht
+    @available(macOS 26.0, *)
+    private final class GlassTitlebarButton: NSButton {
+        var key = ""
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        static func make(key: String) -> GlassTitlebarButton {
+            let button = GlassTitlebarButton(frame: .zero)
+            button.key = key
+            button.bezelStyle = .glass
+            button.borderShape = .circle
+            button.title = ""
+            let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+            button.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: L("Back", "Zurück"))?
+                .withSymbolConfiguration(config)
+            button.imagePosition = .imageOnly
+            button.toolTip = L("Back", "Zurück")
+            button.target = button
+            button.action = #selector(pressed)
+            return button
+        }
+
+        @objc private func pressed() { SettingsNSWindow.titlebarButtons[key]?.action() }
+    }
+
+    /// Echte Knöpfe statt Sperrflächen (ab macOS 26)
+    static var usesNativeTitlebarButtons: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }
+
+    fileprivate func updateDragBlockers() {
+        // Die Titelleiste liegt über der Inhaltsansicht; die Sperrflächen gehören in sie hinein.
+        // Der echte Glasknopf (macOS 26) kommt ganz nach oben in den Fensterrahmen: In der
+        // Titelleiste selbst lag er unter der Symbolleiste und war nicht zu sehen (Nutzer)
+        guard let content = contentView,
+              let titlebar = Self.usesNativeTitlebarButtons ? content.superview
+                  : standardWindowButton(.closeButton)?.superview else { return }
+        for (key, view) in dragBlockers where Self.titlebarButtons[key] == nil {
+            view.removeFromSuperview()
+            dragBlockers[key] = nil
+        }
+        for (key, button) in Self.titlebarButtons {
+            // Rahmen kommt oben links (SwiftUI). Die Inhaltsansicht (NSHostingView) zählt selbst
+            // von oben; nur wenn nicht, umdrehen. Vorher wurde immer umgedreht, und Sperrfläche
+            // bzw. Glasknopf landeten unten im Fenster statt auf dem Zurück-Knopf
+            let local = content.isFlipped ? button.frame
+                : NSRect(x: button.frame.minX, y: content.bounds.height - button.frame.maxY,
+                         width: button.frame.width, height: button.frame.height)
+            let frame = titlebar.convert(local, from: content)
+            let view = dragBlockers[key] ?? {
+                let v: NSView
+                if #available(macOS 26.0, *) {
+                    v = GlassTitlebarButton.make(key: key)
+                } else {
+                    v = NoDragView(frame: frame)
+                }
+                titlebar.addSubview(v, positioned: .above, relativeTo: nil)
+                dragBlockers[key] = v
+                return v
+            }()
+            // Der gemeldete Rahmen ist um 4 pt größer (Trefferfläche); der Knopf selbst nicht
+            let target = Self.usesNativeTitlebarButtons ? frame.insetBy(dx: 4, dy: 4) : frame
+            if view.frame != target { view.frame = target }
+        }
+    }
 
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
-        case .leftMouseDown:
+        case .leftMouseDown where !Self.usesNativeTitlebarButtons:
             if let key = titlebarButton(at: event) {
                 pressedButton = key
+                isMovable = false
                 return
             }
         case .leftMouseDragged where pressedButton != nil:
@@ -69,6 +163,8 @@ final class SettingsNSWindow: NSWindow {
         case .leftMouseUp where pressedButton != nil:
             let key = pressedButton
             pressedButton = nil
+            // Steht der Zeiger noch auf dem Knopf, bleibt das Fenster fest (onHover gibt es frei)
+            isMovable = titlebarButton(at: event) == nil
             // Wie bei jedem Knopf: nur auslösen, wenn der Zeiger noch darauf steht
             if titlebarButton(at: event) == key, let key { Self.titlebarButtons[key]?.action() }
             return
@@ -302,11 +398,11 @@ struct SettingsRoot: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaBar(edge: .top, spacing: 0) {
-                    // Symbol und Titel mittig in der Leiste, etwa auf Höhe der Ampel (kompakte
-                    // Titelleiste, Ampel bei 20 pt); schmal, das Glas darunter endet mit ihr
+                    // Symbol und Titel mittig in der 50 pt hohen Leiste, etwa auf Höhe der Ampel
+                    // (kompakte Titelleiste); schmal, das Glas darunter endet mit ihr
                     headerTitle
                         .padding(.leading, 18)
-                        .frame(height: 46)
+                        .frame(height: 50)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
         } else {
@@ -469,9 +565,10 @@ struct AboutSettings: View {
         version.replacingOccurrences(of: "-beta.", with: " Beta ")
     }
 
-    private var updateNote: String {
+    /// Info zur Zeile „Softwareupdate“ nur, wenn es etwas zu erklären gibt (Nutzer: Info-Knöpfe
+    /// nur, wo man sie braucht)
+    private var updateNote: String? {
         switch updater.state {
-        case .upToDate: return L("BarDrop is up to date.", "BarDrop ist aktuell.")
         case .available(let v):
             // Von selbst nur mit „Automatisch aktualisieren“ und erst zwei Tage nach dem Erscheinen
             guard settings.autoUpdateCheck else {
@@ -483,8 +580,17 @@ struct AboutSettings: View {
         // Feste Meldung statt der gespeicherten: bleibt in der gewählten Sprache
         case .failed: return L("The update didn’t work. Try again later.",
                                "Das Update hat nicht geklappt. Versuch es später noch einmal.")
-        default: return L("New versions come from GitHub and are verified before they’re installed.",
-                          "Neue Versionen kommen von GitHub und werden vor der Installation geprüft.")
+        default: return nil
+        }
+    }
+
+    /// Kurzer Stand für die Zeile „Softwareupdate“
+    private var updateStatus: String {
+        switch updater.state {
+        case .upToDate: return L("Up to date", "Aktuell")
+        case .available(let v): return L("\(Self.readable(v)) available", "\(Self.readable(v)) verfügbar")
+        case .failed: return L("Update failed", "Update fehlgeschlagen")
+        default: return L("Updates", "Updates")
         }
     }
 
@@ -492,7 +598,7 @@ struct AboutSettings: View {
 
     var body: some View {
         SettingsPage {
-            SettingsSection(note: updateNote) {
+            SettingsSection(L("Software update", "Softwareupdate")) {
                 HStack(spacing: 14) {
                     Image(nsImage: NSApp.applicationIconImage ?? NSImage())
                         .resizable()
@@ -521,18 +627,16 @@ struct AboutSettings: View {
                 }
                 .padding(.horizontal, SettingsTheme.rowPadding)
                 .padding(.vertical, 12)
-                // Eigene Zeile, damit weder Version noch Knopf je gekürzt werden
-                SettingsRow(L("Software update", "Softwareupdate")) {
+                // Eigene Zeile, damit weder Version noch Knopf je gekürzt werden. Der Stand steht
+                // als Titel, die Erklärung im Info-Knopf (vorher grauer Text unter der Karte)
+                SettingsRow(updateStatus, info: updateNote) {
                     updateControl.fixedSize()
                 }
                 ToggleRow(L("Update automatically", "Automatisch aktualisieren"),
                           info: L("New versions are installed in the background two days after their release, once BarDrop hasn’t been used for 15 minutes.",
                                   "Neue Versionen werden zwei Tage nach dem Erscheinen im Hintergrund installiert, sobald BarDrop 15 Minuten nicht benutzt wurde."),
                           isOn: $settings.autoUpdateCheck)
-                ToggleRow(L("Beta versions", "Beta-Versionen"),
-                          info: L("Try new features before they come to everyone. Betas may still have bugs.",
-                                  "Probier neue Funktionen aus, bevor sie für alle erscheinen. Betas können noch Fehler haben."),
-                          isOn: $settings.betaUpdates)
+                ToggleRow(L("Beta versions", "Beta-Versionen"), isOn: $settings.betaUpdates)
                 if settings.betaUpdates {
                     ToggleRow(L("Diagnostic log", "Diagnoseprotokoll"),
                               info: L("Records in detail and anonymously what happens in BarDrop, to help find bugs. Stays on this Mac until you save it.",
@@ -552,7 +656,7 @@ struct AboutSettings: View {
                 Button {
                     withAnimation(.easeOut(duration: 0.2)) { showInspirations.toggle() }
                 } label: {
-                    SettingsRow(L("Inspired by", "Inspiriert von"), subtitle: L("Alcove, Klack, boring.notch and perch", "Alcove, Klack, boring.notch und perch")) {
+                    SettingsRow(L("Inspired by", "Inspiriert von")) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
@@ -575,9 +679,9 @@ struct AboutSettings: View {
                         url: "https://github.com/zzuuuiii/BarDrop")
             }
 
-            SettingsSection {
-                SettingsRow(L("Introduction", "Einführung"), subtitle: L("The steps and tips from the first launch", "Die Schritte und Tipps vom ersten Start")) {
-                    Button(L("Show Introduction", "Einführung zeigen"), action: showOnboarding)
+            SettingsSection(L("Help", "Hilfe")) {
+                SettingsRow(L("Introduction", "Einführung")) {
+                    Button(L("Show", "Zeigen"), action: showOnboarding)
                         .buttonStyle(KlackButtonStyle())
                 }
             }
@@ -613,13 +717,15 @@ private struct LinkRow: View {
     let url: String
 
     var body: some View {
-        SettingsRow(title, subtitle: detail) {
+        // Info-Knopf nur, wo man ihn braucht (Nutzer): hier reicht der Name, was das Projekt
+        // beigetragen hat, steht beim Darüberfahren
+        SettingsRow(title) {
             Link(destination: URL(string: url)!) {
                 Image(systemName: "arrow.up.right.circle.fill")
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
             }
-            .help(url)
+            .help(detail)
         }
     }
 }

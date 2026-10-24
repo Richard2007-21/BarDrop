@@ -183,9 +183,16 @@ struct TearGoo: View, Animatable {
             // Überlappende Ränder wurden doppelt dunkel und zeigten sich als Streifen
             let rowHeight: CGFloat = 2
             let rows = Int((size.height / rowHeight).rounded(.up))
+            // Nur die Streifen, unter denen die schwarze Form liegen kann (Rahmen plus Platz für
+            // die Unschärfe): Der Bereich darüber und darunter (`beyond`, für den Schatten) wurde
+            // sonst in jedem Bild mitgezeichnet, gut ein Drittel der Arbeit, ohne dass man ihn
+            // sah. Das kostete gerade beim Lösen (Übergang zu Glas) Bilder, und die Ablage hing
+            // dem Zeiger hinterher.
+            let firstRow = max(0, Int(((frame.minY - 12) / rowHeight).rounded(.down)))
+            let lastRow = min(rows, Int(((frame.maxY + 12) / rowHeight).rounded(.up)))
             context.drawLayer { layer in
             layer.addFilter(.blur(radius: 4))
-            for row in 0..<rows {
+            for row in firstRow..<max(firstRow, lastRow) {
                 let y0 = CGFloat(row) * rowHeight
                 let y1 = y0 + rowHeight
                 let mid = (y0 + y1) / 2

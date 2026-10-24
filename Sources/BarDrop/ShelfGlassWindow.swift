@@ -1,5 +1,6 @@
 import AppKit
 import QuartzCore
+import SwiftUI
 
 /// Glas hinter der losgelösten Ablage, in einem eigenen Begleitfenster: Liquid Glass reagiert
 /// auf Fokus und Klicks des Fensters, in dem es liegt (heller, anders getönt). Dieses Fenster
@@ -43,7 +44,7 @@ final class ShelfGlassWindow: NSPanel {
 
     /// Glas an die Lage der Ablage im Fenster `parent` anpassen (`body` in dessen Koordinaten).
     /// `edge`: Seite zum Bildschirmrand, solange die Ablage mit ihm verbunden ist
-    func follow(_ parent: NSWindow, body: NSRect, edge: ScreenEdge? = nil) {
+    func follow(_ parent: NSWindow, body: NSRect, edge: ScreenEdge? = nil, edgeRadius: CGFloat = EdgeTear.cornerRadius) {
         if level != parent.level { level = parent.level }
         // Glas folgt dem hellen oder dunklen Erscheinungsbild des Systems (hell: heller)
         let light = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua
@@ -68,10 +69,52 @@ final class ShelfGlassWindow: NSPanel {
             if edge == .left { glass.origin.x -= over }
         }
         if glassView.frame != glass { glassView.frame = glass }
+        // Die Ecken auf der Randseite rund wie die Ablage selbst (EdgeTear.edgeRadius): Das
+        // Fenster schnitt sie gerade ab, beim Zurückziehen an den Rand waren sie eckig
+        roundCorners(size: body.size, edge: edge, edgeRadius: edgeRadius)
         if parent.childWindows?.contains(self) != true {
             parent.addChildWindow(self, ordered: .below)
         }
     }
+
+    private let cornerMask = CAShapeLayer()
+
+    private func roundCorners(size: NSSize, edge: ScreenEdge?, edgeRadius: CGFloat) {
+        guard let content = contentView else { return }
+        content.wantsLayer = true
+        guard let edge else {
+            // Losgelöst: Das Glas rundet seine Ecken selbst
+            if content.layer?.mask != nil { content.layer?.mask = nil }
+            return
+        }
+        let far = EdgeTear.cornerRadius
+        let r = min(edgeRadius, size.height / 2)
+        let left = edge == .left
+        let path = Path { p in
+            p.addRoundedRect(in: CGRect(origin: .zero, size: size),
+                             cornerRadii: RectangleCornerRadii(topLeading: left ? r : far,
+                                                               bottomLeading: left ? r : far,
+                                                               bottomTrailing: left ? far : r,
+                                                               topTrailing: left ? far : r),
+                             style: .continuous)
+        }
+        let key = "\(size.width)|\(size.height)|\(r)|\(left)"
+        // Unverändert: nichts tun (wird beim Ziehen bei jeder Bewegung aufgerufen)
+        if key == cornerKey, content.layer?.mask === cornerMask { return }
+        cornerKey = key
+        // Ohne eigene Animation: Eine frei stehende Ebene animiert Änderungen von Rahmen und
+        // Umriss sonst von selbst über 0,25 s. Die Ecken des Glases liefen der Ablage beim
+        // Dehnen und Andocken so sichtbar hinterher
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        cornerMask.frame = CGRect(origin: .zero, size: size)
+        cornerMask.path = path.cgPath
+        if content.layer?.mask !== cornerMask { content.layer?.mask = cornerMask }
+        CATransaction.commit()
+    }
+
+    /// Zuletzt gesetzte Maske (Größe, Radius, Seite)
+    private var cornerKey = ""
 
     /// Ein- und ausblenden (0 bis 1), auf Wunsch weich
     func show(_ amount: CGFloat, duration: TimeInterval = 0) {
